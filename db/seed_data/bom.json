@@ -1,0 +1,13 @@
+[
+  { "item_code": "MUFFIN_CHOC", "product_code": "WEIZENMEHL", "qty": 0.6, "unit": "kg" },
+  { "item_code": "MUFFIN_CHOC", "product_code": "ZUCKER", "qty": 0.25, "unit": "kg" },
+  { "item_code": "MUFFIN_CHOC", "product_code": "KAKAO", "qty": 0.06, "unit": "kg" },
+  { "item_code": "MUFFIN_CHOC", "product_code": "BUTTER", "qty": 0.25, "unit": "kg" },
+  { "item_code": "MUFFIN_CHOC", "product_code": "BACKPULVER", "qty": 0.02, "unit": "kg" },
+
+  { "item_code": "MUFFIN_BANANA", "product_code": "WEIZENMEHL", "qty": 0.55, "unit": "kg" },
+  { "item_code": "MUFFIN_BANANA", "product_code": "ROHRZUCKER", "qty": 0.22, "unit": "kg" },
+  { "item_code": "MUFFIN_BANANA", "product_code": "BANANEN_UEBERREIF", "qty": 0.5, "unit": "kg" },
+  { "item_code": "MUFFIN_BANANA", "product_code": "BUTTER", "qty": 0.22, "unit": "kg" },
+  { "item_code": "MUFFIN_BANANA", "product_code": "BACKPULVER", "qty": 0.02, "unit": "kg" }
+]
