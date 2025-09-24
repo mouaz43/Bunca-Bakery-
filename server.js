@@ -1,3 +1,4 @@
+// server.js
 require('dotenv').config();
 
 const path = require('path');
@@ -10,6 +11,7 @@ const expressLayouts = require('express-ejs-layouts');
 
 const db = require('./db');
 const { attachFlash } = require('./middleware/flash');
+const firstRunSeedIfEmpty = require('./db/firstRun'); // ⬅️ NEW
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -52,17 +54,17 @@ app.use(
   })
 );
 
-// Flash + user
+// Flash + user locals
 app.use(attachFlash());
 
 // Routes
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
-const devtoolsRoutes = require('./routes/devtools'); // NEW
+const devtoolsRoutes = require('./routes/devtools'); // still available, optional
 
 app.use(authRoutes);
 app.use(dashboardRoutes);
-app.use(devtoolsRoutes); // mounted always; endpoint itself checks DEV_TOKEN
+app.use(devtoolsRoutes);
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
@@ -71,7 +73,7 @@ app.use((req, res) => {
   res.status(404).render('dashboard/placeholder', { title: '404', label: 'Seite nicht gefunden' });
 });
 
-// Migrations on boot
+// Run DB migrations on boot
 async function runMigrations() {
   const file = path.join(__dirname, 'db', 'migrations.sql');
   const sql = fs.readFileSync(file, 'utf8');
@@ -88,9 +90,11 @@ async function runMigrations() {
 app.listen(PORT, async () => {
   try {
     await runMigrations();
+    // ⬇️ Auto-seed admin if no users exist
+    await firstRunSeedIfEmpty();
     console.log(`🚀 Server running on http://localhost:${PORT}`);
   } catch (e) {
-    console.error('❌ Migration error on startup:', e);
+    console.error('❌ Startup error:', e);
     process.exit(1);
   }
 });
