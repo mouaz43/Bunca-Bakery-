@@ -11,7 +11,7 @@ const expressLayouts = require('express-ejs-layouts');
 
 const db = require('./db');
 const { attachFlash } = require('./middleware/flash');
-const firstRunSeedIfEmpty = require('./db/firstRun'); // ⬅️ NEW
+const firstRunSeedIfEmpty = require('./db/firstRun');
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -45,25 +45,22 @@ app.use(
     secret: process.env.SESSION_SECRET || 'change-me',
     resave: false,
     saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: isProd,
-      maxAge: 1000 * 60 * 60 * 8
-    }
+    cookie: { httpOnly: true, sameSite: 'lax', secure: isProd, maxAge: 1000 * 60 * 60 * 8 }
   })
 );
 
-// Flash + user locals
+// Flash + user
 app.use(attachFlash());
 
 // Routes
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
-const devtoolsRoutes = require('./routes/devtools'); // still available, optional
+const adminRoutes = require('./routes/admin');     // ⬅️ NEW
+const devtoolsRoutes = require('./routes/devtools'); // optional
 
 app.use(authRoutes);
 app.use(dashboardRoutes);
+app.use(adminRoutes);   // ⬅️ mount real admin
 app.use(devtoolsRoutes);
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
@@ -73,24 +70,18 @@ app.use((req, res) => {
   res.status(404).render('dashboard/placeholder', { title: '404', label: 'Seite nicht gefunden' });
 });
 
-// Run DB migrations on boot
+// Migrations + first-run seed
 async function runMigrations() {
   const file = path.join(__dirname, 'db', 'migrations.sql');
   const sql = fs.readFileSync(file, 'utf8');
-  const statements = sql
-    .split(/;\s*$/m)
-    .map(s => s.trim())
-    .filter(Boolean);
-  for (const stmt of statements) {
-    await db.query(stmt);
-  }
+  const statements = sql.split(/;\s*$/m).map(s => s.trim()).filter(Boolean);
+  for (const stmt of statements) await db.query(stmt);
   console.log('✅ Migrations applied.');
 }
 
 app.listen(PORT, async () => {
   try {
     await runMigrations();
-    // ⬇️ Auto-seed admin if no users exist
     await firstRunSeedIfEmpty();
     console.log(`🚀 Server running on http://localhost:${PORT}`);
   } catch (e) {
