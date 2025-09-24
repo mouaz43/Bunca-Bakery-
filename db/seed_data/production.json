@@ -1,0 +1,4 @@
+[
+  { "date": "2025-09-29", "item_code": "MUFFIN_CHOC",   "total_qty": 60, "batch_size": 12, "start_time": "04:30", "station": "Backstube", "notes": "", "status": "planned" },
+  { "date": "2025-09-29", "item_code": "MUFFIN_BANANA", "total_qty": 48, "batch_size": 12, "start_time": "05:00", "station": "Backstube", "notes": "", "status": "planned" }
+]
