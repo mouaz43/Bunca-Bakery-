@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title><%= title ? (title + ' · BUNCA Planner') : 'BUNCA Planner' %></title>
+
+  <!-- Tailwind (CDN for speed) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Basic theme tweaks -->
+  <link rel="stylesheet" href="/public/css/styles.css" />
+</head>
+<body class="bg-stone-50 text-stone-900">
+  <div class="min-h-screen">
+    <!-- Top bar -->
+    <header class="bg-white/80 backdrop-blur border-b border-stone-200">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <a href="/" class="font-semibold tracking-wide text-stone-800">BUNCA Bakery Planner</a>
+        <nav class="hidden md:flex items-center gap-4 text-sm">
+          <a class="nav-link" href="/">Dashboard</a>
+          <a class="nav-link" href="/production">Production</a>
+          <a class="nav-link" href="/recipes">Recipes</a>
+          <a class="nav-link" href="/products">Rohwaren</a>
+          <a class="nav-link" href="/admin">Admin</a>
+        </nav>
+        <div class="flex items-center gap-3">
+          <% if (user) { %>
+            <form action="/logout" method="post">
+              <button class="btn-secondary">Logout</button>
+            </form>
+          <% } %>
+        </div>
+      </div>
+    </header>
+
+    <!-- Flash -->
+    <% if (flash) { %>
+      <div class="max-w-6xl mx-auto px-4 mt-4">
+        <div class="<%= flash.type === 'error' ? 'flash-error' : 'flash-ok' %>">
+          <%= flash.message %>
+        </div>
+      </div>
+    <% } %>
+
+    <!-- Page -->
+    <main class="max-w-6xl mx-auto px-4 py-6">
+      <%- body %>
+    </main>
+
+    <footer class="mt-10 py-6 text-center text-xs text-stone-500">
+      © <%= new Date().getFullYear() %> BUNCA
+    </footer>
+  </div>
+
+  <script src="/public/js/main.js"></script>
+</body>
+</html>
