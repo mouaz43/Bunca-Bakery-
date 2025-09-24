@@ -1,39 +1,38 @@
 require('dotenv').config();
 
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
+const morgan = require('morgan');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
-const morgan = require('morgan');
-const db = require('./db');
-const fs = require('fs');
+const expressLayouts = require('express-ejs-layouts');
 
+const db = require('./db');
 const { attachFlash } = require('./middleware/flash');
 
-// App
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
 
-// Trust proxy for secure cookies on Render
 if (isProd) app.set('trust proxy', 1);
 
-// View engine
+// --- Views + Layouts
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+app.use(expressLayouts);
+app.set('layout', 'layouts/base'); // views/layouts/base.ejs
 
-// Static
+// --- Static
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Body parsing
+// --- Parsers & Logs
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-
-// Logger
 app.use(morgan(isProd ? 'combined' : 'dev'));
 
-// Sessions (stored in Postgres)
+// --- Sessions (stored in Postgres)
 app.use(
   session({
     store: new pgSession({
@@ -47,51 +46,48 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      secure: isProd,         // secure cookies in production
-      maxAge: 1000 * 60 * 60 * 8 // 8 hours
+      secure: isProd,
+      maxAge: 1000 * 60 * 60 * 8 // 8h
     }
   })
 );
 
-// Flash + user locals
+// --- Flash + user locals
 app.use(attachFlash());
 
-// Routes
+// --- Routes
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
 app.use(authRoutes);
 app.use(dashboardRoutes);
 
-// Home redirect
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-// 404
+// --- 404
 app.use((req, res) => {
   res.status(404).render('dashboard/placeholder', { title: '404', label: 'Seite nicht gefunden' });
 });
 
-// Boot: run migrations once on start (simple runner)
+// --- Run migrations on boot
 async function runMigrations() {
   const file = path.join(__dirname, 'db', 'migrations.sql');
   const sql = fs.readFileSync(file, 'utf8');
-  // naive split on semicolons (ok for our simple DDL)
   const statements = sql
     .split(/;\s*$/m)
     .map(s => s.trim())
     .filter(Boolean);
-
   for (const stmt of statements) {
     await db.query(stmt);
   }
-  console.log('Migrations applied.');
+  console.log('✅ Migrations applied.');
 }
 
 app.listen(PORT, async () => {
   try {
     await runMigrations();
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
   } catch (e) {
-    console.error('Migration error on startup:', e);
+    console.error('❌ Migration error on startup:', e);
     process.exit(1);
   }
 });
