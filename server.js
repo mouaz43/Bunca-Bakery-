@@ -17,22 +17,22 @@ const PORT = process.env.PORT || 3000;
 
 if (isProd) app.set('trust proxy', 1);
 
-// --- Views + Layouts
+// Views + Layouts
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(expressLayouts);
-app.set('layout', 'layouts/base'); // views/layouts/base.ejs
+app.set('layout', 'layouts/base');
 
-// --- Static
+// Static
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// --- Parsers & Logs
+// Parsers & Logs
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(morgan(isProd ? 'combined' : 'dev'));
 
-// --- Sessions (stored in Postgres)
+// Sessions
 app.use(
   session({
     store: new pgSession({
@@ -47,28 +47,31 @@ app.use(
       httpOnly: true,
       sameSite: 'lax',
       secure: isProd,
-      maxAge: 1000 * 60 * 60 * 8 // 8h
+      maxAge: 1000 * 60 * 60 * 8
     }
   })
 );
 
-// --- Flash + user locals
+// Flash + user
 app.use(attachFlash());
 
-// --- Routes
+// Routes
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
+const devtoolsRoutes = require('./routes/devtools'); // NEW
+
 app.use(authRoutes);
 app.use(dashboardRoutes);
+app.use(devtoolsRoutes); // mounted always; endpoint itself checks DEV_TOKEN
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-// --- 404
+// 404
 app.use((req, res) => {
   res.status(404).render('dashboard/placeholder', { title: '404', label: 'Seite nicht gefunden' });
 });
 
-// --- Run migrations on boot
+// Migrations on boot
 async function runMigrations() {
   const file = path.join(__dirname, 'db', 'migrations.sql');
   const sql = fs.readFileSync(file, 'utf8');
