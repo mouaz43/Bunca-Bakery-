@@ -1,0 +1,4 @@
+[
+  { "code": "MUFFIN_CHOC", "name": "Muffin Chocolate", "category": "Gebäck", "yield_qty": 12, "yield_unit": "pcs", "notes": "" },
+  { "code": "MUFFIN_BANANA", "name": "Muffin Banana", "category": "Gebäck", "yield_qty": 12, "yield_unit": "pcs", "notes": "" }
+]
