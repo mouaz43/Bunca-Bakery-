@@ -55,12 +55,14 @@ app.use(attachFlash());
 // Routes
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
-const adminRoutes = require('./routes/admin');     // ⬅️ NEW
+const adminRoutes = require('./routes/admin');
+const importRoutes = require('./routes/import');   // ⬅️ NEW
 const devtoolsRoutes = require('./routes/devtools'); // optional
 
 app.use(authRoutes);
 app.use(dashboardRoutes);
-app.use(adminRoutes);   // ⬅️ mount real admin
+app.use(adminRoutes);
+app.use(importRoutes); // ⬅️ mount importer
 app.use(devtoolsRoutes);
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
