@@ -13,15 +13,11 @@ router.get('/', ensureAuthenticated, async (req, res) => {
   });
 });
 
-// keep placeholders for now (we’ll replace in next steps)
-router.get('/production', ensureAuthenticated, (req, res) => {
-  res.render('dashboard/placeholder', { title: 'Production Plan', label: 'Production Plan (coming next)' });
-});
 router.get('/recipes', ensureAuthenticated, (req, res) => {
   res.render('dashboard/placeholder', { title: 'Recipes', label: 'Recipes (coming next)' });
 });
 router.get('/products', ensureAuthenticated, (req, res) => {
-  res.render('dashboard/placeholder', { title: 'Rohwaren', label: 'Rohwaren (coming next)' });
+  res.render('dashboard/placeholder', { title: 'Rohwaren', label: 'Rohwaren (siehe Admin)' });
 });
 
 module.exports = router;
