@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title><%= title ? (title + ' · BUNCA Planner') : 'BUNCA Planner' %></title>
 
-  <!-- Tailwind (CDN for speed) -->
+  <!-- Tailwind (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Basic theme tweaks -->
+  <!-- Small CSS (no build step) -->
   <link rel="stylesheet" href="/public/css/styles.css" />
 </head>
 <body class="bg-stone-50 text-stone-900">
@@ -43,7 +43,7 @@
       </div>
     <% } %>
 
-    <!-- Page -->
+    <!-- Page body -->
     <main class="max-w-6xl mx-auto px-4 py-6">
       <%- body %>
     </main>
