@@ -1,0 +1,30 @@
+<section class="space-y-6">
+  <h1 class="text-2xl font-semibold">Import (Excel/CSV)</h1>
+  <p class="text-sm text-stone-600">Erkannte Sheets (Case-insensitive): <span class="font-mono">Products</span>, <span class="font-mono">Items</span>, <span class="font-mono">BOM</span>, <span class="font-mono">Production</span>, <span class="font-mono">Allocations</span>.</p>
+
+  <div class="card">
+    <h3 class="card-title">Datei hochladen</h3>
+    <form action="/admin/import" method="post" enctype="multipart/form-data" class="space-y-3 text-sm">
+      <input class="input" type="file" name="file" accept=".xlsx,.xls,.csv" required />
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="replace_bom" />
+          <span>BOM (Zutaten) für betroffene Items ersetzen</span>
+        </label>
+      </div>
+
+      <div class="flex gap-3">
+        <button class="btn-secondary" name="action" value="dryrun">Dry Run (nur prüfen)</button>
+        <button class="btn-primary" name="action" value="import">Import starten</button>
+      </div>
+
+      <div class="text-xs text-stone-500 pt-2 leading-6">
+        <p><strong>Products</strong>: code, name, unit, base_unit, unit_cost, pack_size, pack_unit, waste_pct, supplier, category</p>
+        <p><strong>Items</strong>: code, name, yield_qty, yield_unit, category, notes</p>
+        <p><strong>BOM</strong>: item_code, product_code, qty, unit</p>
+        <p><strong>Production</strong> (optional): date (YYYY-MM-DD), item_code, total_qty, batch_size, start_time, station, notes, status</p>
+        <p><strong>Allocations</strong> (optional): date, item_code, shop_code (CITY/BER/GBW), qty</p>
+      </div>
+    </form>
+  </div>
+</section>
