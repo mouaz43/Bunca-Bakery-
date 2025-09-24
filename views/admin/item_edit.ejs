@@ -1,0 +1,72 @@
+<section class="space-y-6">
+  <h1 class="text-2xl font-semibold">Rezept bearbeiten</h1>
+
+  <!-- Item basics -->
+  <div class="card">
+    <form action="/admin/items/<%= item.id %>" method="post" class="grid md:grid-cols-4 gap-3 text-sm">
+      <div><label class="label">Code</label><input class="input" name="code" value="<%= item.code %>" required /></div>
+      <div><label class="label">Name</label><input class="input" name="name" value="<%= item.name %>" required /></div>
+      <div><label class="label">Kategorie</label><input class="input" name="category" value="<%= item.category || '' %>" /></div>
+      <div>
+        <label class="label">Yield Einheit</label>
+        <select class="input" name="yield_unit" required>
+          <% units.forEach(u => { %>
+            <option value="<%= u.code %>" <%= item.yield_unit===u.code?'selected':'' %>><%= u.code %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div><label class="label">Yield Menge</label><input class="input" name="yield_qty" type="number" step="0.0001" value="<%= item.yield_qty %>" required /></div>
+      <div class="md:col-span-3"><label class="label">Notizen</label><input class="input" name="notes" value="<%= item.notes || '' %>" /></div>
+      <div class="md:col-span-4"><button class="btn-primary">Speichern</button> <a class="btn-secondary" href="/admin/items">Zurück</a></div>
+    </form>
+  </div>
+
+  <!-- BOM list -->
+  <div class="card">
+    <h3 class="card-title">Rezeptzutaten (BOM)</h3>
+    <div class="overflow-auto">
+      <table class="min-w-full text-sm">
+        <thead><tr class="text-left border-b">
+          <th class="py-2 pr-3">Produkt</th>
+          <th class="py-2 pr-3">Code</th>
+          <th class="py-2 pr-3">Menge</th>
+          <th class="py-2 pr-3">Einheit</th>
+          <th class="py-2 pr-3"></th>
+        </tr></thead>
+        <tbody>
+          <% if (!bom.length) { %>
+            <tr><td class="py-3 text-stone-500" colspan="5">Noch keine Zutaten.</td></tr>
+          <% } else { bom.forEach(r => { %>
+            <tr class="border-b last:border-0">
+              <td class="py-2 pr-3"><%= r.product_name %></td>
+              <td class="py-2 pr-3 font-mono"><%= r.product_code %></td>
+              <td class="py-2 pr-3"><%= r.qty %></td>
+              <td class="py-2 pr-3"><%= r.unit %></td>
+              <td class="py-2 pr-3">
+                <form action="/admin/items/<%= item.id %>/bom/<%= r.id %>/delete" method="post" onsubmit="return confirm('Zutat entfernen?');">
+                  <button class="btn-secondary">Entfernen</button>
+                </form>
+              </td>
+            </tr>
+          <% }) } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add ingredient -->
+  <div class="card">
+    <h3 class="card-title">Zutat hinzufügen</h3>
+    <form action="/admin/items/<%= item.id %>/bom" method="post" class="grid md:grid-cols-4 gap-3 text-sm">
+      <div class="md:col-span-2"><label class="label">Produktcode (aus Rohwaren)</label><input class="input" name="product_code" placeholder="z.B. FLOUR_550" required /></div>
+      <div><label class="label">Menge</label><input class="input" name="qty" type="number" step="0.0001" required /></div>
+      <div>
+        <label class="label">Einheit</label>
+        <select class="input" name="unit" required>
+          <% units.forEach(u => { %><option value="<%= u.code %>"><%= u.code %></option><% }) %>
+        </select>
+      </div>
+      <div class="md:col-span-4"><button class="btn-primary">Hinzufügen</button></div>
+    </form>
+  </div>
+</section>
