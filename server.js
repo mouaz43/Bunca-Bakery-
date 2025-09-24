@@ -60,7 +60,9 @@ const seedFilesRoutes = require('./routes/seedfiles');
 const pricesRoutes = require('./routes/prices');       // NEW
 const productionRoutes = require('./routes/production'); // NEW
 const devtoolsRoutes = require('./routes/devtools');   // optional
+const itemsScaleRoutes = require('./routes/items_scale');
 
+app.use(itemsScaleRoutes);
 app.use(authRoutes);
 app.use(dashboardRoutes);
 app.use(adminRoutes);
