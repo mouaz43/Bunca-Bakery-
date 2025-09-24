@@ -30,33 +30,34 @@ async function seed() {
      ON CONFLICT (code) DO NOTHING`
   );
 
-  // Admin user
-  const email = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
-  const password = process.env.ADMIN_PASSWORD || '';
-  if (!email || !password) {
+  // Admin user (from env)
+  const envEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  const envPass  = process.env.ADMIN_PASSWORD || '';
+  if (!envEmail || !envPass) {
     console.log('Skip admin seed: ADMIN_EMAIL/ADMIN_PASSWORD missing.');
-    return;
+    return { ok: true, admin: 'skipped' };
   }
 
-  const { rows } = await db.query('SELECT id FROM users WHERE email=$1', [email]);
+  const { rows } = await db.query('SELECT id FROM users WHERE email=$1', [envEmail]);
   if (rows.length === 0) {
-    const hash = await bcrypt.hash(password, 12);
+    const hash = await bcrypt.hash(envPass, 12);
     await db.query(
       `INSERT INTO users (email, password_hash, role, recipe_access) VALUES ($1,$2,'admin',true)`,
-      [email, hash]
+      [envEmail, hash]
     );
-    console.log(`Admin user created: ${email}`);
+    console.log(`Admin user created: ${envEmail}`);
+    return { ok: true, admin: 'created', email: envEmail };
   } else {
     console.log('Admin already exists, skipping.');
+    return { ok: true, admin: 'exists', email: envEmail };
   }
 }
 
-seed()
-  .then(() => {
-    console.log('Seed complete.');
-    process.exit(0);
-  })
-  .catch((e) => {
-    console.error('Seed failed:', e);
-    process.exit(1);
-  });
+module.exports = seed;
+
+// allow running as CLI: `node db/seed.js`
+if (require.main === module) {
+  seed()
+    .then((r) => { console.log('Seed complete:', r); process.exit(0); })
+    .catch((e) => { console.error('Seed failed:', e); process.exit(1); });
+}
