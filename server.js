@@ -1,4 +1,3 @@
-// server.js
 require('dotenv').config();
 
 const path = require('path');
@@ -56,13 +55,15 @@ app.use(attachFlash());
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
 const adminRoutes = require('./routes/admin');
-const importRoutes = require('./routes/import');   // ⬅️ NEW
-const devtoolsRoutes = require('./routes/devtools'); // optional
+const importRoutes = require('./routes/import');
+const seedFilesRoutes = require('./routes/seedfiles'); // <-- ensure this file exists
+const devtoolsRoutes = require('./routes/devtools');   // optional
 
 app.use(authRoutes);
 app.use(dashboardRoutes);
 app.use(adminRoutes);
-app.use(importRoutes); // ⬅️ mount importer
+app.use(importRoutes);
+app.use(seedFilesRoutes); // <-- mount here
 app.use(devtoolsRoutes);
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
