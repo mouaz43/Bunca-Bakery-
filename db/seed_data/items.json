@@ -1,4 +1,12 @@
 [
-  { "code": "MUFFIN_CHOC", "name": "Muffin Chocolate", "category": "Gebäck", "yield_qty": 12, "yield_unit": "pcs", "notes": "" },
-  { "code": "MUFFIN_BANANA", "name": "Muffin Banana", "category": "Gebäck", "yield_qty": 12, "yield_unit": "pcs", "notes": "" }
+  { "code": "BANANA_BREAD_LOAF_8",        "name": "Banana Bread Loaf",         "category": "Kuchen",  "yield_qty": 8,   "yield_unit": "pcs", "notes": "" },
+  { "code": "MUFFIN_BASE_60",             "name": "Muffin Basis (60 Stk)",     "category": "Muffins", "yield_qty": 60,  "yield_unit": "pcs", "notes": "Basis-Teig, 60 Stück" },
+  { "code": "PASTEIS_15",                 "name": "Pasteis",                   "category": "Gebäck",  "yield_qty": 15,  "yield_unit": "pcs", "notes": "" },
+  { "code": "SCHOKONUSS_KUCHEN_8",        "name": "Schokonuss Kuchen",         "category": "Kuchen",  "yield_qty": 8,   "yield_unit": "pcs", "notes": "" },
+  { "code": "CARROT_CAKE_12",             "name": "Carrot Cake",               "category": "Kuchen",  "yield_qty": 12,  "yield_unit": "pcs", "notes": "" },
+  { "code": "PEANUT_CARAMEL_COOKIE_82",   "name": "Peanut Caramel Cookie",     "category": "Cookies", "yield_qty": 82,  "yield_unit": "pcs", "notes": "" },
+  { "code": "ROTWEIN_KUCHEN_2",           "name": "Rotwein Kuchen",            "category": "Kuchen",  "yield_qty": 2,   "yield_unit": "pcs", "notes": "2 ganze Kuchen pro Batch" },
+  { "code": "APFELKUCHEN_15",             "name": "Apfelkuchen",               "category": "Kuchen",  "yield_qty": 15,  "yield_unit": "pcs", "notes": "" },
+  { "code": "CHOC_CHIP_COOKIE_78",        "name": "Choc Chip Cookie",          "category": "Cookies", "yield_qty": 78,  "yield_unit": "pcs", "notes": "" },
+  { "code": "OATMEAL_COOKIE_110",         "name": "Oatmeal Cookie",            "category": "Cookies", "yield_qty": 110, "yield_unit": "pcs", "notes": "" }
 ]
