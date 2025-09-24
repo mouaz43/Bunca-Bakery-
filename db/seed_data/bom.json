@@ -106,5 +106,26 @@
   { "item_code": "OATMEAL_COOKIE_110", "product_code": "ZIMT_GEMAHLEN", "qty": 23, "unit": "g" },
   { "item_code": "OATMEAL_COOKIE_110", "product_code": "VANILLEZUCKER", "qty": 36, "unit": "g" },
   { "item_code": "OATMEAL_COOKIE_110", "product_code": "BACKPULVER", "qty": 18, "unit": "g" },
-  { "item_code": "OATMEAL_COOKIE_110", "product_code": "EDELNUSS_MIX", "qty": 800, "unit": "g" }
+  { "item_code": "OATMEAL_COOKIE_110", "product_code": "EDELNUSS_MIX", "qty": 800, "unit": "g" },
+
+  /* NEW: Energy Balls (58) */
+  { "item_code": "ENERGY_BALLS_58", "product_code": "KAKAO", "qty": 250, "unit": "g" },
+  { "item_code": "ENERGY_BALLS_58", "product_code": "HAFERFLOCKEN", "qty": 1500, "unit": "g" },
+  { "item_code": "ENERGY_BALLS_58", "product_code": "DATTELN_GEHACKT_5_7MM", "qty": 800, "unit": "g" },
+  { "item_code": "ENERGY_BALLS_58", "product_code": "PFLAUMEN_GETR_5_7MM", "qty": 400, "unit": "g" },
+  { "item_code": "ENERGY_BALLS_58", "product_code": "WALNUSSKERNE", "qty": 500, "unit": "g" },
+  { "item_code": "ENERGY_BALLS_58", "product_code": "KOKOSOEL", "qty": 150, "unit": "ml" },
+  { "item_code": "ENERGY_BALLS_58", "product_code": "KOKOSRASPEL", "qty": 50, "unit": "g" },
+  { "item_code": "ENERGY_BALLS_58", "product_code": "ESPRESSO", "qty": 20, "unit": "pcs" },
+
+  /* NEW: Pistachio Cookies (108) */
+  { "item_code": "PISTACHIO_COOKIES_108", "product_code": "BUTTER", "qty": 1500, "unit": "g" },
+  { "item_code": "PISTACHIO_COOKIES_108", "product_code": "WEIZENMEHL", "qty": 3400, "unit": "g" },
+  { "item_code": "PISTACHIO_COOKIES_108", "product_code": "NATRON", "qty": 60, "unit": "g" },
+  { "item_code": "PISTACHIO_COOKIES_108", "product_code": "ROHRZUCKER", "qty": 1400, "unit": "g" },
+  { "item_code": "PISTACHIO_COOKIES_108", "product_code": "VANILLEZUCKER", "qty": 100, "unit": "g" },
+  { "item_code": "PISTACHIO_COOKIES_108", "product_code": "VOLLEI", "qty": 1000, "unit": "ml" },
+  { "item_code": "PISTACHIO_COOKIES_108", "product_code": "PISTAZIEN", "qty": 1000, "unit": "g" },
+  { "item_code": "PISTACHIO_COOKIES_108", "product_code": "PISTAZIEN_CREME", "qty": 1200, "unit": "g" },
+  { "item_code": "PISTACHIO_COOKIES_108", "product_code": "KUVERTUERE_WEISS", "qty": 1000, "unit": "g" }
 ]
