@@ -4,24 +4,29 @@
     <div class="text-sm text-stone-600">Schnellzugriff</div>
   </div>
 
-  <div class="grid md:grid-cols-3 gap-4">
+  <div class="grid md:grid-cols-4 gap-4">
     <div class="card">
       <h3 class="card-title">Rohwaren</h3>
       <p class="text-sm text-stone-600 mb-3">Produkte/Ingredients mit Preisen & Einheiten.</p>
       <a class="btn-secondary" href="/admin/products">Öffnen</a>
-      <p class="text-xs text-stone-500 mt-3">Anzahl: <%= counts.products %></p>
+      <p class="text-xs text-stone-500 mt-3">Anzahl wird nach und nach gefüllt.</p>
     </div>
 
     <div class="card">
       <h3 class="card-title">Artikel & Rezepte</h3>
       <p class="text-sm text-stone-600 mb-3">Fertige Artikel, Ausbeute (Yield) & Rezepturen.</p>
       <a class="btn-secondary" href="/admin/items">Öffnen</a>
-      <p class="text-xs text-stone-500 mt-3">Artikel: <%= counts.items %>, Zutatenzeilen: <%= counts.bom %></p>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">Import (Excel/CSV)</h3>
+      <p class="text-sm text-stone-600 mb-3">Lade Products / Items / BOM / Production / Allocations.</p>
+      <a class="btn-secondary" href="/admin/import">Öffnen</a>
     </div>
 
     <div class="card">
       <h3 class="card-title">Nächste Schritte</h3>
-      <p class="text-sm text-stone-600">Production Plan & Import folgen im nächsten Schritt.</p>
+      <p class="text-sm text-stone-600">Production Plan & Live Usage folgen.</p>
     </div>
   </div>
 </section>
