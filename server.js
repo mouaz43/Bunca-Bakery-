@@ -56,14 +56,18 @@ const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
 const adminRoutes = require('./routes/admin');
 const importRoutes = require('./routes/import');
-const seedFilesRoutes = require('./routes/seedfiles'); // <-- ensure this file exists
+const seedFilesRoutes = require('./routes/seedfiles');
+const pricesRoutes = require('./routes/prices');       // NEW
+const productionRoutes = require('./routes/production'); // NEW
 const devtoolsRoutes = require('./routes/devtools');   // optional
 
 app.use(authRoutes);
 app.use(dashboardRoutes);
 app.use(adminRoutes);
 app.use(importRoutes);
-app.use(seedFilesRoutes); // <-- mount here
+app.use(seedFilesRoutes);
+app.use(pricesRoutes);        // mount
+app.use(productionRoutes);    // mount
 app.use(devtoolsRoutes);
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
