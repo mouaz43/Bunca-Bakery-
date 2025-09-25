@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>BUNCA – Login</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body data-page="login">
+  <nav class="nav"><div class="brand">BUNCA Planner</div></nav>
+  <main class="container" style="max-width:520px">
+    <div class="card">
+      <h2 style="margin:0 0 12px 0">Login</h2>
+      <form id="login-form" class="row">
+        <div class="col">
+          <label>E-Mail</label>
+          <input id="email" class="input" type="email" placeholder="admin@bunca" required/>
+        </div>
+        <div class="col">
+          <label>Passwort</label>
+          <input id="password" class="input" type="password" required/>
+        </div>
+        <div class="col">
+          <button class="button primary" type="submit" style="width:100%">Anmelden</button>
+        </div>
+      </form>
+      <p class="muted small" style="margin-top:8px">Nutzt <code>ADMIN_EMAIL</code> / <code>ADMIN_PASSWORD</code> aus Render.</p>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
