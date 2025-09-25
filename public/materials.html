@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>BUNCA – Rohwaren</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-stone-50 text-stone-900">
+<header class="bg-white border-b border-stone-200">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/" class="h-8 w-8 rounded-lg bg-emerald-600 block"></a>
+      <h1 class="text-lg font-semibold tracking-tight">Rohwaren</h1>
+    </div>
+    <nav class="flex items-center gap-2 text-sm">
+      <a href="/plan.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Plan</a>
+      <a href="/recipes.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Rezepte</a>
+      <a href="/import.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Import</a>
+      <button id="logoutBtn" class="ml-2 px-3 py-1.5 rounded-lg bg-stone-900 text-white hover:bg-stone-800">Logout</button>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+  <!-- Quick add -->
+  <section class="bg-white rounded-2xl shadow p-4">
+    <h2 class="font-semibold mb-3">Neue Rohware</h2>
+    <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
+      <input id="n_code" placeholder="Code" class="rounded-xl border border-stone-300 px-3 py-2">
+      <input id="n_name" placeholder="Name" class="rounded-xl border border-stone-300 px-3 py-2 md:col-span-2">
+      <select id="n_unit" class="rounded-xl border border-stone-300 px-3 py-2">
+        <option value="g">g</option>
+        <option value="ml">ml</option>
+        <option value="pcs">Stück</option>
+      </select>
+      <input id="n_price" placeholder="Preis/Einheit (€ pro g/ml/Stk)" class="rounded-xl border border-stone-300 px-3 py-2" inputmode="decimal">
+      <input id="n_supplier" placeholder="Lieferant (Code, z.B. BACKO)" class="rounded-xl border border-stone-300 px-3 py-2">
+      <button id="addBtn" class="rounded-xl bg-emerald-600 text-white px-4 py-2 hover:bg-emerald-700">Hinzufügen</button>
+    </div>
+    <p class="text-xs text-stone-500 mt-2">Tipp: Preis pro <strong>Basis-Einheit</strong> (g / ml / Stück) eingeben. Beispiel: 0.001&nbsp;€ pro g (entspricht 1&nbsp;€ pro kg).</p>
+  </section>
+
+  <!-- Filter + bulk -->
+  <section class="bg-white rounded-2xl shadow p-4">
+    <div class="flex flex-col lg:flex-row lg:items-start gap-6">
+      <div class="flex-1">
+        <div class="flex items-center justify-between mb-3">
+          <input id="search" placeholder="Suche Code/Name…" class="rounded-xl border border-stone-300 px-3 py-2 w-64">
+          <button id="reloadBtn" class="px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-100 text-sm">Neu laden</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-stone-50">
+              <tr>
+                <th class="text-left px-4 py-2.5">Code</th>
+                <th class="text-left px-4 py-2.5">Name</th>
+                <th class="text-left px-4 py-2.5">Einheit</th>
+                <th class="text-left px-4 py-2.5">Preis/Einheit</th>
+                <th class="text-left px-4 py-2.5">Lieferant</th>
+                <th class="text-left px-4 py-2.5">Notiz</th>
+                <th class="text-left px-4 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody id="tbody" class="divide-y divide-stone-100"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="w-full lg:w-80">
+        <div class="border rounded-2xl p-3">
+          <h3 class="font-semibold mb-2">Bulk-Preise</h3>
+          <p class="text-xs text-stone-500 mb-2">Format je Zeile: <code>CODE | PREIS</code> (Preis in € pro Basis-Einheit).</p>
+          <textarea id="bulk" rows="10" class="w-full rounded-xl border border-stone-300 p-2 font-mono text-xs" placeholder="WEIZENMEHL | 0.00070&#10;ZUCKER_WEISS | 0.00110"></textarea>
+          <button id="bulkBtn" class="mt-2 w-full rounded-xl bg-stone-900 text-white px-4 py-2 hover:bg-stone-800">Preise anwenden</button>
+          <p id="bulkMsg" class="text-xs text-stone-600 mt-2"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+async function guard(){ const s=await fetch('/api/session').then(r=>r.json()); if(!s.user) location.href='/login.html'; }
+function parseNum(v){ if(v==null) return 0; return Number(String(v).replace(',','.'))||0; }
+
+document.getElementById('logoutBtn').onclick = async ()=>{ await fetch('/api/logout',{method:'POST'}); location.href='/login.html'; };
+
+async function loadList(){
+  const data=await fetch('/api/materials').then(r=>r.json());
+  const q=document.getElementById('search').value.trim().toLowerCase();
+  const list=(data.data||[]).filter(m=>!q||m.code.toLowerCase().includes(q)||m.name.toLowerCase().includes(q));
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  for(const m of list){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="px-4 py-2.5"><input value="${m.code}" class="w-40 rounded-lg border border-stone-300 px-2 py-1.5 code"></td>
+      <td class="px-4 py-2.5"><input value="${m.name||''}" class="w-64 rounded-lg border border-stone-300 px-2 py-1.5 name"></td>
+      <td class="px-4 py-2.5">
+        <select class="w-24 rounded-lg border border-stone-300 px-2 py-1.5 unit">
+          <option value="g" ${m.unit==='g'?'selected':''}>g</option>
+          <option value="ml" ${m.unit==='ml'?'selected':''}>ml</option>
+          <option value="pcs" ${m.unit==='pcs'?'selected':''}>Stück</option>
+        </select>
+      </td>
+      <td class="px-4 py-2.5"><input value="${m.price_per_unit||0}" class="w-28 rounded-lg border border-stone-300 px-2 py-1.5 price" inputmode="decimal"></td>
+      <td class="px-4 py-2.5"><input value="${m.supplier_code||''}" class="w-28 rounded-lg border border-stone-300 px-2 py-1.5 supplier" placeholder="z.B. BACKO"></td>
+      <td class="px-4 py-2.5"><input value="${m.note||''}" class="w-48 rounded-lg border border-stone-300 px-2 py-1.5 note"></td>
+      <td class="px-4 py-2.5">
+        <button class="save px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Speichern</button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+  tbody.querySelectorAll('.save').forEach(btn=>{
+    btn.onclick=async (e)=>{
+      const tr=e.target.closest('tr');
+      const payload={
+        code: tr.querySelector('.code').value.trim(),
+        name: tr.querySelector('.name').value.trim(),
+        unit: tr.querySelector('.unit').value,
+        price_per_unit: parseNum(tr.querySelector('.price').value),
+        supplier_code: tr.querySelector('.supplier').value.trim()||null,
+        note: tr.querySelector('.note').value.trim()
+      };
+      const r=await fetch('/api/materials',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+      alert(r.ok?'Gespeichert.':'Fehler beim Speichern.');
+      await loadList();
+    };
+  });
+}
+
+document.getElementById('reloadBtn').onclick=loadList;
+document.getElementById('search').addEventListener('input',loadList);
+
+document.getElementById('addBtn').onclick=async ()=>{
+  const payload={
+    code: document.getElementById('n_code').value.trim(),
+    name: document.getElementById('n_name').value.trim(),
+    unit: document.getElementById('n_unit').value,
+    price_per_unit: parseNum(document.getElementById('n_price').value),
+    supplier_code: document.getElementById('n_supplier').value.trim()||null,
+    note:''
+  };
+  if(!payload.code||!payload.name){ alert('Code und Name erforderlich.'); return; }
+  const r=await fetch('/api/materials',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+  if(r.ok){
+    document.getElementById('n_code').value='';
+    document.getElementById('n_name').value='';
+    document.getElementById('n_price').value='';
+    document.getElementById('n_supplier').value='';
+    await loadList();
+  }else{
+    alert('Fehler beim Anlegen.');
+  }
+};
+
+document.getElementById('bulkBtn').onclick=async ()=>{
+  const text=document.getElementById('bulk').value.trim();
+  if(!text){ return; }
+  const r=await fetch('/api/materials/bulk-prices',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text})}).then(r=>r.json());
+  document.getElementById('bulkMsg').textContent = `Aktualisiert: ${r.updated||0}`;
+  await loadList();
+};
+
+(async()=>{ await guard(); await loadList(); })();
+</script>
+</body>
+</html>
