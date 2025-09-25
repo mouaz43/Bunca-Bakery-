@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// List all raw materials (Rohwaren)
+// LIST: Rohwaren
 router.get('/products', async (req, res) => {
   try {
     const { rows } = await db.query(
@@ -11,10 +11,7 @@ router.get('/products', async (req, res) => {
          FROM products
         ORDER BY name ASC`
     );
-    res.render('products/index', {
-      title: 'Rohwaren',
-      products: rows
-    });
+    res.render('products/index', { title: 'Rohwaren', products: rows });
   } catch (err) {
     console.error('GET /products error:', err);
     res.status(500).send('Error loading products');
