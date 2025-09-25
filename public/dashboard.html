@@ -7,73 +7,604 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
+  <!-- NAV -->
   <header class="bg-white shadow">
-    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-      <h1 class="text-xl font-bold">BUNCA Planner</h1>
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <h1 class="text-xl font-bold">BUNCA Planner</h1>
+        <nav class="hidden md:flex items-center gap-2">
+          <button data-tab="tab-overview" class="tab px-3 py-2 rounded-md font-medium bg-gray-900 text-white">Übersicht</button>
+          <button data-tab="tab-materials" class="tab px-3 py-2 rounded-md font-medium hover:bg-gray-200">Rohwaren</button>
+          <button data-tab="tab-items" class="tab px-3 py-2 rounded-md font-medium hover:bg-gray-200">Artikel & Rezepte</button>
+          <button data-tab="tab-plan" class="tab px-3 py-2 rounded-md font-medium hover:bg-gray-200">Produktionsplan</button>
+          <button data-tab="tab-tools" class="tab px-3 py-2 rounded-md font-medium hover:bg-gray-200">Tools</button>
+        </nav>
+      </div>
       <div class="flex items-center gap-3">
-        <span id="who" class="text-sm text-gray-500"></span>
+        <span id="who" class="text-sm text-gray-600"></span>
         <button id="logout" class="px-3 py-2 rounded-md bg-gray-800 text-white">Logout</button>
       </div>
     </div>
   </header>
 
-  <main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
-    <section class="bg-white rounded-xl shadow p-6">
-      <h2 class="font-semibold text-lg mb-2">Status</h2>
-      <div class="text-sm text-gray-600" id="status">Lade…</div>
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-8">
+    <!-- OVERVIEW -->
+    <section id="tab-overview" class="tab-pane">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow p-6">
+          <h2 class="font-semibold text-lg mb-2">Status</h2>
+          <div class="text-sm text-gray-600" id="status">Lade…</div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow p-6">
+          <h2 class="font-semibold text-lg mb-2">Seed</h2>
+          <p class="text-sm text-gray-600 mb-3">
+            Seed-Dateien aus <code>/seed</code> anwenden (suppliers/materials/items/bom/plan).
+          </p>
+          <button id="seed-quick" class="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Seed anwenden</button>
+          <pre id="seed-quick-log" class="mt-4 text-xs bg-gray-100 p-3 rounded-lg overflow-auto max-h-60"></pre>
+        </div>
+      </div>
     </section>
 
-    <section class="bg-white rounded-xl shadow p-6">
-      <h2 class="font-semibold text-lg mb-4">Seed</h2>
-      <p class="text-sm text-gray-600 mb-3">Seed-Dateien aus <code>/seed</code> anwenden (suppliers/materials/items/bom/plan).</p>
-      <button id="seed" class="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Seed anwenden</button>
-      <pre id="seedLog" class="mt-4 text-xs bg-gray-100 p-3 rounded-lg overflow-auto"></pre>
+    <!-- MATERIALS -->
+    <section id="tab-materials" class="tab-pane hidden">
+      <div class="bg-white rounded-xl shadow p-6">
+        <div class="flex items-end justify-between gap-4 mb-4">
+          <h2 class="font-semibold text-lg">Rohwaren</h2>
+          <button id="reload-materials" class="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">Neu laden</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Table -->
+          <div class="lg:col-span-2">
+            <div class="overflow-auto rounded-lg border">
+              <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 text-gray-700">
+                  <tr>
+                    <th class="text-left p-2">Code</th>
+                    <th class="text-left p-2">Name</th>
+                    <th class="text-left p-2">Basis-Einheit</th>
+                    <th class="text-right p-2">€/Einheit</th>
+                    <th class="text-left p-2">Lieferant</th>
+                  </tr>
+                </thead>
+                <tbody id="materials-tbody" class="divide-y"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Form -->
+          <div>
+            <h3 class="font-medium mb-2">Anlegen / Aktualisieren</h3>
+            <form id="mat-form" class="space-y-3">
+              <div>
+                <label class="block text-xs text-gray-500">Code</label>
+                <input id="mf-code" required class="w-full rounded-md border-gray-300" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500">Name</label>
+                <input id="mf-name" required class="w-full rounded-md border-gray-300" />
+              </div>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs text-gray-500">Basis-Einheit</label>
+                  <select id="mf-base" class="w-full rounded-md border-gray-300">
+                    <option>g</option><option>ml</option><option>pcs</option>
+                  </select>
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-xs text-gray-500">Preis pro Einheit (€)</label>
+                  <input id="mf-ppu" type="number" step="0.000001" value="0" class="w-full rounded-md border-gray-300" />
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs text-gray-500">Pack-Menge</label>
+                  <input id="mf-pq" type="number" step="0.01" class="w-full rounded-md border-gray-300" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500">Pack-Einheit</label>
+                  <input id="mf-pu" class="w-full rounded-md border-gray-300" placeholder="kg / l / Stk…" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500">Pack-Preis (€)</label>
+                  <input id="mf-pp" type="number" step="0.01" class="w-full rounded-md border-gray-300" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500">Lieferant-Code</label>
+                <input id="mf-supp" class="w-full rounded-md border-gray-300" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500">Notiz</label>
+                <textarea id="mf-note" rows="2" class="w-full rounded-md border-gray-300"></textarea>
+              </div>
+
+              <button class="w-full py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Speichern</button>
+              <p id="mf-msg" class="text-xs text-gray-600"></p>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ITEMS & RECIPES -->
+    <section id="tab-items" class="tab-pane hidden">
+      <div class="bg-white rounded-xl shadow p-6">
+        <div class="flex items-end justify-between gap-4 mb-4">
+          <h2 class="font-semibold text-lg">Artikel & Rezepte</h2>
+          <button id="reload-items" class="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">Neu laden</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Items list -->
+          <div>
+            <div class="overflow-auto rounded-lg border max-h-[28rem]">
+              <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 text-gray-700">
+                  <tr>
+                    <th class="text-left p-2">Code</th>
+                    <th class="text-left p-2">Name</th>
+                    <th class="text-left p-2">Yield</th>
+                  </tr>
+                </thead>
+                <tbody id="items-tbody" class="divide-y"></tbody>
+              </table>
+            </div>
+
+            <form id="item-form" class="mt-4 grid grid-cols-2 gap-3">
+              <input id="it-code" placeholder="Code" required class="rounded-md border-gray-300" />
+              <input id="it-name" placeholder="Name" required class="rounded-md border-gray-300" />
+              <input id="it-cat"  placeholder="Kategorie" class="rounded-md border-gray-300" />
+              <input id="it-yqty" type="number" step="0.01" placeholder="Yield-Menge" value="1" class="rounded-md border-gray-300" />
+              <select id="it-yunit" class="rounded-md border-gray-300">
+                <option>pcs</option><option>g</option><option>ml</option>
+              </select>
+              <input id="it-note" placeholder="Notiz" class="rounded-md border-gray-300" />
+              <button class="col-span-2 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Artikel speichern</button>
+            </form>
+            <p id="it-msg" class="text-xs text-gray-600 mt-1"></p>
+          </div>
+
+          <!-- BOM editor -->
+          <div class="lg:col-span-2">
+            <div class="flex items-center justify-between">
+              <h3 class="font-medium mb-2">Rezeptur (BOM) – <span id="bom-for" class="text-gray-500">bitte Artikel wählen</span></h3>
+              <div class="flex items-center gap-2">
+                <input id="scale-qty" type="number" step="0.01" placeholder="Menge…" class="w-28 rounded-md border-gray-300" />
+                <button id="btn-scale" class="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">Skalieren</button>
+              </div>
+            </div>
+
+            <div class="overflow-auto rounded-lg border">
+              <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 text-gray-700">
+                  <tr>
+                    <th class="text-left p-2">Material-Code</th>
+                    <th class="text-left p-2">Menge</th>
+                    <th class="text-left p-2">Einheit</th>
+                    <th class="p-2 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody id="bom-tbody" class="divide-y"></tbody>
+              </table>
+            </div>
+
+            <div class="flex items-center gap-2 mt-3">
+              <button id="bom-add" class="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">+ Zeile</button>
+              <button id="bom-save" class="px-3 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">BOM speichern</button>
+              <span id="bom-msg" class="text-xs text-gray-600"></span>
+            </div>
+
+            <div id="scale-box" class="hidden mt-4">
+              <h4 class="font-medium mb-2">Skalierungsergebnis</h4>
+              <div class="overflow-auto rounded-lg border max-h-64">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-gray-100 text-gray-700">
+                    <tr>
+                      <th class="text-left p-2">Material</th>
+                      <th class="text-right p-2">Menge (Basis)</th>
+                      <th class="text-right p-2">€/Einheit</th>
+                      <th class="text-right p-2">Kosten</th>
+                    </tr>
+                  </thead>
+                  <tbody id="scale-tbody" class="divide-y"></tbody>
+                </table>
+              </div>
+              <div class="text-right mt-2 text-sm">
+                <span class="font-medium">Gesamtkosten: </span>
+                <span id="scale-total" class="font-semibold"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLAN -->
+    <section id="tab-plan" class="tab-pane hidden">
+      <div class="bg-white rounded-xl shadow p-6">
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+          <h2 class="font-semibold text-lg mr-auto">Produktionsplan</h2>
+          <input id="plan-date" type="date" class="rounded-md border-gray-300" />
+          <button id="plan-load" class="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">Laden</button>
+          <button id="plan-add" class="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">+ Zeile</button>
+          <button id="plan-save" class="px-3 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Speichern</button>
+          <button id="plan-calc" class="px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Material berechnen</button>
+        </div>
+
+        <div class="overflow-auto rounded-lg border">
+          <table class="min-w-full text-sm">
+            <thead class="bg-gray-100 text-gray-700">
+              <tr>
+                <th class="text-left p-2 w-28">Start</th>
+                <th class="text-left p-2 w-28">Ende</th>
+                <th class="text-left p-2">Produkt-Code</th>
+                <th class="text-right p-2 w-28">Menge</th>
+                <th class="text-left p-2">Notiz</th>
+                <th class="p-2 w-10"></th>
+              </tr>
+            </thead>
+            <tbody id="plan-tbody" class="divide-y"></tbody>
+          </table>
+        </div>
+
+        <div id="calc-box" class="hidden mt-6">
+          <h3 class="font-medium mb-2">Materialbedarf & Kosten (Tag)</h3>
+          <div class="overflow-auto rounded-lg border max-h-72">
+            <table class="min-w-full text-sm">
+              <thead class="bg-gray-100 text-gray-700">
+                <tr>
+                  <th class="text-left p-2">Material</th>
+                  <th class="text-right p-2">Menge (Basis)</th>
+                  <th class="text-right p-2">€/Einheit</th>
+                  <th class="text-right p-2">Kosten</th>
+                </tr>
+              </thead>
+              <tbody id="calc-tbody" class="divide-y"></tbody>
+            </table>
+          </div>
+          <div class="text-right mt-2 text-sm">
+            <span class="font-medium">Gesamtkosten: </span>
+            <span id="calc-total" class="font-semibold"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TOOLS -->
+    <section id="tab-tools" class="tab-pane hidden">
+      <div class="bg-white rounded-xl shadow p-6">
+        <h2 class="font-semibold text-lg mb-4">Tools</h2>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <h3 class="font-medium mb-2">Bulk-Preise einfügen</h3>
+            <p class="text-xs text-gray-600 mb-2">
+              Format pro Zeile: <code>CODE | 0.00123</code> (Punkt oder Komma möglich)
+            </p>
+            <textarea id="bulk-text" rows="10" class="w-full rounded-md border-gray-300" placeholder="ZUCKER | 0.0012"></textarea>
+            <div class="flex items-center gap-2 mt-2">
+              <button id="bulk-apply" class="px-3 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Anwenden</button>
+              <span id="bulk-msg" class="text-xs text-gray-600"></span>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="font-medium mb-2">Seed manuell</h3>
+            <p class="text-xs text-gray-600 mb-2">Wendet alle JSON-Dateien in <code>/seed</code> an.</p>
+            <button id="seed-tools" class="px-3 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Seed anwenden</button>
+            <pre id="seed-tools-log" class="mt-3 text-xs bg-gray-100 p-3 rounded-lg overflow-auto max-h-56"></pre>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
+  <!-- JS -->
   <script>
+    /* ---------- helpers ---------- */
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
     async function get(url) {
-      const r = await fetch(url, { credentials: 'include' });
+      const r = await fetch(url, { credentials:'include' });
       return r.json();
     }
     async function post(url, data) {
       const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        credentials:'include',
         body: JSON.stringify(data||{})
       });
       return r.json();
     }
+    function fmtEUR(x) { return (Number(x)||0).toFixed(2).replace('.', ',') + ' €'; }
+    function fmtUnit(q, u) { return `${(Number(q)||0).toFixed(2)} ${u||''}`.trim(); }
 
-    (async () => {
+    /* ---------- tabs ---------- */
+    $$('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        $$('.tab').forEach(b => b.classList.remove('bg-gray-900','text-white'));
+        btn.classList.add('bg-gray-900','text-white');
+        const id = btn.getAttribute('data-tab');
+        $$('.tab-pane').forEach(p => p.classList.add('hidden'));
+        $('#'+id).classList.remove('hidden');
+      });
+    });
+
+    /* ---------- header ---------- */
+    $('#logout').onclick = async () => { await post('/api/logout'); location.href = '/'; };
+
+    /* ---------- overview ---------- */
+    async function loadOverview() {
       const s = await get('/api/session');
-      const who = document.getElementById('who');
-      if (s.user) { who.textContent = s.user.email; } else { location.href = '/'; return; }
+      if (!s.user) { location.href = '/'; return; }
+      $('#who').textContent = s.user.email;
 
       try {
         const hz = await get('/healthz');
-        document.getElementById('status').textContent = hz.ok ? 'Backend OK' : 'Backend Fehler';
+        $('#status').textContent = hz.ok ? 'Backend OK' : 'Backend Fehler';
       } catch {
-        document.getElementById('status').textContent = 'Backend Fehler';
+        $('#status').textContent = 'Backend Fehler';
       }
+    }
+    $('#seed-quick').onclick = async () => {
+      $('#seed-quick-log').textContent = 'Wird angewendet…';
+      const r = await post('/api/admin/seed/apply');
+      $('#seed-quick-log').textContent = JSON.stringify(r, null, 2);
+      // refresh data elsewhere
+      loadMaterials();
+      loadItems();
+    };
+
+    /* ---------- materials ---------- */
+    let materials = [];
+    async function loadMaterials() {
+      const r = await get('/api/materials');
+      materials = r.data || [];
+      const tb = $('#materials-tbody'); tb.innerHTML = '';
+      for (const m of materials) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2">${m.code}</td>
+          <td class="p-2">${m.name}</td>
+          <td class="p-2">${m.base_unit}</td>
+          <td class="p-2 text-right">${Number(m.price_per_unit||0).toFixed(6)}</td>
+          <td class="p-2">${m.supplier_name||''}</td>
+        `;
+        tr.className = 'hover:bg-gray-50 cursor-pointer';
+        tr.onclick = () => {
+          $('#mf-code').value = m.code;
+          $('#mf-name').value = m.name;
+          $('#mf-base').value = m.base_unit||'g';
+          $('#mf-ppu').value  = Number(m.price_per_unit||0);
+          $('#mf-pq').value   = m.pack_qty ?? '';
+          $('#mf-pu').value   = m.pack_unit ?? '';
+          $('#mf-pp').value   = m.pack_price?? '';
+          $('#mf-supp').value = m.supplier_code ?? '';
+          $('#mf-note').value = m.note ?? '';
+          document.querySelector('[data-tab="tab-materials"]').click();
+        };
+        tb.appendChild(tr);
+      }
+    }
+    $('#reload-materials').onclick = loadMaterials;
+
+    $('#mat-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#mf-msg').textContent = 'Speichere…';
+      const payload = {
+        code: $('#mf-code').value.trim(),
+        name: $('#mf-name').value.trim(),
+        base_unit: $('#mf-base').value,
+        price_per_unit: Number($('#mf-ppu').value || 0),
+        pack_qty: $('#mf-pq').value ? Number($('#mf-pq').value) : null,
+        pack_unit: $('#mf-pu').value || null,
+        pack_price: $('#mf-pp').value ? Number($('#mf-pp').value) : null,
+        supplier_code: $('#mf-supp').value || null,
+        note: $('#mf-note').value || ''
+      };
+      const r = await post('/api/materials', payload);
+      $('#mf-msg').textContent = r.ok ? 'Gespeichert.' : ('Fehler: '+(r.error||'')); 
+      if (r.ok) loadMaterials();
+    });
+
+    /* ---------- items & BOM ---------- */
+    let items = [];
+    let currentItem = null;
+
+    async function loadItems() {
+      const r = await get('/api/items');
+      items = r.data || [];
+      const tb = $('#items-tbody'); tb.innerHTML = '';
+      for (const it of items) {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50 cursor-pointer';
+        tr.innerHTML = `
+          <td class="p-2">${it.code}</td>
+          <td class="p-2">${it.name}</td>
+          <td class="p-2">${it.yield_qty} ${it.yield_unit}</td>
+        `;
+        tr.onclick = () => openBOM(it);
+        tb.appendChild(tr);
+      }
+    }
+    $('#reload-items').onclick = loadItems;
+
+    $('#item-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#it-msg').textContent = 'Speichere…';
+      const payload = {
+        code: $('#it-code').value.trim(),
+        name: $('#it-name').value.trim(),
+        category: $('#it-cat').value.trim(),
+        yield_qty: Number($('#it-yqty').value || 1),
+        yield_unit: $('#it-yunit').value,
+        note: $('#it-note').value.trim()
+      };
+      const r = await post('/api/items', payload);
+      $('#it-msg').textContent = r.ok ? 'Gespeichert.' : ('Fehler: '+(r.error||'')); 
+      if (r.ok) loadItems();
+    });
+
+    async function openBOM(it) {
+      currentItem = it;
+      $('#bom-for').textContent = `${it.name} (${it.code}) — Yield: ${it.yield_qty} ${it.yield_unit}`;
+      const r = await get(`/api/items/${encodeURIComponent(it.code)}/bom`);
+      const tb = $('#bom-tbody'); tb.innerHTML = '';
+
+      (r.data || []).forEach(row => addBOMRow(row.material_code, row.qty, row.unit));
+      if ((r.data || []).length === 0) addBOMRow('','', 'g');
+      document.querySelector('[data-tab="tab-items"]').click();
+    }
+
+    function addBOMRow(material_code='', qty='', unit='g') {
+      const tb = $('#bom-tbody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="p-2"><input class="w-full rounded-md border-gray-300 bom-m" value="${material_code}"></td>
+        <td class="p-2"><input type="number" step="0.0001" class="w-28 rounded-md border-gray-300 bom-q" value="${qty}"></td>
+        <td class="p-2">
+          <select class="rounded-md border-gray-300 bom-u">
+            <option ${unit==='g'?'selected':''}>g</option>
+            <option ${unit==='ml'?'selected':''}>ml</option>
+            <option ${unit==='pcs'?'selected':''}>pcs</option>
+          </select>
+        </td>
+        <td class="p-2 text-right">
+          <button class="text-red-600 hover:underline">Entf</button>
+        </td>
+      `;
+      tr.querySelector('button').onclick = () => tr.remove();
+      tb.appendChild(tr);
+    }
+    $('#bom-add').onclick = () => addBOMRow();
+
+    $('#bom-save').onclick = async () => {
+      if (!currentItem) return;
+      $('#bom-msg').textContent = 'Speichere…';
+      const lines = Array.from($('#bom-tbody').querySelectorAll('tr')).map(tr => ({
+        material_code: tr.querySelector('.bom-m').value.trim(),
+        qty: Number(tr.querySelector('.bom-q').value || 0),
+        unit: tr.querySelector('.bom-u').value
+      })).filter(x => x.material_code && x.qty>0);
+      const r = await post(`/api/items/${encodeURIComponent(currentItem.code)}/bom`, { lines });
+      $('#bom-msg').textContent = r.ok ? 'Gespeichert.' : ('Fehler: '+(r.error||'')); 
+    };
+
+    $('#btn-scale').onclick = async () => {
+      if (!currentItem) return;
+      const qty = Number($('#scale-qty').value || 0);
+      if (!qty) return;
+      const r = await get(`/api/items/${encodeURIComponent(currentItem.code)}/scale?qty=${encodeURIComponent(qty)}`);
+      if (!r.ok) { alert('Fehler: '+(r.error||'')); return; }
+      $('#scale-box').classList.remove('hidden');
+      const tb = $('#scale-tbody'); tb.innerHTML = '';
+      for (const l of r.data.lines) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2">${l.material_name} (${l.material_code})</td>
+          <td class="p-2 text-right">${fmtUnit(l.qty, l.unit)}</td>
+          <td class="p-2 text-right">${Number(l.price_per_unit).toFixed(6)}</td>
+          <td class="p-2 text-right">${fmtEUR(l.cost)}</td>
+        `;
+        tb.appendChild(tr);
+      }
+      $('#scale-total').textContent = fmtEUR(r.data.total_cost);
+    };
+
+    /* ---------- plan ---------- */
+    function addPlanRow(row={}) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="p-2"><input type="time" class="rounded-md border-gray-300 plan-s" value="${row.start_time||''}"></td>
+        <td class="p-2"><input type="time" class="rounded-md border-gray-300 plan-e" value="${row.end_time||''}"></td>
+        <td class="p-2"><input class="w-full rounded-md border-gray-300 plan-p" value="${row.product_code||''}" placeholder="Produkt-Code"></td>
+        <td class="p-2 text-right"><input type="number" step="0.01" class="w-24 rounded-md border-gray-300 text-right plan-q" value="${row.qty||''}"></td>
+        <td class="p-2"><input class="w-full rounded-md border-gray-300 plan-n" value="${row.note||''}"></td>
+        <td class="p-2 text-right"><button class="text-red-600 hover:underline">Entf</button></td>
+      `;
+      tr.querySelector('button').onclick = () => tr.remove();
+      $('#plan-tbody').appendChild(tr);
+    }
+    $('#plan-add').onclick = () => addPlanRow();
+
+    $('#plan-load').onclick = async () => {
+      const d = $('#plan-date').value;
+      if (!d) return;
+      const r = await get(`/api/plan?date=${encodeURIComponent(d)}`);
+      const tb = $('#plan-tbody'); tb.innerHTML = '';
+      (r.data || []).forEach(row => addPlanRow(row));
+      if ((r.data||[]).length === 0) addPlanRow();
+      $('#calc-box').classList.add('hidden');
+    };
+
+    $('#plan-save').onclick = async () => {
+      const d = $('#plan-date').value;
+      if (!d) { alert('Bitte Datum wählen'); return; }
+      const rows = Array.from($('#plan-tbody').querySelectorAll('tr')).map(tr => ({
+        start_time: tr.querySelector('.plan-s').value || null,
+        end_time: tr.querySelector('.plan-e').value   || null,
+        product_code: tr.querySelector('.plan-p').value.trim(),
+        qty: Number(tr.querySelector('.plan-q').value||0),
+        note: tr.querySelector('.plan-n').value
+      })).filter(r => r.product_code && r.qty>0);
+      const r = await post('/api/plan/save', { date:d, rows });
+      alert(r.ok ? 'Gespeichert' : ('Fehler: '+(r.error||'')));
+    };
+
+    $('#plan-calc').onclick = async () => {
+      const d = $('#plan-date').value;
+      if (!d) { alert('Bitte Datum wählen'); return; }
+      const r = await post('/api/plan/calc', { date:d });
+      if (!r.ok) { alert('Fehler: '+(r.error||'')); return; }
+      $('#calc-box').classList.remove('hidden');
+      const tb = $('#calc-tbody'); tb.innerHTML = '';
+      for (const l of r.data.lines) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2">${l.material_name} (${l.material_code})</td>
+          <td class="p-2 text-right">${fmtUnit(l.qty, l.unit)}</td>
+          <td class="p-2 text-right">${Number(l.price_per_unit).toFixed(6)}</td>
+          <td class="p-2 text-right">${fmtEUR(l.cost)}</td>
+        `;
+        tb.appendChild(tr);
+      }
+      $('#calc-total').textContent = fmtEUR(r.data.total_cost);
+    };
+
+    /* ---------- tools ---------- */
+    $('#bulk-apply').onclick = async () => {
+      const text = $('#bulk-text').value;
+      if (!text.trim()) return;
+      $('#bulk-msg').textContent = 'Wird angewendet…';
+      const r = await post('/api/materials/bulk-prices', { text });
+      $('#bulk-msg').textContent = r.ok ? `Aktualisiert: ${r.updated}` : ('Fehler: '+(r.error||'')); 
+      if (r.ok) loadMaterials();
+    };
+
+    $('#seed-tools').onclick = async () => {
+      $('#seed-tools-log').textContent = 'Wird angewendet…';
+      const r = await post('/api/admin/seed/apply');
+      $('#seed-tools-log').textContent = JSON.stringify(r, null, 2);
+      loadMaterials(); loadItems();
+    };
+
+    /* ---------- boot ---------- */
+    (async () => {
+      await loadOverview();
+      await loadMaterials();
+      await loadItems();
+
+      // Defaults: overview visible, ensure plan has a date today
+      const today = new Date().toISOString().slice(0,10);
+      $('#plan-date').value = today;
+      if (!$('#materials-tbody').children.length) $('#reload-materials').click();
+      if (!$('#items-tbody').children.length) $('#reload-items').click();
     })();
-
-    document.getElementById('logout').onclick = async () => {
-      await post('/api/logout');
-      location.href = '/';
-    };
-
-    document.getElementById('seed').onclick = async () => {
-      const p = document.getElementById('seedLog');
-      p.textContent = 'Wird angewendet…';
-      try {
-        const r = await post('/api/admin/seed/apply');
-        p.textContent = JSON.stringify(r, null, 2);
-      } catch (e) {
-        p.textContent = 'Fehler: ' + (e.message || e);
-      }
-    };
   </script>
 </body>
 </html>
