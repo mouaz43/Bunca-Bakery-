@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>BUNCA – Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-stone-50 text-stone-900">
+  <!-- Top Nav -->
+  <header class="bg-white border-b border-stone-200">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="h-8 w-8 rounded-lg bg-emerald-600"></div>
+        <h1 class="text-lg font-semibold tracking-tight">BUNCA Planner</h1>
+      </div>
+      <nav class="flex items-center gap-3 text-sm">
+        <a href="/plan.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Plan</a>
+        <a href="/recipes.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Rezepte</a>
+        <a href="/materials.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Rohwaren</a>
+        <a href="/import.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Import</a>
+        <a href="/admin.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Admin</a>
+        <button id="logoutBtn" class="ml-2 px-3 py-1.5 rounded-lg bg-stone-900 text-white hover:bg-stone-800">Logout</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    <!-- Date & summary -->
+    <section class="mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-semibold tracking-tight">Heute</h2>
+          <p id="todayLabel" class="text-stone-500">—</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="date" type="date" class="rounded-xl border border-stone-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <a href="/plan.html" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Zum Plan</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cards -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-sm text-stone-500">Gesamtkosten (Tag)</p>
+        <p id="totalCost" class="text-2xl font-semibold mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-sm text-stone-500">Produktionen</p>
+        <p id="totalRows" class="text-2xl font-semibold mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-sm text-stone-500">Material-Positionen</p>
+        <p id="totalMaterials" class="text-2xl font-semibold mt-1">—</p>
+      </div>
+    </section>
+
+    <!-- Plan list -->
+    <section class="bg-white rounded-2xl shadow overflow-hidden">
+      <div class="px-5 py-4 border-b border-stone-200 flex items-center justify-between">
+        <h3 class="font-semibold">Heutiger Produktionsplan</h3>
+        <button id="refreshBtn" class="px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-100">Neu laden</button>
+      </div>
+      <div id="planList" class="divide-y divide-stone-100"></div>
+    </section>
+
+    <!-- Materials summary -->
+    <section class="mt-8 bg-white rounded-2xl shadow overflow-hidden">
+      <div class="px-5 py-4 border-b border-stone-200">
+        <h3 class="font-semibold">Benötigte Rohwaren (heute)</h3>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-stone-50">
+            <tr>
+              <th class="text-left px-5 py-2.5">Rohware</th>
+              <th class="text-left px-5 py-2.5">Menge</th>
+              <th class="text-left px-5 py-2.5">Kosten</th>
+            </tr>
+          </thead>
+          <tbody id="matBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+<script>
+async function guard() {
+  const s = await fetch('/api/session').then(r=>r.json());
+  if (!s.user) location.href = '/login.html';
+}
+function fmtDateISO(d){ return d.toISOString().slice(0,10); }
+function euro(n){ return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n||0); }
+
+async function loadAll() {
+  const date = document.getElementById('date').value;
+  // label
+  const lab = new Date(date + 'T00:00:00');
+  document.getElementById('todayLabel').textContent = lab.toLocaleDateString('de-DE', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  // plan rows
+  const plan = await fetch('/api/plan?date='+date).then(r=>r.json());
+  const list = document.getElementById('planList');
+  list.innerHTML = '';
+  if (!plan.data || plan.data.length === 0) {
+    list.innerHTML = '<div class="px-5 py-6 text-stone-500 text-sm">Kein Plan für diesen Tag.</div>';
+  } else {
+    for (const r of plan.data) {
+      const t = (r.start_time||'—') + (r.end_time?(' – '+r.end_time):'');
+      const el = document.createElement('div');
+      el.className = 'px-5 py-3 flex items-center justify-between';
+      el.innerHTML = `
+        <div>
+          <div class="font-medium">${r.product_name || r.product_code}</div>
+          <div class="text-stone-500 text-xs">${t}</div>
+        </div>
+        <div class="text-right">
+          <div class="font-medium">${r.qty} <span class="text-stone-500">${r.yield_unit || 'pcs'}</span></div>
+          <div class="text-stone-500 text-xs">${r.note || ''}</div>
+        </div>`;
+      list.appendChild(el);
+    }
+  }
+
+  // materials calc
+  const calc = await fetch('/api/plan/calc', {
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body: JSON.stringify({ date })
+  }).then(r=>r.json());
+  const mats = calc.data || { lines:[], total_cost:0 };
+  document.getElementById('totalCost').textContent = euro(mats.total_cost || 0);
+  document.getElementById('totalRows').textContent = (plan.data || []).length;
+  document.getElementById('totalMaterials').textContent = (mats.lines || []).length;
+
+  const tbody = document.getElementById('matBody');
+  tbody.innerHTML = '';
+  for (const m of mats.lines) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="px-5 py-2.5">${m.material_name || m.material_code}</td>
+      <td class="px-5 py-2.5">${m.qty} ${m.unit}</td>
+      <td class="px-5 py-2.5">${euro(m.cost)}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+document.getElementById('logoutBtn').onclick = async () => {
+  await fetch('/api/logout', { method:'POST' });
+  location.href = '/login.html';
+};
+document.getElementById('refreshBtn').onclick = loadAll;
+
+(async () => {
+  await guard();
+  const today = fmtDateISO(new Date());
+  const inp = document.getElementById('date');
+  inp.value = today;
+  inp.addEventListener('change', loadAll);
+  await loadAll();
+})();
+</script>
+</body>
+</html>
