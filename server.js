@@ -427,6 +427,14 @@ app.post('/api/login', (req, res) => {
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => { res.clearCookie('sid'); res.json({ ok:true }); });
 });
+app.post('/api/login', (req, res) => {
+  const { email, password } = req.body || {};
+  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+    req.session.user = { email, role: 'admin' };
+    return res.json({ ok: true });
+  }
+  return res.status(401).json({ ok: false, error: 'bad_credentials' });
+});
 
 // SEED endpoints (admin)
 app.post('/api/seed/full', requireAuth, async (req, res) => {
