@@ -1,50 +1,133 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>BUNCA – Produktion</title>
-  <link rel="stylesheet" href="/styles.css"/>
+  <meta charset="utf-8">
+  <title>Production – BUNCA Planner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-page="production">
-  <nav class="nav">
+<body class="wrap">
+  <header class="nav">
     <div class="brand">BUNCA Planner</div>
-    <div class="spacer"></div>
-    <a href="/dashboard">Dashboard</a>
-    <a href="/products">Rohwaren</a>
-    <a href="/recipes">Rezepte</a>
-    <button id="logout" class="button" style="margin-left:10px">Logout</button>
-  </nav>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/production" class="active">Production</a>
+      <a href="/admin">Admin</a>
+      <button id="logout">Logout</button>
+    </nav>
+  </header>
 
-  <main class="container">
-    <div class="card">
-      <h3 style="margin-top:0">Produktionsplan (heute)</h3>
-      <div class="card" style="padding:0">
-        <div style="overflow:auto">
-          <table class="table">
-            <thead id="plan-head"></thead>
-            <tbody id="plan-body"></tbody>
-          </table>
-        </div>
+  <section class="card">
+    <h2>Produktionsplan</h2>
+    <div class="grid">
+      <div>
+        <label>Datum</label>
+        <input id="planDate" type="date" />
       </div>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <button id="save-plan" class="button primary">Plan speichern</button>
-        <button id="show-usage" class="button">Rohwarenverbrauch berechnen</button>
+      <div>
+        <label>Artikel</label>
+        <select id="itemSel"></select>
       </div>
-
-      <h4 style="margin-top:18px">Rohwarenverbrauch (heute)</h4>
-      <div class="card" style="padding:0">
-        <div style="overflow:auto">
-          <table class="table">
-            <thead><tr><th>Produkt</th><th>Menge (Basis)</th><th>€/Basis</th><th>Kosten</th></tr></thead>
-            <tbody id="usage-body"><tr><td colspan="4">Noch keine Berechnung…</td></tr></tbody>
-          </table>
-        </div>
+      <div>
+        <label>Menge (Ziel)</label>
+        <input id="qty" type="number" min="0" step="1" />
       </div>
-      <div style="margin-top:8px" class="muted">Gesamt: <strong id="usage-total">0,00 €</strong></div>
+      <div class="row">
+        <button id="add">Zeile hinzufügen</button>
+        <button id="calc">Berechnen</button>
+        <button id="save">Plan speichern</button>
+      </div>
     </div>
-  </main>
 
-  <script src="/app.js"></script>
+    <table id="lines" class="mt">
+      <thead><tr><th>Code</th><th>Name</th><th>Menge</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Rohwarenbedarf & Kosten</h2>
+    <table id="req" class="mt">
+      <thead><tr><th>Rohware</th><th>Code</th><th>Menge</th><th>€ / Base</th><th>Kosten (€)</th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td colspan="4" style="text-align:right"><b>Gesamtkosten</b></td><td id="total">0.00</td></tr></tfoot>
+    </table>
+  </section>
+
+<script>
+const $ = (s)=>document.querySelector(s);
+const $$ = (s)=>document.querySelectorAll(s);
+let items = [];
+let lines = [];
+
+async function loadItems(){
+  const r = await fetch('/api/items'); const j = await r.json();
+  items = j.data || [];
+  const sel = $('#itemSel'); sel.innerHTML = '';
+  for(const it of items){
+    const o = document.createElement('option');
+    o.value = it.code; o.textContent = `${it.name} (${it.yield_qty} ${it.yield_unit})`;
+    sel.appendChild(o);
+  }
+}
+
+function renderLines(){
+  const tb = $('#lines tbody'); tb.innerHTML = '';
+  for (let i=0;i<lines.length;i++){
+    const L = lines[i];
+    const tr = document.createElement('tr');
+    const item = items.find(x=>x.code===L.item_code);
+    tr.innerHTML =
+      `<td>${L.item_code}</td><td>${item?item.name:''}</td>
+       <td>${L.qty}</td>
+       <td><button data-i="${i}" class="rm">Entfernen</button></td>`;
+    tb.appendChild(tr);
+  }
+  tb.querySelectorAll('button.rm').forEach(b=>{
+    b.onclick = ()=>{ lines.splice(Number(b.dataset.i),1); renderLines(); };
+  });
+}
+
+$('#add').onclick = ()=>{
+  const item_code = $('#itemSel').value;
+  const qty = Number($('#qty').value || '0');
+  if (!item_code || qty<=0) return;
+  lines.push({ item_code, qty });
+  renderLines();
+};
+
+$('#calc').onclick = async ()=>{
+  const r = await fetch('/api/calc/requirements', {
+    method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({ lines })
+  });
+  const j = await r.json();
+  const tb = $('#req tbody'); tb.innerHTML = '';
+  let total = 0;
+  for (const row of j.data.rows){
+    total += row.cost;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${row.product_name}</td><td>${row.product_code}</td><td>${row.qty_pretty}</td><td>${row.price_per_base.toFixed(4)}</td><td>${row.cost.toFixed(2)}</td>`;
+    tb.appendChild(tr);
+  }
+  $('#total').textContent = total.toFixed(2);
+};
+
+$('#save').onclick = async ()=>{
+  const plan_date = $('#planDate').value;
+  if (!plan_date) { alert('Datum wählen'); return; }
+  const r = await fetch('/api/production', {
+    method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({ plan_date, lines })
+  });
+  if (r.ok) alert('Plan gespeichert'); else alert('Fehler beim Speichern');
+};
+
+document.getElementById('logout').onclick = async () => {
+  await fetch('/api/logout',{method:'POST'}); location.href='/';
+};
+
+loadItems();
+</script>
 </body>
 </html>
