@@ -1,0 +1,134 @@
+[
+  // Banana Bread Loaf (8 Stück)
+  { "item_code":"BANANA_BREAD_8","product_code":"BUTTER","qty":115,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"WEIZENMEHL","qty":225,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"ZUCKER_WEISS","qty":150,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"ZUCKER_BRAUN","qty":80,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"VANILLENZUCKER","qty":3,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"PUDERZUCKER","qty":20,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"VOLLEI","qty":59,"unit":"ml" },
+  { "item_code":"BANANA_BREAD_8","product_code":"BACKPULVER","qty":3.5,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"NATRON","qty":3.5,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"ZIMT","qty":2,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"BANANEN","qty":400,"unit":"g" },
+  { "item_code":"BANANA_BREAD_8","product_code":"SCHOKOSTREUSEL","qty":66.7,"unit":"g" },
+
+  // 60 Muffins
+  { "item_code":"MUFFINS_60","product_code":"WEIZENMEHL","qty":400,"unit":"g" },
+  { "item_code":"MUFFINS_60","product_code":"BUTTER","qty":1000,"unit":"g" },
+  { "item_code":"MUFFINS_60","product_code":"ZUCKER_WEISS","qty":1000,"unit":"g" },
+  { "item_code":"MUFFINS_60","product_code":"PUDERZUCKER","qty":600,"unit":"g" },
+  { "item_code":"MUFFINS_60","product_code":"VOLLEI","qty":1250,"unit":"ml" },
+  { "item_code":"MUFFINS_60","product_code":"KUV_VOLL","qty":1500,"unit":"g" },
+  { "item_code":"MUFFINS_60","product_code":"HAS_GRIESS","qty":1000,"unit":"g" },
+
+  // 15 Pasteis
+  { "item_code":"PASTEIS_15","product_code":"ZUCKER_WEISS","qty":125,"unit":"g" },
+  { "item_code":"PASTEIS_15","product_code":"VANILLENZUCKER","qty":6,"unit":"g" },
+  { "item_code":"PASTEIS_15","product_code":"MAISSTAERKE","qty":40,"unit":"g" },
+  { "item_code":"PASTEIS_15","product_code":"EIGELB","qty":120,"unit":"ml" },
+  { "item_code":"PASTEIS_15","product_code":"ZIMT","qty":2,"unit":"g" },
+  { "item_code":"PASTEIS_15","product_code":"ZITRONEN_SAFT","qty":100,"unit":"ml" },
+  { "item_code":"PASTEIS_15","product_code":"SAHNE_30","qty":400,"unit":"ml" },
+  { "item_code":"PASTEIS_15","product_code":"MILCH","qty":200,"unit":"ml" },
+
+  // Schokonuss Kuchen (8 Stück)
+  { "item_code":"SCHOKONUSS_8","product_code":"BACKMARGARINE","qty":150,"unit":"g" },
+  { "item_code":"SCHOKONUSS_8","product_code":"WEIZENMEHL","qty":210,"unit":"g" },
+  { "item_code":"SCHOKONUSS_8","product_code":"ZUCKER_WEISS","qty":100,"unit":"g" },
+  { "item_code":"SCHOKONUSS_8","product_code":"EIERERSATZ","qty":1000,"unit":"ml" },
+  { "item_code":"SCHOKONUSS_8","product_code":"BACKPULVER","qty":16,"unit":"g" },
+  { "item_code":"SCHOKONUSS_8","product_code":"ZIMT","qty":2,"unit":"g" },
+  { "item_code":"SCHOKONUSS_8","product_code":"SCHOKOSTREUSEL","qty":130,"unit":"g" },
+  { "item_code":"SCHOKONUSS_8","product_code":"KUV_DUNKEL","qty":200,"unit":"g" },
+  { "item_code":"SCHOKONUSS_8","product_code":"EDELNUSS_MIX","qty":210,"unit":"g" },
+  { "item_code":"SCHOKONUSS_8","product_code":"HAFERMILCH","qty":125,"unit":"ml" },
+
+  // Carrot Cake (12 Stück) — (mehl in Quelle nicht sichtbar; ggf. ergänzen)
+  { "item_code":"CARROT_12","product_code":"BUTTER","qty":650,"unit":"g" },
+  { "item_code":"CARROT_12","product_code":"ZUCKER_BRAUN","qty":100,"unit":"g" },
+  { "item_code":"CARROT_12","product_code":"VOLLEI","qty":150,"unit":"ml" },
+  { "item_code":"CARROT_12","product_code":"BACKPULVER","qty":16,"unit":"g" },
+  { "item_code":"CARROT_12","product_code":"ZIMT","qty":2,"unit":"g" },
+  { "item_code":"CARROT_12","product_code":"ZITRONEN_SAFT","qty":100,"unit":"ml" },
+  { "item_code":"CARROT_12","product_code":"KAROTTEN","qty":200,"unit":"g" },
+  { "item_code":"CARROT_12","product_code":"MANDELM_GR","qty":200,"unit":"g" },
+  { "item_code":"CARROT_12","product_code":"MANDEL_GH","qty":50,"unit":"g" },
+
+  // Peanut Caramel Cookie (82 Stück)
+  { "item_code":"PEANUT_CARAMEL_COOKIE_82","product_code":"BUTTER","qty":2000,"unit":"g" },
+  { "item_code":"PEANUT_CARAMEL_COOKIE_82","product_code":"WEIZENMEHL","qty":2600,"unit":"g" },
+  { "item_code":"PEANUT_CARAMEL_COOKIE_82","product_code":"ZUCKER_WEISS","qty":360,"unit":"g" },
+  { "item_code":"PEANUT_CARAMEL_COOKIE_82","product_code":"KUV_WEISS","qty":400,"unit":"g" },
+  { "item_code":"PEANUT_CARAMEL_COOKIE_82","product_code":"ZUCKER_BRAUN","qty":900,"unit":"g" },
+  { "item_code":"PEANUT_CARAMEL_COOKIE_82","product_code":"VOLLEI","qty":600,"unit":"ml" },
+  { "item_code":"PEANUT_CARAMEL_COOKIE_82","product_code":"KAKAO","qty":320,"unit":"g" },
+  { "item_code":"PEANUT_CARAMEL_COOKIE_82","product_code":"KUV_VOLL","qty":400,"unit":"g" },
+  { "item_code":"PEANUT_CARAMEL_COOKIE_82","product_code":"ERDNUESSE","qty":400,"unit":"g" },
+
+  // Rotweinkuchen (2 ganze)
+  { "item_code":"ROTWEIN_2","product_code":"WEIZENMEHL","qty":660,"unit":"g" },
+  { "item_code":"ROTWEIN_2","product_code":"ZUCKER_BRAUN","qty":450,"unit":"g" },
+  { "item_code":"ROTWEIN_2","product_code":"BACKMARGARINE","qty":450,"unit":"g" },
+  { "item_code":"ROTWEIN_2","product_code":"VANILLENZUCKER","qty":6,"unit":"g" },
+  { "item_code":"ROTWEIN_2","product_code":"VOLLEI","qty":350,"unit":"ml" },
+  { "item_code":"ROTWEIN_2","product_code":"BACKPULVER","qty":24,"unit":"g" },
+  { "item_code":"ROTWEIN_2","product_code":"KAKAO","qty":50,"unit":"g" },
+  { "item_code":"ROTWEIN_2","product_code":"ZIMT","qty":6,"unit":"g" },
+
+  // Apfelkuchen (15 Stück)
+  { "item_code":"APFELKUCHEN_15","product_code":"WEIZENMEHL","qty":300,"unit":"g" },
+  { "item_code":"APFELKUCHEN_15","product_code":"ZUCKER_BRAUN","qty":200,"unit":"g" },
+  { "item_code":"APFELKUCHEN_15","product_code":"BACKMARGARINE","qty":250,"unit":"g" },
+  { "item_code":"APFELKUCHEN_15","product_code":"VANILLENZUCKER","qty":6,"unit":"g" },
+  { "item_code":"APFELKUCHEN_15","product_code":"VOLLEI","qty":300,"unit":"ml" },
+  { "item_code":"APFELKUCHEN_15","product_code":"BACKPULVER","qty":16,"unit":"g" },
+  { "item_code":"APFELKUCHEN_15","product_code":"ZIMT","qty":20,"unit":"g" },
+  { "item_code":"APFELKUCHEN_15","product_code":"ZITRONEN_SAFT","qty":100,"unit":"ml" },
+  { "item_code":"APFELKUCHEN_15","product_code":"MANDELM_GR","qty":120,"unit":"g" },
+  { "item_code":"APFELKUCHEN_15","product_code":"MANDEL_GH","qty":50,"unit":"g" },
+  { "item_code":"APFELKUCHEN_15","product_code":"MILCH","qty":130,"unit":"ml" },
+  { "item_code":"APFELKUCHEN_15","product_code":"EDELNUSS_MIX","qty":30,"unit":"g" },
+
+  // Choc Chip Cookie (78 Stück)
+  { "item_code":"CHOC_CHIP_COOKIE_78","product_code":"WEIZENMEHL","qty":2700,"unit":"g" },
+  { "item_code":"CHOC_CHIP_COOKIE_78","product_code":"BACKMARGARINE","qty":2000,"unit":"g" },
+  { "item_code":"CHOC_CHIP_COOKIE_78","product_code":"MAISSTAERKE","qty":100,"unit":"g" },
+  { "item_code":"CHOC_CHIP_COOKIE_78","product_code":"ZUCKER_BRAUN","qty":900,"unit":"g" },
+  { "item_code":"CHOC_CHIP_COOKIE_78","product_code":"ZUCKER_WEISS","qty":360,"unit":"g" },
+  { "item_code":"CHOC_CHIP_COOKIE_78","product_code":"VANILLENZUCKER","qty":100,"unit":"g" },
+  { "item_code":"CHOC_CHIP_COOKIE_78","product_code":"NATRON","qty":50,"unit":"g" },
+
+  // Oatmeal cookie (110 Stück)
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"HAFERFLOCKEN","qty":4000,"unit":"g" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"MAISSTAERKE","qty":200,"unit":"g" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"BUTTER","qty":2000,"unit":"g" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"ZUCKER_BRAUN","qty":1000,"unit":"g" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"ZUCKER_WEISS","qty":720,"unit":"g" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"VOLLEI","qty":400,"unit":"ml" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"KUV_WEISS","qty":800,"unit":"g" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"ZIMT","qty":23,"unit":"g" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"VANILLENZUCKER","qty":36,"unit":"g" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"BACKPULVER","qty":18,"unit":"g" },
+  { "item_code":"OATMEAL_COOKIE_110","product_code":"EDELNUSS_MIX","qty":800,"unit":"g" },
+
+  // Energy Balls (58 Stück)
+  { "item_code":"ENERGY_BALLS_58","product_code":"KAKAO","qty":250,"unit":"g" },
+  { "item_code":"ENERGY_BALLS_58","product_code":"HAFERFLOCKEN","qty":1500,"unit":"g" },
+  { "item_code":"ENERGY_BALLS_58","product_code":"DATTELN","qty":800,"unit":"g" },
+  { "item_code":"ENERGY_BALLS_58","product_code":"PFLAUMEN","qty":400,"unit":"g" },
+  { "item_code":"ENERGY_BALLS_58","product_code":"WALNUESSE","qty":500,"unit":"g" },
+  { "item_code":"ENERGY_BALLS_58","product_code":"KOKOS_OEL","qty":150,"unit":"ml" },
+  { "item_code":"ENERGY_BALLS_58","product_code":"KOKOS_RASP","qty":50,"unit":"g" },
+
+  // Pistachio Cookies (108 Stück)
+  { "item_code":"PISTACHIO_COOKIES_108","product_code":"BUTTER","qty":1500,"unit":"g" },
+  { "item_code":"PISTACHIO_COOKIES_108","product_code":"WEIZENMEHL","qty":3400,"unit":"g" },
+  { "item_code":"PISTACHIO_COOKIES_108","product_code":"NATRON","qty":60,"unit":"g" },
+  { "item_code":"PISTACHIO_COOKIES_108","product_code":"ZUCKER_BRAUN","qty":1400,"unit":"g" },
+  { "item_code":"PISTACHIO_COOKIES_108","product_code":"VANILLENZUCKER","qty":100,"unit":"g" },
+  { "item_code":"PISTACHIO_COOKIES_108","product_code":"VOLLEI","qty":1000,"unit":"ml" },
+  { "item_code":"PISTACHIO_COOKIES_108","product_code":"PISTAZIEN","qty":1000,"unit":"g" },
+  { "item_code":"PISTACHIO_COOKIES_108","product_code":"PISTAZIEN_CREME","qty":1200,"unit":"g" },
+  { "item_code":"PISTACHIO_COOKIES_108","product_code":"KUV_WEISS","qty":1000,"unit":"g" }
+]
