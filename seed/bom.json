@@ -1,0 +1,190 @@
+[
+  {
+    "product_code": "BANANA_LOAF_8",
+    "ingredients": [
+      { "material_code": "MARKENBUTTER_BLOCK", "qty": 115,  "unit": "g"  },
+      { "material_code": "WEIZENMEHL",         "qty": 225,  "unit": "g"  },
+      { "material_code": "ZUCKER_WEISS",       "qty": 150,  "unit": "g"  },
+      { "material_code": "ZUCKER_BRAUN",       "qty": 80,   "unit": "g"  },
+      { "material_code": "VANILLENZUCKER",     "qty": 3,    "unit": "g"  },
+      { "material_code": "PUDERZUCKER",        "qty": 20,   "unit": "g"  },
+      { "material_code": "VOLLEI",             "qty": 59,   "unit": "ml" },
+      { "material_code": "BACKPULVER",         "qty": 3.5,  "unit": "g"  },
+      { "material_code": "NATRON",             "qty": 3.5,  "unit": "g"  },
+      { "material_code": "ZIMT_GEM",           "qty": 2,    "unit": "g"  },
+      { "material_code": "BANANEN",            "qty": 400,  "unit": "g"  },
+      { "material_code": "SCHOKO_STREUSEL",    "qty": 66.7, "unit": "g"  }
+    ]
+  },
+
+  {
+    "product_code": "MUFFINS_60",
+    "ingredients": [
+      { "material_code": "WEIZENMEHL",         "qty": 400,  "unit": "g"  },
+      { "material_code": "MARKENBUTTER_BLOCK", "qty": 1000, "unit": "g"  },
+      { "material_code": "ZUCKER_WEISS",       "qty": 1000, "unit": "g"  },
+      { "material_code": "PUDERZUCKER",        "qty": 600,  "unit": "g"  },
+      { "material_code": "VOLLEI",             "qty": 1250, "unit": "ml" },
+      { "material_code": "KUV_VOLLMILCH_BLOCK","qty": 1500, "unit": "g"  },
+      { "material_code": "EDELNUSS_MIX",       "qty": 1000, "unit": "g"  }
+    ]
+  },
+
+  {
+    "product_code": "PASTEIS_15",
+    "ingredients": [
+      { "material_code": "ZUCKER_WEISS",   "qty": 125, "unit": "g"  },
+      { "material_code": "VANILLENZUCKER", "qty": 6,   "unit": "g"  },
+      { "material_code": "MAISSTAERKE",    "qty": 40,  "unit": "g"  },
+      { "material_code": "BLAETTERTEIG",   "qty": 1,   "unit": "pcs"},
+      { "material_code": "EIGELB",         "qty": 120, "unit": "ml" },
+      { "material_code": "ZIMT_GEM",       "qty": 2,   "unit": "g"  },
+      { "material_code": "ZITRONEN_SAFT",  "qty": 100, "unit": "ml" },
+      { "material_code": "SAHNE_30",       "qty": 400, "unit": "ml" },
+      { "material_code": "MILCH",          "qty": 200, "unit": "ml" }
+    ]
+  },
+
+  {
+    "product_code": "SCHOKONUSS_KUCHEN_8",
+    "ingredients": [
+      { "material_code": "BACKMARGARINE",      "qty": 150,  "unit": "g"  },
+      { "material_code": "WEIZENMEHL",         "qty": 210,  "unit": "g"  },
+      { "material_code": "ZUCKER_WEISS",       "qty": 100,  "unit": "g"  },
+      { "material_code": "EIERSATZ",           "qty": 1000, "unit": "ml" },
+      { "material_code": "BACKPULVER",         "qty": 16,   "unit": "g"  },
+      { "material_code": "ZIMT_GEM",           "qty": 2,    "unit": "g"  },
+      { "material_code": "SCHOKO_STREUSEL",    "qty": 130,  "unit": "g"  },
+      { "material_code": "KUV_DUNKEL_BLOCK",   "qty": 200,  "unit": "g"  },
+      { "material_code": "EDELNUSS_MIX",       "qty": 210,  "unit": "g"  },
+      { "material_code": "HAFERMILCH",         "qty": 125,  "unit": "ml" }
+    ]
+  },
+
+  {
+    "product_code": "CARROT_CAKE_12",
+    "ingredients": [
+      { "material_code": "MARKENBUTTER_BLOCK", "qty": 650,  "unit": "g"  },
+      { "material_code": "ZUCKER_BRAUN",       "qty": 100,  "unit": "g"  },
+      { "material_code": "VOLLEI",             "qty": 150,  "unit": "ml" },
+      { "material_code": "BACKPULVER",         "qty": 16,   "unit": "g"  },
+      { "material_code": "ZIMT_GEM",           "qty": 2,    "unit": "g"  },
+      { "material_code": "ZITRONEN_SAFT",      "qty": 100,  "unit": "ml" },
+      { "material_code": "KAROTTEN_STIFTE",    "qty": 200,  "unit": "g"  },
+      { "material_code": "MANDELGROSS_FEIN",   "qty": 200,  "unit": "g"  },
+      { "material_code": "MANDELN_GEHOBELT",   "qty": 50,   "unit": "g"  }
+    ]
+  },
+
+  {
+    "product_code": "PEANUT_CARAMEL_COOKIE_82",
+    "ingredients": [
+      { "material_code": "MARKENBUTTER_BLOCK",  "qty": 2000, "unit": "g"  },
+      { "material_code": "WEIZENMEHL",          "qty": 2600, "unit": "g"  },
+      { "material_code": "ZUCKER_WEISS",        "qty": 360,  "unit": "g"  },
+      { "material_code": "KUV_WEISS_CALLETS",   "qty": 400,  "unit": "g"  },
+      { "material_code": "ZUCKER_BRAUN",        "qty": 900,  "unit": "g"  },
+      { "material_code": "VOLLEI",              "qty": 600,  "unit": "ml" },
+      { "material_code": "KAKAO",               "qty": 320,  "unit": "g"  },
+      { "material_code": "KUV_VOLLMILCH_BLOCK", "qty": 400,  "unit": "g"  },
+      { "material_code": "ERDNUESSE",           "qty": 400,  "unit": "g"  }
+    ]
+  },
+
+  {
+    "product_code": "ROTWEIN_KUCHEN_2",
+    "ingredients": [
+      { "material_code": "WEIZENMEHL",       "qty": 660, "unit": "g"  },
+      { "material_code": "ZUCKER_BRAUN",     "qty": 450, "unit": "g"  },
+      { "material_code": "BACKMARGARINE",    "qty": 450, "unit": "g"  },
+      { "material_code": "VANILLENZUCKER",   "qty": 6,   "unit": "g"  },
+      { "material_code": "VOLLEI",           "qty": 350, "unit": "ml" },
+      { "material_code": "BACKPULVER",       "qty": 24,  "unit": "g"  },
+      { "material_code": "KAKAO",            "qty": 50,  "unit": "g"  },
+      { "material_code": "ZIMT_GEM",         "qty": 6,   "unit": "g"  },
+      { "material_code": "ZITRONEN_SAFT",    "qty": 150, "unit": "ml" },
+      { "material_code": "KUV_DUNKEL_BLOCK", "qty": 150, "unit": "g"  },
+      { "material_code": "ROTWEIN",          "qty": 190, "unit": "ml" }
+    ]
+  },
+
+  {
+    "product_code": "APFELKUCHEN_15",
+    "ingredients": [
+      { "material_code": "WEIZENMEHL",        "qty": 300, "unit": "g"  },
+      { "material_code": "ZUCKER_BRAUN",      "qty": 200, "unit": "g"  },
+      { "material_code": "BACKMARGARINE",     "qty": 250, "unit": "g"  },
+      { "material_code": "VANILLENZUCKER",    "qty": 6,   "unit": "g"  },
+      { "material_code": "VOLLEI",            "qty": 300, "unit": "ml" },
+      { "material_code": "BACKPULVER",        "qty": 16,  "unit": "g"  },
+      { "material_code": "ZIMT_GEM",          "qty": 20,  "unit": "g"  },
+      { "material_code": "ZITRONEN_SAFT",     "qty": 100, "unit": "ml" },
+      { "material_code": "AEPFEL",            "qty": 800, "unit": "g"  },
+      { "material_code": "MANDELGROSS_FEIN",  "qty": 120, "unit": "g"  },
+      { "material_code": "MANDELN_GEHOBELT",  "qty": 50,  "unit": "g"  },
+      { "material_code": "MILCH",             "qty": 130, "unit": "ml" },
+      { "material_code": "WALNUESSE",         "qty": 30,  "unit": "g"  }
+    ]
+  },
+
+  {
+    "product_code": "CHOC_CHIP_COOKIE_78",
+    "ingredients": [
+      { "material_code": "WEIZENMEHL",        "qty": 2700, "unit": "g"  },
+      { "material_code": "BACKMARGARINE",     "qty": 2000, "unit": "g"  },
+      { "material_code": "MAISSTAERKE",       "qty": 100,  "unit": "g"  },
+      { "material_code": "ZUCKER_BRAUN",      "qty": 900,  "unit": "g"  },
+      { "material_code": "ZUCKER_WEISS",      "qty": 360,  "unit": "g"  },
+      { "material_code": "VANILLENZUCKER",    "qty": 100,  "unit": "g"  },
+      { "material_code": "NATRON",            "qty": 50,   "unit": "g"  },
+      { "material_code": "SCHOKO_PACKUNG",    "qty": 12,   "unit": "pcs"}
+    ]
+  },
+
+  {
+    "product_code": "OATMEAL_COOKIE_110",
+    "ingredients": [
+      { "material_code": "HAFERFLOCKEN",      "qty": 4000, "unit": "g"  },
+      { "material_code": "MAISSTAERKE",       "qty": 200,  "unit": "g"  },
+      { "material_code": "MARKENBUTTER_BLOCK","qty": 2000, "unit": "g"  },
+      { "material_code": "ZUCKER_BRAUN",      "qty": 1000, "unit": "g"  },
+      { "material_code": "ZUCKER_WEISS",      "qty": 720,  "unit": "g"  },
+      { "material_code": "VOLLEI",            "qty": 400,  "unit": "ml" },
+      { "material_code": "KUV_WEISS_CALLETS", "qty": 800,  "unit": "g"  },
+      { "material_code": "ZIMT_GEM",          "qty": 23,   "unit": "g"  },
+      { "material_code": "VANILLENZUCKER",    "qty": 36,   "unit": "g"  },
+      { "material_code": "BACKPULVER",        "qty": 18,   "unit": "g"  },
+      { "material_code": "EDELNUSS_MIX",      "qty": 800,  "unit": "g"  }
+    ]
+  },
+
+  {
+    "product_code": "PISTACHIO_COOKIE_108",
+    "ingredients": [
+      { "material_code": "MARKENBUTTER_BLOCK", "qty": 1500, "unit": "g"  },
+      { "material_code": "WEIZENMEHL",         "qty": 3400, "unit": "g"  },
+      { "material_code": "NATRON",             "qty": 60,   "unit": "g"  },
+      { "material_code": "ZUCKER_BRAUN",       "qty": 1400, "unit": "g"  },
+      { "material_code": "VANILLENZUCKER",     "qty": 100,  "unit": "g"  },
+      { "material_code": "VOLLEI",             "qty": 1000, "unit": "ml" },
+      { "material_code": "ZITRONEN_SCHALE",    "qty": 0,    "unit": "g"  },
+      { "material_code": "PISTAZIEN",          "qty": 1000, "unit": "g"  },
+      { "material_code": "PISTAZIEN_CREME",    "qty": 1200, "unit": "g"  },
+      { "material_code": "KUV_WEISS_CALLETS",  "qty": 1000, "unit": "g"  }
+    ]
+  },
+
+  {
+    "product_code": "ENERGY_BALLS_58",
+    "ingredients": [
+      { "material_code": "KAKAO",           "qty": 250,  "unit": "g"  },
+      { "material_code": "HAFERFLOCKEN",    "qty": 1500, "unit": "g"  },
+      { "material_code": "DATTELN_GEHACKT", "qty": 800,  "unit": "g"  },
+      { "material_code": "PFLAUMEN_GETR",   "qty": 400,  "unit": "g"  },
+      { "material_code": "WALNUESSE",       "qty": 500,  "unit": "g"  },
+      { "material_code": "KOKOSOEL",        "qty": 150,  "unit": "ml" },
+      { "material_code": "KOKOS_RASP",      "qty": 50,   "unit": "g"  },
+      { "material_code": "ESPRESSO",        "qty": 20,   "unit": "ml" }
+    ]
+  }
+]
