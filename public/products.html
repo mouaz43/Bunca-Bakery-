@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>BUNCA – Rohwaren</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body data-page="products">
+  <nav class="nav">
+    <div class="brand">BUNCA Planner</div>
+    <div class="spacer"></div>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/recipes">Rezepte</a>
+    <a href="/production">Produktion</a>
+    <button id="logout" class="button" style="margin-left:10px">Logout</button>
+  </nav>
+
+  <main class="container">
+    <div class="card">
+      <h3 style="margin-top:0">Rohwaren</h3>
+      <div class="card" style="padding:0">
+        <div style="overflow:auto">
+          <table class="table">
+            <thead>
+              <tr><th>Code</th><th>Name</th><th>Basis</th><th>Preis/Basis</th><th>Lieferant</th></tr>
+            </thead>
+            <tbody id="products-body"><tr><td colspan="5">Laden…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <h4>Bulk-Preise</h4>
+      <p class="muted small">Format: <code>CODE, Preis</code> pro Zeile (z.B. <code>WEIZENMEHL, 0.0007</code>).</p>
+      <form id="bulk-form">
+        <textarea id="bulk-text" class="textarea" rows="8" placeholder="WEIZENMEHL, 0.0007&#10;ZUCKER, 0.0011"></textarea>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="button primary" type="submit">Preise übernehmen</button>
+          <a class="button" href="/dashboard">Zurück</a>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
