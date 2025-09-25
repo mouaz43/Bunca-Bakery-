@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>BUNCA – Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-stone-50 text-stone-900">
+<header class="bg-white border-b border-stone-200">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/" class="h-8 w-8 rounded-lg bg-emerald-600 block"></a>
+      <h1 class="text-lg font-semibold tracking-tight">Admin</h1>
+    </div>
+    <nav class="flex items-center gap-2 text-sm">
+      <a href="/plan.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Plan</a>
+      <a href="/recipes.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Rezepte</a>
+      <a href="/materials.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Rohwaren</a>
+      <button id="logoutBtn" class="ml-2 px-3 py-1.5 rounded-lg bg-stone-900 text-white hover:bg-stone-800">Logout</button>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+  <!-- Seed -->
+  <section class="bg-white rounded-2xl shadow p-4">
+    <h2 class="font-semibold mb-2">Seed anwenden</h2>
+    <p class="text-sm text-stone-600 mb-3">Liest JSON aus dem <code>/seed</code>-Ordner im Repo und macht sichere Upserts (Lieferanten → Rohwaren → Artikel → BOM → Plan).</p>
+    <button id="seedBtn" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Seed ausführen</button>
+    <span id="seedMsg" class="text-sm text-stone-600 ml-2"></span>
+  </section>
+
+  <!-- Export -->
+  <section class="bg-white rounded-2xl shadow p-4">
+    <h2 class="font-semibold mb-2">Export</h2>
+    <div class="flex flex-wrap gap-2">
+      <button id="expMaterials" class="px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-100">Rohwaren JSON</button>
+      <button id="expItems" class="px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-100">Artikel JSON</button>
+      <button id="expBOM" class="px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-100">BOM JSON</button>
+    </div>
+    <p class="text-xs text-stone-500 mt-2">BOM-Export holt pro Artikel die Zutaten und bündelt in einer Datei.</p>
+  </section>
+</main>
+
+<script>
+async function guard(){ const s=await fetch('/api/session').then(r=>r.json()); if(!s.user) location.href='/login.html'; }
+document.getElementById('logoutBtn').onclick = async ()=>{ await fetch('/api/logout',{method:'POST'}); location.href='/login.html'; };
+
+function download(filename, dataObject){
+  const blob = new Blob([JSON.stringify(dataObject, null, 2)], {type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('seedBtn').onclick = async ()=>{
+  const r=await fetch('/api/admin/seed/apply',{method:'POST'}).then(r=>r.json());
+  if(r.ok){
+    document.getElementById('seedMsg').textContent = `OK – Lieferanten: ${r.counts.suppliers}, Rohwaren: ${r.counts.materials}, Artikel: ${r.counts.items}, BOM: ${r.counts.bom}, Plan: ${r.counts.plan}`;
+  }else{
+    document.getElementById('seedMsg').textContent = 'Fehler: '+(r.error||'');
+  }
+};
+
+document.getElementById('expMaterials').onclick = async ()=>{
+  const r=await fetch('/api/materials').then(r=>r.json());
+  const data=(r.data||[]).map(m=>({
+    code:m.code, name:m.name, unit:m.unit, price_per_unit:m.price_per_unit, supplier_code:m.supplier_code, note:m.note
+  }));
+  download('materials.json', data);
+};
+
+document.getElementById('expItems').onclick = async ()=>{
+  const r=await fetch('/api/items').then(r=>r.json());
+  const data=(r.data||[]).map(i=>({
+    code:i.code, name:i.name, category:i.category, yield_qty:i.yield_qty, yield_unit:i.yield_unit, note:i.note
+  }));
+  download('items.json', data);
+};
+
+document.getElementById('expBOM').onclick = async ()=>{
+  const items=await fetch('/api/items').then(r=>r.json());
+  const out=[];
+  for(const it of (items.data||[])){
+    const b=await fetch(`/api/items/${encodeURIComponent(it.code)}/bom`).then(r=>r.json());
+    out.push({
+      product_code: it.code,
+      ingredients: (b.data||[]).map(l=>({ material_code:l.material_code, qty:l.qty, unit:l.unit }))
+    });
+  }
+  download('bom.json', out);
+};
+
+(async()=>{ await guard(); })();
+</script>
+</body>
+</html>
