@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>BUNCA – Rezepte</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body data-page="recipes">
+  <nav class="nav">
+    <div class="brand">BUNCA Planner</div>
+    <div class="spacer"></div>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/products">Rohwaren</a>
+    <a href="/production">Produktion</a>
+    <button id="logout" class="button" style="margin-left:10px">Logout</button>
+  </nav>
+
+  <main class="container">
+    <div class="card">
+      <h3 style="margin-top:0">Rezept skalieren</h3>
+      <div class="row">
+        <div class="col">
+          <label>Rezept</label>
+          <select id="item" class="input"></select>
+        </div>
+        <div class="col">
+          <label>Ausbeute (Menge)</label>
+          <input id="output" class="input" type="number" min="1" step="1" placeholder="z.B. 90"/>
+        </div>
+      </div>
+
+      <h4 id="result-title" style="margin-top:18px">Zutaten</h4>
+      <div class="card" style="padding:0">
+        <div style="overflow:auto">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Produkt</th><th>Menge (Rezept)</th><th class="small muted">Basis</th><th>€/Basis</th><th>Kosten</th>
+              </tr>
+            </thead>
+            <tbody id="calc-body"><tr><td colspan="5">Bitte Rezept und Menge wählen…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="margin-top:8px" class="muted">Gesamtkosten: <strong id="calc-total">0,00 €</strong></div>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
