@@ -414,26 +414,36 @@ app.get('/', (req, res) => {
   return res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// AUTH
-app.get('/api/session', (req, res) => res.json({ ok: true, user: authed(req) ? req.session.user : null }));
+// ===== AUTH =====
+app.get('/api/session', (req, res) => {
+  return res.json({ ok: true, user: authed(req) ? req.session.user : null });
+});
+
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body || {};
-  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+  const expectedEmail = String(ADMIN_EMAIL || '').trim();
+  const expectedPass  = String(ADMIN_PASSWORD || '').trim();
+
+  // TEMP debug (no password printed)
+  console.log('[login] attempt', {
+    email,
+    expectedEmail,
+    envEmailSet: !!expectedEmail,
+    envPassSet: !!expectedPass
+  });
+
+  if (email && password && email === expectedEmail && password === expectedPass) {
     req.session.user = { email, role: 'admin' };
     return res.json({ ok: true });
   }
   return res.status(401).json({ ok: false, error: 'bad_credentials' });
 });
+
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => { res.clearCookie('sid'); res.json({ ok:true }); });
-});
-app.post('/api/login', (req, res) => {
-  const { email, password } = req.body || {};
-  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-    req.session.user = { email, role: 'admin' };
-    return res.json({ ok: true });
-  }
-  return res.status(401).json({ ok: false, error: 'bad_credentials' });
+  req.session.destroy(() => {
+    res.clearCookie('sid');
+    res.json({ ok: true });
+  });
 });
 
 // SEED endpoints (admin)
