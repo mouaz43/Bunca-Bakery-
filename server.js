@@ -1,10 +1,10 @@
-// server.js — BUNCA Planner (clean + robust)
-// - Auth (admin credentials from env; email case-insensitive)
-// - Express-session cookie works behind Render proxy
-// - Postgres schema: safe create/alter/rename; FKs only when columns exist
-// - Seed runner reads /seed/*.json (suppliers, materials, items, bom, plan)
-// - Calculator scales BOM -> material usage & cost
-// - Simple JSON APIs; static pages in /public
+// server.js — BUNCA Planner (stable, self-migrating, seedable)
+// — Auth (env ADMIN_EMAIL / ADMIN_PASSWORD; email case-insensitive)
+// — Postgres schema migrations are idempotent & safe (no startup crashes)
+// — Seed runner from /seed/*.json (idempotent UPSERTs)
+// — Production plan + recipe scaling (materials usage & cost)
+// — Minimal pages served from /public
+// — Health endpoint for Render 502 diagnostics
 
 const express = require('express');
 const session = require('express-session');
@@ -13,8 +13,6 @@ const fs = require('fs');
 const { Pool } = require('pg');
 
 const app = express();
-app.set('trust proxy', 1); // IMPORTANT for secure cookies behind Render/NGINX
-
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'production';
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -22,6 +20,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'please-change-me';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
+/* ---------- DB ---------- */
 const pool = new Pool({
   connectionString: DATABASE_URL || undefined,
   ssl: DATABASE_URL ? { rejectUnauthorized: false } : false,
@@ -30,7 +29,8 @@ const pool = new Pool({
 async function q(text, params = []) {
   const client = await pool.connect();
   try {
-    return await client.query(text, params);
+    const res = await client.query(text, params);
+    return res;
   } catch (err) {
     console.error('[SQL ERROR]', err.message, { text, params });
     throw err;
@@ -39,41 +39,45 @@ async function q(text, params = []) {
   }
 }
 
-// ---------- Express ----------
+/* ---------- Express ---------- */
 app.disable('x-powered-by');
+app.set('trust proxy', 1); // so secure cookies work behind Render proxy
 app.use(express.json({ limit: '4mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-app.use(
-  session({
-    name: 'sid',
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: 'auto',           // works behind proxy
-      maxAge: 1000 * 60 * 60 * 8,
-    },
-  })
-);
+app.use(session({
+  name: 'sid',
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: NODE_ENV === 'production' ? 'auto' : false,
+    maxAge: 1000 * 60 * 60 * 8, // 8h
+  },
+}));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ---------- Auth helpers ----------
+/* ---------- Helpers ---------- */
 const authed = (req) => !!(req.session && req.session.user);
-const requireAuth = (req, res, next) =>
-  authed(req) ? next() : res.status(401).json({ ok: false, error: 'unauthorized' });
+const requireAuth = (req, res, next) => (authed(req) ? next() : res.status(401).json({ ok: false, error: 'unauthorized' }));
 const eqi = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 
-// ---------- SCHEMA (idempotent & tolerant) ----------
+/* ---------- HEALTH (helps with 502) ---------- */
+app.get('/healthz', async (req, res) => {
+  try { await q('SELECT 1'); res.json({ ok: true }); }
+  catch { res.status(500).json({ ok: false }); }
+});
+
+/* ---------- SCHEMA (robust & idempotent) ---------- */
 async function ensureSchema() {
   const tx = async (sql) => q(sql);
 
   await tx('BEGIN');
 
-  // 1) Create base tables if missing (with modern column names)
+  // Base tables
   await tx(`
     CREATE TABLE IF NOT EXISTS suppliers (
       code           TEXT PRIMARY KEY,
@@ -87,14 +91,28 @@ async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS materials (
       code           TEXT PRIMARY KEY,
       name           TEXT NOT NULL,
-      base_unit      TEXT NOT NULL DEFAULT 'g', -- 'g','ml','pcs'
-      pack_qty       NUMERIC,
-      pack_unit      TEXT,
-      pack_price     NUMERIC,
+      base_unit      TEXT NOT NULL DEFAULT 'g',
       price_per_unit NUMERIC NOT NULL DEFAULT 0,
       supplier_code  TEXT REFERENCES suppliers(code) ON DELETE SET NULL,
       note           TEXT
     );
+
+    -- Older DBs: make sure these columns exist
+    ALTER TABLE materials ADD COLUMN IF NOT EXISTS pack_qty   NUMERIC;
+    ALTER TABLE materials ADD COLUMN IF NOT EXISTS pack_unit  TEXT;
+    ALTER TABLE materials ADD COLUMN IF NOT EXISTS pack_price NUMERIC;
+    ALTER TABLE materials ADD COLUMN IF NOT EXISTS price_per_unit NUMERIC DEFAULT 0;
+    ALTER TABLE materials ADD COLUMN IF NOT EXISTS base_unit  TEXT DEFAULT 'g';
+
+    -- If there was a legacy "unit" column, fill base_unit from it once
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='unit')
+         AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='base_unit')
+      THEN
+        EXECUTE 'UPDATE materials SET base_unit = COALESCE(base_unit, unit)';
+      END IF;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS items (
       code       TEXT PRIMARY KEY,
@@ -131,49 +149,10 @@ async function ensureSchema() {
     );
   `);
 
-  // 2) Backward-compat renames / column adds guarded in a DO block
+  // Column name normalization in BOM + plan
   await tx(`
     DO $$
     BEGIN
-      -- materials: if "unit" exists and "base_unit" not, add & copy
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name='materials' AND column_name='unit'
-      ) AND NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name='materials' AND column_name='base_unit'
-      ) THEN
-        ALTER TABLE materials ADD COLUMN base_unit TEXT;
-        EXECUTE 'UPDATE materials SET base_unit = unit WHERE base_unit IS NULL';
-      END IF;
-
-      -- materials: add missing pack_* columns if absent
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name='materials' AND column_name='pack_qty'
-      ) THEN
-        ALTER TABLE materials ADD COLUMN pack_qty NUMERIC;
-      END IF;
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name='materials' AND column_name='pack_unit'
-      ) THEN
-        ALTER TABLE materials ADD COLUMN pack_unit TEXT;
-      END IF;
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name='materials' AND column_name='pack_price'
-      ) THEN
-        ALTER TABLE materials ADD COLUMN pack_price NUMERIC;
-      END IF;
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name='materials' AND column_name='price_per_unit'
-      ) THEN
-        ALTER TABLE materials ADD COLUMN price_per_unit NUMERIC DEFAULT 0;
-      END IF;
-
-      -- bom: rename recipe_code -> product_code if present
       IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name='bom' AND column_name='recipe_code'
@@ -184,15 +163,11 @@ async function ensureSchema() {
         ALTER TABLE bom RENAME COLUMN recipe_code TO product_code;
       END IF;
 
-      -- bom: standardize material column name
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name='bom' AND column_name='product'
-      ) AND NOT EXISTS (
+      IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name='bom' AND column_name='product_code'
       ) THEN
-        ALTER TABLE bom RENAME COLUMN product TO product_code;
+        ALTER TABLE bom ADD COLUMN product_code TEXT;
       END IF;
 
       IF EXISTS (
@@ -205,14 +180,6 @@ async function ensureSchema() {
         ALTER TABLE bom RENAME COLUMN material TO material_code;
       END IF;
 
-      -- ensure product_code/material_code columns actually exist
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name='bom' AND column_name='product_code'
-      ) THEN
-        ALTER TABLE bom ADD COLUMN product_code TEXT;
-      END IF;
-
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name='bom' AND column_name='material_code'
@@ -220,7 +187,6 @@ async function ensureSchema() {
         ALTER TABLE bom ADD COLUMN material_code TEXT;
       END IF;
 
-      -- production_plan: ensure product_code exists
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name='production_plan' AND column_name='product_code'
@@ -230,80 +196,55 @@ async function ensureSchema() {
     END $$;
   `);
 
-  // 3) Recreate FKs safely (drop if present, add if both sides available)
+  // Drop old FKs (may reference non-existing columns)
+  await tx(`ALTER TABLE IF EXISTS bom DROP CONSTRAINT IF EXISTS bom_product_fk;`);
+  await tx(`ALTER TABLE IF EXISTS bom DROP CONSTRAINT IF EXISTS bom_material_fk;`);
+  await tx(`ALTER TABLE IF EXISTS production_plan DROP CONSTRAINT IF EXISTS plan_item_fk;`);
+
+  // Recreate FKs only if both sides exist
   await tx(`
     DO $$
     BEGIN
-      -- bom.product_code -> items.code
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='product_code'
-      ) THEN
-        IF EXISTS (
-          SELECT 1 FROM information_schema.table_constraints
-          WHERE table_name='bom' AND constraint_type='FOREIGN KEY' AND constraint_name='bom_product_fk'
-        ) THEN
-          ALTER TABLE bom DROP CONSTRAINT bom_product_fk;
-        END IF;
-        IF EXISTS (SELECT 1 FROM items LIMIT 1) THEN
-          ALTER TABLE bom
-            ADD CONSTRAINT bom_product_fk
-            FOREIGN KEY (product_code) REFERENCES items(code)
-            ON DELETE CASCADE;
-        END IF;
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='product_code')
+         AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='items' AND column_name='code')
+      THEN
+        ALTER TABLE bom
+          ADD CONSTRAINT bom_product_fk
+          FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE;
       END IF;
 
-      -- bom.material_code -> materials.code
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='material_code'
-      ) THEN
-        IF EXISTS (
-          SELECT 1 FROM information_schema.table_constraints
-          WHERE table_name='bom' AND constraint_type='FOREIGN KEY' AND constraint_name='bom_material_fk'
-        ) THEN
-          ALTER TABLE bom DROP CONSTRAINT bom_material_fk;
-        END IF;
-        IF EXISTS (SELECT 1 FROM materials LIMIT 1) THEN
-          ALTER TABLE bom
-            ADD CONSTRAINT bom_material_fk
-            FOREIGN KEY (material_code) REFERENCES materials(code)
-            ON DELETE RESTRICT;
-        END IF;
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='material_code')
+         AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='code')
+      THEN
+        ALTER TABLE bom
+          ADD CONSTRAINT bom_material_fk
+          FOREIGN KEY (material_code) REFERENCES materials(code) ON DELETE RESTRICT;
       END IF;
 
-      -- production_plan.product_code -> items.code
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns WHERE table_name='production_plan' AND column_name='product_code'
-      ) THEN
-        IF EXISTS (
-          SELECT 1 FROM information_schema.table_constraints
-          WHERE table_name='production_plan' AND constraint_type='FOREIGN KEY' AND constraint_name='plan_item_fk'
-        ) THEN
-          ALTER TABLE production_plan DROP CONSTRAINT plan_item_fk;
-        END IF;
-        IF EXISTS (SELECT 1 FROM items LIMIT 1) THEN
-          ALTER TABLE production_plan
-            ADD CONSTRAINT plan_item_fk
-            FOREIGN KEY (product_code) REFERENCES items(code)
-            ON DELETE CASCADE;
-        END IF;
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='production_plan' AND column_name='product_code')
+         AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='items' AND column_name='code')
+      THEN
+        ALTER TABLE production_plan
+          ADD CONSTRAINT plan_item_fk
+          FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE;
       END IF;
     END $$;
   `);
 
-  // 4) Useful indexes (idempotent)
+  // Indexes
   await tx(`CREATE INDEX IF NOT EXISTS idx_bom_product ON bom(product_code);`);
   await tx(`CREATE INDEX IF NOT EXISTS idx_bom_material ON bom(material_code);`);
-  await tx(`CREATE INDEX IF NOT EXISTS idx_plan_day ON production_plan(day);`);
+  await tx(`CREATE INDEX IF NOT EXISTS idx_plan_day  ON production_plan(day);`);
 
   await tx('COMMIT');
   console.log('[schema] OK');
 }
 
-// ---------- Units ----------
+/* ---------- Units ---------- */
 const U = {
-  g:   { base: 'g',  factor: 1 }, kg: { base: 'g',  factor: 1000 },
-  ml:  { base: 'ml', factor: 1 }, l:  { base: 'ml', factor: 1000 },
-  pcs: { base: 'pcs',factor: 1 }, piece: { base:'pcs', factor: 1 }, pieces: { base:'pcs', factor:1 }
+  g: { base: 'g', factor: 1 }, kg: { base: 'g', factor: 1000 },
+  ml: { base: 'ml', factor: 1 }, l: { base: 'ml', factor: 1000 },
+  pcs: { base: 'pcs', factor: 1 }, piece: { base: 'pcs', factor: 1 }, pieces: { base: 'pcs', factor: 1 }
 };
 function toBase(qty, unit) {
   const u = String(unit || '').toLowerCase();
@@ -311,7 +252,7 @@ function toBase(qty, unit) {
   return m ? { qty: Number(qty) * m.factor, unit: m.base } : { qty: Number(qty), unit };
 }
 
-// ---------- Seed runner ----------
+/* ---------- Seed runner ---------- */
 function readSeed(name) {
   const p = path.join(__dirname, 'seed', name);
   if (!fs.existsSync(p)) return null;
@@ -320,6 +261,7 @@ function readSeed(name) {
 
 async function applySeed() {
   console.log('[seed] applying…');
+
   const suppliers = readSeed('suppliers.json') || [];
   const materials = readSeed('materials.json') || [];
   const items     = readSeed('items.json') || [];
@@ -330,30 +272,36 @@ async function applySeed() {
     await q(
       `INSERT INTO suppliers(code,name,contact,phone,email,note)
        VALUES($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (code) DO UPDATE
-       SET name=EXCLUDED.name, contact=EXCLUDED.contact, phone=EXCLUDED.phone, email=EXCLUDED.email, note=EXCLUDED.note`,
+       ON CONFLICT (code) DO UPDATE SET
+         name=EXCLUDED.name, contact=EXCLUDED.contact,
+         phone=EXCLUDED.phone, email=EXCLUDED.email, note=EXCLUDED.note`,
       [s.code, s.name, s.contact || '', s.phone || '', s.email || '', s.note || '']
     );
   }
 
   for (const m of materials) {
-    const baseUnit = m.base_unit || m.unit || 'g';
     await q(
       `INSERT INTO materials(code,name,base_unit,pack_qty,pack_unit,pack_price,price_per_unit,supplier_code,note)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (code) DO UPDATE
-       SET name=EXCLUDED.name,
-           base_unit=EXCLUDED.base_unit,
-           pack_qty=EXCLUDED.pack_qty,
-           pack_unit=EXCLUDED.pack_unit,
-           pack_price=EXCLUDED.pack_price,
-           price_per_unit=EXCLUDED.price_per_unit,
-           supplier_code=EXCLUDED.supplier_code,
-           note=EXCLUDED.note`,
+       ON CONFLICT (code) DO UPDATE SET
+         name=EXCLUDED.name,
+         base_unit=EXCLUDED.base_unit,
+         pack_qty=EXCLUDED.pack_qty,
+         pack_unit=EXCLUDED.pack_unit,
+         pack_price=EXCLUDED.pack_price,
+         price_per_unit=EXCLUDED.price_per_unit,
+         supplier_code=EXCLUDED.supplier_code,
+         note=EXCLUDED.note`,
       [
-        m.code, m.name, baseUnit,
-        m.pack_qty ?? null, m.pack_unit ?? null, m.pack_price ?? null,
-        m.price_per_unit ?? 0, m.supplier_code || null, m.note || ''
+        m.code,
+        m.name,
+        (m.base_unit || m.unit || 'g'),
+        m.pack_qty ?? null,
+        m.pack_unit ?? null,
+        m.pack_price ?? null,
+        m.price_per_unit ?? 0,
+        m.supplier_code || null,
+        m.note || ''
       ]
     );
   }
@@ -362,9 +310,9 @@ async function applySeed() {
     await q(
       `INSERT INTO items(code,name,category,yield_qty,yield_unit,note)
        VALUES($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (code) DO UPDATE
-       SET name=EXCLUDED.name, category=EXCLUDED.category,
-           yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit, note=EXCLUDED.note`,
+       ON CONFLICT (code) DO UPDATE SET
+         name=EXCLUDED.name, category=EXCLUDED.category,
+         yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit, note=EXCLUDED.note`,
       [it.code, it.name, it.category || '', it.yield_qty || 1, it.yield_unit || 'pcs', it.note || '']
     );
   }
@@ -374,7 +322,8 @@ async function applySeed() {
     await q(`DELETE FROM bom WHERE product_code=$1`, [b.product_code]);
     for (const ing of (b.ingredients || [])) {
       await q(
-        `INSERT INTO bom(product_code,material_code,qty,unit) VALUES($1,$2,$3,$4)`,
+        `INSERT INTO bom(product_code,material_code,qty,unit)
+         VALUES($1,$2,$3,$4)`,
         [b.product_code, ing.material_code, Number(ing.qty), ing.unit || 'g']
       );
     }
@@ -398,15 +347,16 @@ async function applySeed() {
   };
 }
 
-// ---------- Calculator ----------
+/* ---------- Calculator ---------- */
 async function scaleRecipe(productCode, targetQty) {
   const it = await q(`SELECT yield_qty, yield_unit FROM items WHERE code=$1`, [productCode]);
   if (it.rowCount === 0) throw new Error('item_not_found');
   const yieldQty = Number(it.rows[0].yield_qty) || 1;
-  const factor = Number(targetQty) / yieldQty;
 
+  const factor = Number(targetQty) / yieldQty;
   const lines = await q(
-    `SELECT b.material_code, b.qty, b.unit, m.base_unit, m.price_per_unit, m.name AS material_name
+    `SELECT b.material_code, b.qty, b.unit, m.base_unit AS m_base_unit,
+            m.price_per_unit, m.name AS material_name
      FROM bom b
      JOIN materials m ON m.code=b.material_code
      WHERE b.product_code=$1
@@ -414,27 +364,30 @@ async function scaleRecipe(productCode, targetQty) {
     [productCode]
   );
 
-  const out = [];
+  const scaled = [];
   for (const r of lines.rows) {
     const base0 = toBase(r.qty, r.unit);
-    const scaled = { qty: base0.qty * factor, unit: base0.unit };
-    const lineCost = Number(scaled.qty) * Number(r.price_per_unit || 0);
+    const baseScaled = { qty: base0.qty * factor, unit: base0.unit };
 
-    out.push({
+    // Cost assumes price_per_unit is per base unit (g / ml / pcs)
+    const lineCost = Number(baseScaled.qty) * Number(r.price_per_unit || 0);
+
+    scaled.push({
       material_code: r.material_code,
       material_name: r.material_name,
-      unit: scaled.unit,
-      qty: Number(scaled.qty.toFixed(2)),
+      unit: baseScaled.unit,           // g/ml/pcs
+      qty: Number(baseScaled.qty.toFixed(2)),
       price_per_unit: Number((r.price_per_unit || 0).toFixed(6)),
       cost: Number(lineCost.toFixed(2))
     });
   }
-  const total = out.reduce((s, x) => s + x.cost, 0);
-  return { lines: out, total_cost: Number(total.toFixed(2)) };
+
+  const total = scaled.reduce((s, x) => s + x.cost, 0);
+  return { lines: scaled, total_cost: Number(total.toFixed(2)) };
 }
 
 async function calcForPlanRows(rows) {
-  const need = new Map();
+  const need = new Map(); // key=material_code|unit
   let totalCost = 0;
 
   for (const r of rows) {
@@ -461,29 +414,22 @@ async function calcForPlanRows(rows) {
   return { lines: arr, total_cost: Number(totalCost.toFixed(2)) };
 }
 
-// ---------- Routes: pages ----------
+/* ---------- Pages ---------- */
 app.get('/', (req, res) => {
   if (authed(req)) return res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
   return res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// ---------- Routes: auth ----------
-app.get('/api/session', (req, res) =>
-  res.json({ ok: true, user: authed(req) ? req.session.user : null })
-);
+/* ---------- Auth ---------- */
+app.get('/api/session', (req, res) => res.json({ ok: true, user: authed(req) ? req.session.user : null }));
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', (req, res) => {
   const email = String(req.body?.email || '').trim();
-  const pass  = String(req.body?.password || '').trim();
+  const pass = String(req.body?.password || '').trim();
   const expEmail = String(ADMIN_EMAIL || '').trim();
-  const expPass  = String(ADMIN_PASSWORD || '').trim();
+  const expPass = String(ADMIN_PASSWORD || '').trim();
 
-  console.log('[login] attempt', {
-    email,
-    expectedEmail: expEmail,
-    envEmailSet: !!expEmail,
-    envPassSet: !!expPass
-  });
+  console.log('[login] attempt', { email, expectedEmail: expEmail, envEmailSet: !!expEmail, envPassSet: !!expPass });
 
   if (expEmail && expPass && eqi(email, expEmail) && pass === expPass) {
     req.session.user = { email: expEmail, role: 'admin' };
@@ -493,31 +439,26 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie('sid');
-    res.json({ ok: true });
-  });
+  req.session.destroy(() => { res.clearCookie('sid'); res.json({ ok: true }); });
 });
 
-// ---------- Routes: admin / seed ----------
+/* ---------- Admin / Seed ---------- */
 app.post('/api/admin/seed/apply', requireAuth, async (req, res) => {
   try {
     const r = await applySeed();
     res.json({ ok: true, counts: r });
   } catch (e) {
+    console.error('[seed] error', e);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-// ---------- Routes: materials ----------
+/* ---------- Materials ---------- */
 app.get('/api/materials', requireAuth, async (req, res) => {
   const { rows } = await q(`
-    SELECT
-      m.code, m.name,
-      m.base_unit AS unit,            -- expose base_unit as "unit" to UI
-      m.price_per_unit, m.supplier_code, m.note,
-      m.pack_qty, m.pack_unit, m.pack_price,
-      s.name AS supplier_name
+    SELECT m.code, m.name, m.base_unit, m.price_per_unit,
+           m.pack_qty, m.pack_unit, m.pack_price,
+           m.supplier_code, m.note, s.name AS supplier_name
     FROM materials m
     LEFT JOIN suppliers s ON s.code = m.supplier_code
     ORDER BY m.name
@@ -528,8 +469,10 @@ app.get('/api/materials', requireAuth, async (req, res) => {
 app.post('/api/materials', requireAuth, async (req, res) => {
   const {
     code, name,
-    unit = 'g', price_per_unit = 0, supplier_code = null, note = '',
-    pack_qty = null, pack_unit = null, pack_price = null
+    base_unit='g',
+    price_per_unit=0,
+    pack_qty=null, pack_unit=null, pack_price=null,
+    supplier_code=null, note=''
   } = req.body || {};
 
   const prev = await q(`SELECT price_per_unit FROM materials WHERE code=$1`, [code]);
@@ -540,21 +483,21 @@ app.post('/api/materials', requireAuth, async (req, res) => {
   await q(
     `INSERT INTO materials(code,name,base_unit,pack_qty,pack_unit,pack_price,price_per_unit,supplier_code,note)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-     ON CONFLICT (code) DO UPDATE
-     SET name=EXCLUDED.name,
-         base_unit=EXCLUDED.base_unit,
-         pack_qty=EXCLUDED.pack_qty,
-         pack_unit=EXCLUDED.pack_unit,
-         pack_price=EXCLUDED.pack_price,
-         price_per_unit=EXCLUDED.price_per_unit,
-         supplier_code=EXCLUDED.supplier_code,
-         note=EXCLUDED.note`,
-    [code, name, unit, pack_qty, pack_unit, pack_price, price_per_unit, supplier_code, note]
+     ON CONFLICT (code) DO UPDATE SET
+       name=EXCLUDED.name,
+       base_unit=EXCLUDED.base_unit,
+       pack_qty=EXCLUDED.pack_qty,
+       pack_unit=EXCLUDED.pack_unit,
+       pack_price=EXCLUDED.pack_price,
+       price_per_unit=EXCLUDED.price_per_unit,
+       supplier_code=EXCLUDED.supplier_code,
+       note=EXCLUDED.note`,
+    [code, name, base_unit, pack_qty, pack_unit, pack_price, price_per_unit, supplier_code, note]
   );
   res.json({ ok: true });
 });
 
-// Bulk prices: accepts "CODE | 0.00123" lines
+// Bulk price paste: "CODE | 0.00123" per line
 app.post('/api/materials/bulk-prices', requireAuth, async (req, res) => {
   const text = String(req.body?.text || '');
   const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -574,7 +517,7 @@ app.post('/api/materials/bulk-prices', requireAuth, async (req, res) => {
   res.json({ ok: true, updated });
 });
 
-// ---------- Routes: items & recipes ----------
+/* ---------- Items & BOM ---------- */
 app.get('/api/items', requireAuth, async (req, res) => {
   const { rows } = await q(`SELECT code,name,category,yield_qty,yield_unit,note FROM items ORDER BY name`);
   res.json({ ok: true, data: rows });
@@ -585,9 +528,9 @@ app.post('/api/items', requireAuth, async (req, res) => {
   await q(
     `INSERT INTO items(code,name,category,yield_qty,yield_unit,note)
      VALUES($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (code) DO UPDATE
-     SET name=EXCLUDED.name, category=EXCLUDED.category, yield_qty=EXCLUDED.yield_qty,
-         yield_unit=EXCLUDED.yield_unit, note=EXCLUDED.note`,
+     ON CONFLICT (code) DO UPDATE SET
+       name=EXCLUDED.name, category=EXCLUDED.category,
+       yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit, note=EXCLUDED.note`,
     [code, name, category, yield_qty, yield_unit, note]
   );
   res.json({ ok: true });
@@ -610,13 +553,16 @@ app.post('/api/items/:code/bom', requireAuth, async (req, res) => {
   const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
   await q(`DELETE FROM bom WHERE product_code=$1`, [code]);
   for (const L of lines) {
-    await q(`INSERT INTO bom(product_code,material_code,qty,unit) VALUES($1,$2,$3,$4)`,
-      [code, L.material_code, Number(L.qty), L.unit || 'g']);
+    await q(
+      `INSERT INTO bom(product_code,material_code,qty,unit)
+       VALUES($1,$2,$3,$4)`,
+      [code, L.material_code, Number(L.qty), L.unit || 'g']
+    );
   }
   res.json({ ok: true });
 });
 
-// Scale preview (for UI yield changes)
+// Scale preview
 app.get('/api/items/:code/scale', requireAuth, async (req, res) => {
   const code = req.params.code;
   const qty = Number(req.query.qty || 0);
@@ -629,7 +575,7 @@ app.get('/api/items/:code/scale', requireAuth, async (req, res) => {
   }
 });
 
-// ---------- Routes: plan ----------
+/* ---------- Plan ---------- */
 app.get('/api/plan', requireAuth, async (req, res) => {
   const { date } = req.query;
   if (!date) return res.json({ ok: true, data: [] });
@@ -670,31 +616,39 @@ app.post('/api/plan/calc', requireAuth, async (req, res) => {
   res.json({ ok: true, data: result });
 });
 
-// ---------- 404 fallback ----------
+/* ---------- 404 ---------- */
 app.use((req, res) => {
   const file = path.join(__dirname, 'public', '404.html');
   if (fs.existsSync(file)) return res.status(404).sendFile(file);
   res.status(404).send('Not found');
 });
 
-// ---------- Boot ----------
+/* ---------- Boot ---------- */
 (async () => {
   try {
     console.log('Starting BUNCA…');
-    console.log('Has DB URL:', !!DATABASE_URL, 'true  Admin email set:', !!ADMIN_EMAIL);
+    console.log('Has DB URL:', !!DATABASE_URL, 'Admin email set:', !!ADMIN_EMAIL);
 
-    await ensureSchema();
+    try {
+      await ensureSchema();
+    } catch (e) {
+      console.error('[schema] failed (server will still start):', e.message);
+    }
 
-    // Auto-seed on empty install (won't break if seed files missing)
-    const c1 = await q(`SELECT (SELECT COUNT(*) FROM materials)::int AS m, (SELECT COUNT(*) FROM items)::int AS i`);
-    if ((c1.rows[0].m === 0) && (c1.rows[0].i === 0)) {
-      console.log('[seed] first-boot apply');
-      try { await applySeed(); } catch (e) { console.warn('seed failed (continuing):', e.message); }
+    try {
+      const c1 = await q(`SELECT (SELECT COUNT(*) FROM materials)::int AS m,
+                                 (SELECT COUNT(*) FROM items)::int AS i`);
+      if ((c1.rows[0].m === 0) && (c1.rows[0].i === 0)) {
+        console.log('[seed] first-boot apply');
+        await applySeed().catch(e => console.warn('seed failed (continuing):', e.message));
+      }
+    } catch (e) {
+      console.warn('[seed precheck] failed (continuing):', e.message);
     }
 
     app.listen(PORT, () => console.log(`Listening on :${PORT}`));
   } catch (e) {
-    console.error('Startup error:', e);
+    console.error('Startup error (fatal):', e);
     process.exit(1);
   }
 })();
