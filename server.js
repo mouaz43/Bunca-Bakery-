@@ -1,100 +1,71 @@
-require('dotenv').config();
-
-const path = require('path');
-const fs = require('fs');
+// src/server.js (only the relevant middlewares + routes section shown)
 const express = require('express');
-const morgan = require('morgan');
 const session = require('express-session');
-const pgSession = require('connect-pg-simple')(session);
-const expressLayouts = require('express-ejs-layouts');
+const path = require('path');
 
-const db = require('./db');
-const { attachFlash } = require('./middleware/flash');
-const firstRunSeedIfEmpty = require('./db/firstRun');
+const { ensureAuthenticated } = require('./middleware/auth');
+
+const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');           // your existing file
+const productsRoutes = require('./routes/products');     // “Rohwaren”
+const itemsRoutes = require('./routes/items');           // “Artikel & Rezepte”
+const importRoutes = require('./routes/import');         // Excel/CSV
+const itemsScaleRoutes = require('./routes/items_scale');// previously added
+const pricesImportRoutes = require('./routes/prices_import'); // previously added
 
 const app = express();
-const isProd = process.env.NODE_ENV === 'production';
-const PORT = process.env.PORT || 3000;
 
-if (isProd) app.set('trust proxy', 1);
+// trust proxy for secure cookies on Render
+app.set('trust proxy', 1);
 
-// Views + Layouts
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-app.use(expressLayouts);
-app.set('layout', 'layouts/base');
-
-// Static
-app.use('/public', express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Parsers & Logs
+// body parsing
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(morgan(isProd ? 'combined' : 'dev'));
 
-// Sessions
-app.use(
-  session({
-    store: new pgSession({
-      pool: db.pool,
-      createTableIfMissing: true
-    }),
-    name: 'sid',
-    secret: process.env.SESSION_SECRET || 'change-me',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { httpOnly: true, sameSite: 'lax', secure: isProd, maxAge: 1000 * 60 * 60 * 8 }
-  })
-);
+// sessions
+app.use(session({
+  name: 'sid',
+  secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production'
+  }
+}));
 
-// Flash + user
-app.use(attachFlash());
+// static
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// Routes
-const authRoutes = require('./routes/auth');
-const dashboardRoutes = require('./routes/dashboard');
-const adminRoutes = require('./routes/admin');
-const importRoutes = require('./routes/import');
-const seedFilesRoutes = require('./routes/seedfiles');
-const pricesRoutes = require('./routes/prices');       // NEW
-const productionRoutes = require('./routes/production'); // NEW
-const devtoolsRoutes = require('./routes/devtools');   // optional
-const itemsScaleRoutes = require('./routes/items_scale');
+// Views already configured elsewhere (ejs etc.)
 
-app.use(itemsScaleRoutes);
+// HEALTH (no auth)
+app.get('/healthz', (req, res) => res.send('ok'));
+
+// AUTH routes (no guard)
 app.use(authRoutes);
-app.use(dashboardRoutes);
-app.use(adminRoutes);
-app.use(importRoutes);
-app.use(seedFilesRoutes);
-app.use(pricesRoutes);        // mount
-app.use(productionRoutes);    // mount
-app.use(devtoolsRoutes);
 
-app.get('/healthz', (_req, res) => res.json({ ok: true }));
+// PUBLIC landing -> redirect appropriately
+app.get('/', (req, res) => {
+  if (req.session && req.session.user) return res.redirect('/dashboard');
+  return res.redirect('/login');
+});
+
+// PROTECTED sections
+app.use('/admin', ensureAuthenticated, adminRoutes);
+app.use('/products', ensureAuthenticated, productsRoutes);
+app.use('/items', ensureAuthenticated, itemsRoutes);
+app.use('/import', ensureAuthenticated, importRoutes);
+app.use(itemsScaleRoutes);          // these routes themselves check admin
+app.use(pricesImportRoutes);        // these routes themselves check admin
+
+// Dashboard (protected)
+app.get('/dashboard', ensureAuthenticated, async (req, res) => {
+  res.render('dashboard', { title: 'Dashboard' });
+});
 
 // 404
-app.use((req, res) => {
-  res.status(404).render('dashboard/placeholder', { title: '404', label: 'Seite nicht gefunden' });
-});
+app.use((req, res) => res.status(404).render('404', { title: '404' }));
 
-// Migrations + first-run seed
-async function runMigrations() {
-  const file = path.join(__dirname, 'db', 'migrations.sql');
-  const sql = fs.readFileSync(file, 'utf8');
-  const statements = sql.split(/;\s*$/m).map(s => s.trim()).filter(Boolean);
-  for (const stmt of statements) await db.query(stmt);
-  console.log('✅ Migrations applied.');
-}
-
-app.listen(PORT, async () => {
-  try {
-    await runMigrations();
-    await firstRunSeedIfEmpty();
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-  } catch (e) {
-    console.error('❌ Startup error:', e);
-    process.exit(1);
-  }
-});
+module.exports = app;
