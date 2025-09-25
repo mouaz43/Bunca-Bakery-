@@ -2,45 +2,73 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>BUNCA Planner – Login</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Tailwind via CDN for quick, beautiful UI -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen bg-stone-50 text-stone-900">
-  <div class="max-w-md mx-auto pt-24 px-4">
+<body class="min-h-screen bg-slate-50 flex items-center justify-center">
+  <div class="w-full max-w-md">
     <div class="bg-white shadow-xl rounded-2xl p-8">
-      <h1 class="text-2xl font-semibold tracking-tight">Willkommen bei <span class="text-emerald-600">BUNCA</span></h1>
-      <p class="text-stone-500 mt-1 mb-6">Melde dich an, um den Produktionsplan zu verwalten.</p>
+      <h1 class="text-2xl font-bold mb-2">Willkommen bei <span class="text-emerald-600">BUNCA</span></h1>
+      <p class="text-slate-500 mb-6">Melde dich an, um den Produktionsplan zu verwalten.</p>
 
-      <form id="f" class="space-y-4">
+      <form id="login-form" class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-stone-700">E-Mail</label>
-          <input id="email" type="email" required class="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <label class="block text-sm font-medium text-slate-700 mb-1">E-Mail</label>
+          <input id="email" type="email" required class="w-full rounded-lg border-slate-300 focus:border-emerald-500 focus:ring-emerald-500" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-stone-700">Passwort</label>
-          <input id="pass" type="password" required class="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <label class="block text-sm font-medium text-slate-700 mb-1">Passwort</label>
+          <input id="password" type="password" required class="w-full rounded-lg border-slate-300 focus:border-emerald-500 focus:ring-emerald-500" />
         </div>
-        <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl py-2.5 transition">Anmelden</button>
-        <p id="err" class="text-red-600 text-sm hidden">Login fehlgeschlagen – E-Mail/Passwort prüfen.</p>
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2 font-semibold">
+          Anmelden
+        </button>
+        <p id="err" class="text-red-600 text-sm mt-2 hidden"></p>
       </form>
     </div>
-    <p class="text-center text-stone-400 text-xs mt-6">Nutze <code>ADMIN_EMAIL</code> &amp; <code>ADMIN_PASSWORD</code> (Render).</p>
   </div>
 
-<script>
-document.getElementById('f').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('pass').value;
-  const r = await fetch('/api/login', {
-    method:'POST',
-    headers:{'content-type':'application/json'},
-    body: JSON.stringify({ email, password })
-  });
-  if (r.ok) location.href = '/'; else document.getElementById('err').classList.remove('hidden');
-});
-</script>
+  <script>
+    const form = document.getElementById('login-form');
+    const err = document.getElementById('err');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.classList.add('hidden');
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      try {
+        const r = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // keep session cookie
+          body: JSON.stringify({ email, password })
+        });
+
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          err.textContent = (j && j.error === 'bad_credentials')
+            ? 'E-Mail oder Passwort falsch.'
+            : 'Login fehlgeschlagen.';
+          err.classList.remove('hidden');
+          return;
+        }
+
+        // verify session actually stuck (cookie present)
+        const s = await fetch('/api/session', { credentials: 'include' }).then(x => x.json());
+        if (s && s.ok && s.user) {
+          window.location.href = '/';
+        } else {
+          err.textContent = 'Login ok, aber Sitzung fehlt. Bitte Seite neu laden.';
+          err.classList.remove('hidden');
+        }
+      } catch (e2) {
+        err.textContent = 'Netzwerkfehler. Bitte erneut versuchen.';
+        err.classList.remove('hidden');
+      }
+    });
+  </script>
 </body>
 </html>
