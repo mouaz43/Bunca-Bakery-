@@ -1,422 +1,146 @@
-// BUNCA Bakery Planner - minimal build
-// - ONE server file (this file) + static HTML
-// - Postgres schema + code seeding
-// - Auth via ADMIN_EMAIL / ADMIN_PASSWORD env
-// - Connected flows: Recipes(BOM) → Production → Raw-material usage
-// - Simple bulk price importer
+// server.js — BUNCA Planner (simple, single-file server)
+// Features in this version:
+// - Auth via ADMIN_EMAIL / ADMIN_PASSWORD (from Render)
+// - Postgres schema (suppliers, products [rohwaren], items [finished], recipes [BOM], production)
+// - Seed all data from local JSON (db/seed/*.json) via /admin/seed
+// - Production calculator: aggregate raw-material needs + cost for any plan
+// - Minimal HTML pages served from /public
 
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const fs = require('fs');
 const { Pool } = require('pg');
 
-const app = express();
-app.set('trust proxy', 1);
+// ----- ENV -----
+const {
+  DATABASE_URL,
+  NODE_ENV,
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD,
+  SESSION_SECRET = 'change-this-session-secret'
+} = process.env;
 
-// ----------------- ENV -----------------
-const PORT = process.env.PORT || 3000;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'change-me';
-const DATABASE_URL = process.env.DATABASE_URL;
+const isProd = NODE_ENV === 'production';
 
-// ----------------- DB ------------------
+// ----- DB -----
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: DATABASE_URL && DATABASE_URL.includes('render')
-    ? { rejectUnauthorized: false }
-    : false
+  ssl: isProd ? { rejectUnauthorized: false } : false,
 });
 
-async function q(sql, params) {
-  const c = await pool.connect();
-  try { return await c.query(sql, params); }
-  finally { c.release(); }
+async function q(sql, params = []) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query(sql, params);
+    return res;
+  } finally {
+    client.release();
+  }
 }
 
-// ----------------- MIDDLEWARE ----------
+// ----- APP -----
+const app = express();
+app.disable('x-powered-by');
+
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
+
 app.use(session({
   name: 'sid',
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' }
+  cookie: { httpOnly: true, sameSite: 'lax', secure: isProd }
 }));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ----------------- AUTH HELPERS --------
+// ===== AUTH HELPERS =====
 function authed(req) { return !!(req.session && req.session.user); }
-function requireAuth(req, res, next) {
-  if (authed(req)) return next();
-  return res.status(401).json({ ok: false, error: 'unauthorized' });
-}
+function requireAuth(req, res, next) { if (authed(req)) return next(); return res.status(401).send('Unauthorized'); }
 
-// ----------------- SCHEMA --------------
+// ===== SCHEMA =====
 async function ensureSchema() {
   await q(`
     CREATE TABLE IF NOT EXISTS suppliers(
       code TEXT PRIMARY KEY,
       name TEXT NOT NULL
     );
+  `);
 
+  // products = raw materials (Rohwaren)
+  await q(`
     CREATE TABLE IF NOT EXISTS products(
       code TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      base_unit TEXT NOT NULL,        -- g | ml | pcs
-      unit_cost NUMERIC,              -- cost per base unit
-      supplier_code TEXT REFERENCES suppliers(code),
-      notes TEXT
+      unit_base TEXT NOT NULL CHECK (unit_base IN ('g','ml','pcs')),
+      price_per_base NUMERIC NOT NULL DEFAULT 0, -- EUR per base unit (g / ml / pcs)
+      supplier_code TEXT REFERENCES suppliers(code) ON DELETE SET NULL
     );
+  `);
 
+  // items = finished articles (with yield)
+  await q(`
     CREATE TABLE IF NOT EXISTS items(
       code TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       category TEXT,
       yield_qty NUMERIC NOT NULL,
-      yield_unit TEXT NOT NULL,       -- pcs, tray, etc
-      notes TEXT,
-      image_url TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS bom(
-      item_code TEXT REFERENCES items(code) ON DELETE CASCADE,
-      product_code TEXT REFERENCES products(code) ON DELETE CASCADE,
-      qty NUMERIC NOT NULL,           -- quantity in 'unit'
-      unit TEXT NOT NULL,             -- g | ml | pcs
-      PRIMARY KEY(item_code, product_code)
-    );
-
-    CREATE TABLE IF NOT EXISTS shops(
-      code TEXT PRIMARY KEY,
-      name TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS production_plans(
-      id SERIAL PRIMARY KEY,
-      plan_date DATE NOT NULL UNIQUE DEFAULT CURRENT_DATE
-    );
-
-    CREATE TABLE IF NOT EXISTS production_lines(
-      plan_id INTEGER REFERENCES production_plans(id) ON DELETE CASCADE,
-      item_code TEXT REFERENCES items(code) ON DELETE CASCADE,
-      total_qty NUMERIC NOT NULL,
-      PRIMARY KEY(plan_id, item_code)
-    );
-
-    CREATE TABLE IF NOT EXISTS production_shop_lines(
-      plan_id INTEGER REFERENCES production_plans(id) ON DELETE CASCADE,
-      item_code TEXT REFERENCES items(code) ON DELETE CASCADE,
-      shop_code TEXT REFERENCES shops(code) ON DELETE CASCADE,
-      qty NUMERIC NOT NULL,
-      PRIMARY KEY(plan_id, item_code, shop_code)
+      yield_unit TEXT NOT NULL CHECK (yield_unit IN ('pcs','g','ml'))
     );
   `);
+
+  // recipes = BOM lines (normalized to product base units)
+  await q(`
+    CREATE TABLE IF NOT EXISTS recipes(
+      id SERIAL PRIMARY KEY,
+      item_code TEXT NOT NULL REFERENCES items(code) ON DELETE CASCADE,
+      product_code TEXT NOT NULL REFERENCES products(code) ON DELETE RESTRICT,
+      qty_base NUMERIC NOT NULL CHECK (qty_base >= 0) -- quantity in product.unit_base
+    );
+  `);
+
+  // production plan (date + item + target qty in item.yield_unit)
+  await q(`
+    CREATE TABLE IF NOT EXISTS production(
+      id SERIAL PRIMARY KEY,
+      plan_date DATE NOT NULL,
+      item_code TEXT NOT NULL REFERENCES items(code) ON DELETE CASCADE,
+      qty NUMERIC NOT NULL CHECK (qty >= 0)
+    );
+  `);
+
+  // indexes
+  await q(`CREATE INDEX IF NOT EXISTS idx_recipes_item ON recipes(item_code);`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_production_date ON production(plan_date);`);
 }
 
-// ----------------- SEED DATA -----------
-const suppliersSeed = [
-  { code: 'BACKO', name: 'Backo' },
-  { code: 'FRESH', name: 'Freshly' },
-  { code: 'OTHER', name: 'Other' }
-];
-
-// Base units: g for weight, ml for liquids, pcs for piece
-const productsSeed = [
-  // dry & fats
-  { code:'WEIZENMEHL',      name:'Weizenmehl',           base_unit:'g', supplier:'BACKO', cost:0.0007 },
-  { code:'ZUCKER',          name:'Zucker',               base_unit:'g', supplier:'BACKO', cost:0.0011 },
-  { code:'ROHRZUCKER',      name:'Braun Zucker',         base_unit:'g', supplier:'BACKO', cost:0.0021 },
-  { code:'PUDERZUCKER',     name:'Puderzucker',          base_unit:'g', supplier:'BACKO', cost:0.0015 },
-  { code:'VANILLEZUCKER',   name:'Vanillenzucker',       base_unit:'g', supplier:'BACKO', cost:0.0025 },
-  { code:'BACKPULVER',      name:'Backpulver',           base_unit:'g', supplier:'BACKO', cost:0.0055 },
-  { code:'NATRON',          name:'Natron',               base_unit:'g', supplier:'BACKO', cost:0.0040 },
-  { code:'MAISSTAERKE',     name:'Maisstärke',           base_unit:'g', supplier:'BACKO', cost:0.0017 },
-  { code:'ZIMT_GEMAHLEN',   name:'Zimt gemahlen',        base_unit:'g', supplier:'BACKO', cost:0.0083 },
-  { code:'KAKAO',           name:'Kakao',                base_unit:'g', supplier:'BACKO', cost:0.0059 },
-  { code:'BUTTER',          name:'Markenbutter Block',   base_unit:'g', supplier:'BACKO', cost:0.0090 },
-  { code:'BACKMARGARINE',   name:'Backmargarine',        base_unit:'g', supplier:'BACKO', cost:0.0023 },
-  { code:'KOKOSOEL',        name:'Kokosöl',              base_unit:'ml',supplier:'BACKO', cost:0.0009 },
-  { code:'KOKOSRASPEL',     name:'Kokosraspel',          base_unit:'g', supplier:'BACKO', cost:null },
-
-  // couvertures & choc
-  { code:'KUVERTUERE_WEISS',    name:'Kuvertüre Weiß callets',    base_unit:'g', supplier:'BACKO', cost:0.0154 },
-  { code:'KUVERTUERE_VOLLMILCH',name:'Kuvertüre Vollmilch Block', base_unit:'g', supplier:'BACKO', cost:0.0179 },
-  { code:'KUVERTUERE_DUNKEL',   name:'Kuvertüre Dunkel Block',    base_unit:'g', supplier:'BACKO', cost:0.0179 },
-  { code:'SCHOKO_STREUSEL',     name:'Schokoladenstreusel',       base_unit:'g', supplier:'BACKO', cost:0.0130 },
-  { code:'SCHOKO_PACKUNG',      name:'Schokolade Packung',        base_unit:'pcs',supplier:'BACKO', cost:null },
-
-  // nuts & mixes
-  { code:'HASELNUSS_GR_0_2', name:'Haselnussgrieß Geröstet 0-2mm', base_unit:'g', supplier:'BACKO', cost:0.0076 },
-  { code:'MANDELGRIESS_FEIN', name:'Mandelgrieß Fein',             base_unit:'g', supplier:'BACKO', cost:null },
-  { code:'MANDELN_GEHOBELT',  name:'Mandeln gehobelt',             base_unit:'g', supplier:'BACKO', cost:0.0070 },
-  { code:'WALNUSSKERNE',      name:'Walnusskerne',                  base_unit:'g', supplier:'BACKO', cost:0.0163 },
-  { code:'ERDNUESSE',         name:'Erdnüsse',                      base_unit:'g', supplier:'BACKO', cost:0.0079 },
-  { code:'EDELNUSS_MIX',      name:'Edelnuss Mix',                  base_unit:'g', supplier:'BACKO', cost:0.0142 },
-  { code:'PISTAZIEN',         name:'Pistazien',                     base_unit:'g', supplier:'BACKO', cost:null },
-  { code:'PISTAZIEN_CREME',   name:'Pistazien Creme',               base_unit:'g', supplier:'BACKO', cost:null },
-
-  // grains & fruits
-  { code:'HAFERFLOCKEN',  name:'Haferflocken',          base_unit:'g', supplier:'BACKO', cost:0.0036 },
-  { code:'DATTELN_5_7',   name:'Datteln gehackt 5-7mm', base_unit:'g', supplier:'BACKO', cost:0.0039 },
-  { code:'PFLAUMEN_5_7',  name:'Pflaumen getrocknet 5-7mm', base_unit:'g', supplier:'BACKO', cost:0.0092 },
-
-  // liquids / dairy / eggs
-  { code:'VOLLEI',     name:'Vollei',      base_unit:'ml', supplier:'BACKO', cost:0.0048 },
-  { code:'EIGELB',     name:'Eigelb',      base_unit:'ml', supplier:'BACKO', cost:0.0090 },
-  { code:'EIERSATZ',   name:'Eiersatz',    base_unit:'ml', supplier:'BACKO', cost:0.0009 },
-  { code:'MILCH',      name:'Milch',       base_unit:'ml', supplier:'BACKO', cost:0.0010 },
-  { code:'SAHNE_30',   name:'Sahne 30%',   base_unit:'ml', supplier:'BACKO', cost:0.0022 },
-  { code:'HAFERMILCH', name:'Hafermilch',  base_unit:'ml', supplier:'BACKO', cost:0.0017 },
-
-  // pastry / sheets
-  { code:'BLAETTERTEIG', name:'Blätterteig', base_unit:'pcs', supplier:'BACKO', cost:0.39 },
-
-  // citrus / fruit fresh
-  { code:'BANANEN', name:'Bananen überreif', base_unit:'g', supplier:'FRESH', cost:0.0011 },
-  { code:'APFEL_BOSKOOP', name:'Apfel Boskoop', base_unit:'g', supplier:'FRESH', cost:0.0092 },
-  { code:'ZITRONENSAFT', name:'Zitronensaft', base_unit:'ml', supplier:'FRESH', cost:0.0024 },
-  { code:'ZITRONEN_SCHALE', name:'Zitronenschale', base_unit:'g', supplier:'FRESH', cost:null },
-  { code:'AEFEL', name:'Äpfel', base_unit:'g', supplier:'FRESH', cost:0.0092 },
-
-  // beverages
-  { code:'ESPRESSO', name:'Espresso', base_unit:'g', supplier:'OTHER', cost:null },
-  { code:'ROTWEIN',  name:'Rotwein',  base_unit:'ml', supplier:'OTHER', cost:0.0020 }
-];
-
-const itemsSeed = [
-  { code:'BANANA_BREAD_8',        name:'Banana Bread Loaf',     category:'Cake',    yield_qty:8,   yield_unit:'pcs' },
-  { code:'MUFFINS_60',            name:'Muffins (Schoko)',      category:'Gebäck',  yield_qty:60,  yield_unit:'pcs' },
-  { code:'PASTEIS_15',            name:'Pasteis',               category:'Pastry',  yield_qty:15,  yield_unit:'pcs' },
-  { code:'SCHOKONUSS_8',          name:'Schokonuss Kuchen',     category:'Cake',    yield_qty:8,   yield_unit:'pcs' },
-  { code:'CARROT_12',             name:'Carrot Cake',           category:'Cake',    yield_qty:12,  yield_unit:'pcs' },
-  { code:'PEANUT_CARAMEL_82',     name:'Peanut Caramel Cookie', category:'Cookies', yield_qty:82,  yield_unit:'pcs' },
-  { code:'ROTWEIN_2',             name:'Rotwein Kuchen',        category:'Cake',    yield_qty:2,   yield_unit:'pcs' },
-  { code:'APFEL_15',              name:'Apfelkuchen',           category:'Cake',    yield_qty:15,  yield_unit:'pcs' },
-  { code:'CHOC_CHIP_78',          name:'Choc Chip Cookie',      category:'Cookies', yield_qty:78,  yield_unit:'pcs' },
-  { code:'OATMEAL_110',           name:'Oatmeal Cookie',        category:'Cookies', yield_qty:110, yield_unit:'pcs' },
-  { code:'ENERGY_BALLS_58',       name:'Energy Balls',          category:'Snack',   yield_qty:58,  yield_unit:'pcs' },
-  { code:'PISTACHIO_108',         name:'Pistachio Cookies',     category:'Cookies', yield_qty:108, yield_unit:'pcs' }
-];
-
-// qty with unit in g/ml/pcs (screenshots approximated)
-const bomSeed = [
-  // Banana Bread 8
-  ['BANANA_BREAD_8','BUTTER',115,'g'],
-  ['BANANA_BREAD_8','WEIZENMEHL',225,'g'],
-  ['BANANA_BREAD_8','ZUCKER',150,'g'],
-  ['BANANA_BREAD_8','ROHRZUCKER',80,'g'],
-  ['BANANA_BREAD_8','VANILLEZUCKER',3,'g'],
-  ['BANANA_BREAD_8','PUDERZUCKER',20,'g'],
-  ['BANANA_BREAD_8','VOLLEI',59,'ml'],
-  ['BANANA_BREAD_8','BACKPULVER',3.5,'g'],
-  ['BANANA_BREAD_8','NATRON',3.5,'g'],
-  ['BANANA_BREAD_8','ZIMT_GEMAHLEN',2,'g'],
-  ['BANANA_BREAD_8','BANANEN',400,'g'],
-  ['BANANA_BREAD_8','SCHOKO_STREUSEL',66.7,'g'],
-
-  // 60 Muffins
-  ['MUFFINS_60','WEIZENMEHL',400,'g'],
-  ['MUFFINS_60','BUTTER',1000,'g'],
-  ['MUFFINS_60','ZUCKER',1000,'g'],
-  ['MUFFINS_60','PUDERZUCKER',600,'g'],
-  ['MUFFINS_60','VOLLEI',1250,'ml'],
-  ['MUFFINS_60','KUVERTUERE_VOLLMILCH',1500,'g'],
-  ['MUFFINS_60','HASELNUSS_GR_0_2',1000,'g'],
-
-  // 15 Pasteis
-  ['PASTEIS_15','ZUCKER',125,'g'],
-  ['PASTEIS_15','VANILLEZUCKER',6,'g'],
-  ['PASTEIS_15','MAISSTAERKE',40,'g'],
-  ['PASTEIS_15','BLAETTERTEIG',1,'pcs'],
-  ['PASTEIS_15','EIGELB',120,'ml'],
-  ['PASTEIS_15','ZIMT_GEMAHLEN',2,'g'],
-  ['PASTEIS_15','ZITRONENSAFT',100,'ml'],
-  ['PASTEIS_15','SAHNE_30',400,'ml'],
-  ['PASTEIS_15','MILCH',200,'ml'],
-
-  // Schokonuss Kuchen 8
-  ['SCHOKONUSS_8','BACKMARGARINE',150,'g'],
-  ['SCHOKONUSS_8','WEIZENMEHL',210,'g'],
-  ['SCHOKONUSS_8','ZUCKER',100,'g'],
-  ['SCHOKONUSS_8','EIERSATZ',1000,'ml'],
-  ['SCHOKONUSS_8','BACKPULVER',16,'g'],
-  ['SCHOKONUSS_8','ZIMT_GEMAHLEN',2,'g'],
-  ['SCHOKONUSS_8','SCHOKO_STREUSEL',130,'g'],
-  ['SCHOKONUSS_8','KUVERTUERE_DUNKEL',200,'g'],
-  ['SCHOKONUSS_8','EDELNUSS_MIX',210,'g'],
-  ['SCHOKONUSS_8','HAFERMILCH',125,'ml'],
-
-  // Carrot 12
-  ['CARROT_12','BUTTER',650,'g'],
-  ['CARROT_12','ROHRZUCKER',100,'g'],
-  ['CARROT_12','VOLLEI',150,'ml'],
-  ['CARROT_12','BACKPULVER',16,'g'],
-  ['CARROT_12','ZIMT_GEMAHLEN',2,'g'],
-  ['CARROT_12','ZITRONENSAFT',100,'ml'],
-  ['CARROT_12','AEFEL',0,'g'],              // placeholder (we leave carrots as raw 'AEFEL' not ideal; update as needed)
-  ['CARROT_12','MANDELGRIESS_FEIN',200,'g'],
-  ['CARROT_12','MANDELN_GEHOBELT',50,'g'],
-  ['CARROT_12','MILCH',130,'ml'],
-  ['CARROT_12','WALNUSSKERNE',30,'g'],
-
-  // Peanut Caramel Cookie 82
-  ['PEANUT_CARAMEL_82','BUTTER',2000,'g'],
-  ['PEANUT_CARAMEL_82','WEIZENMEHL',2600,'g'],
-  ['PEANUT_CARAMEL_82','ZUCKER',360,'g'],
-  ['PEANUT_CARAMEL_82','KUVERTUERE_WEISS',400,'g'],
-  ['PEANUT_CARAMEL_82','ROHRZUCKER',900,'g'],
-  ['PEANUT_CARAMEL_82','VOLLEI',600,'ml'],
-  ['PEANUT_CARAMEL_82','KAKAO',320,'g'],
-  ['PEANUT_CARAMEL_82','KUVERTUERE_VOLLMILCH',400,'g'],
-  ['PEANUT_CARAMEL_82','ERDNUESSE',400,'g'],
-
-  // Rotwein 2
-  ['ROTWEIN_2','WEIZENMEHL',660,'g'],
-  ['ROTWEIN_2','ROHRZUCKER',450,'g'],
-  ['ROTWEIN_2','BACKMARGARINE',450,'g'],
-  ['ROTWEIN_2','VANILLEZUCKER',6,'g'],
-  ['ROTWEIN_2','VOLLEI',350,'ml'],
-  ['ROTWEIN_2','BACKPULVER',24,'g'],
-  ['ROTWEIN_2','KAKAO',50,'g'],
-  ['ROTWEIN_2','ZIMT_GEMAHLEN',6,'g'],
-  ['ROTWEIN_2','ZITRONENSAFT',150,'ml'],
-  ['ROTWEIN_2','KUVERTUERE_DUNKEL',150,'g'],
-  ['ROTWEIN_2','ROTWEIN',190,'ml'],
-
-  // Apfel 15
-  ['APFEL_15','WEIZENMEHL',300,'g'],
-  ['APFEL_15','ROHRZUCKER',200,'g'],
-  ['APFEL_15','BACKMARGARINE',250,'g'],
-  ['APFEL_15','VANILLEZUCKER',6,'g'],
-  ['APFEL_15','VOLLEI',300,'ml'],
-  ['APFEL_15','BACKPULVER',16,'g'],
-  ['APFEL_15','ZIMT_GEMAHLEN',20,'g'],
-  ['APFEL_15','ZITRONENSAFT',100,'ml'],
-  ['APFEL_15','AEFEL',800,'g'],
-  ['APFEL_15','MANDELGRIESS_FEIN',120,'g'],
-  ['APFEL_15','MANDELN_GEHOBELT',50,'g'],
-  ['APFEL_15','MILCH',130,'ml'],
-  ['APFEL_15','WALNUSSKERNE',30,'g'],
-
-  // Choc Chip 78
-  ['CHOC_CHIP_78','WEIZENMEHL',2700,'g'],
-  ['CHOC_CHIP_78','BACKMARGARINE',2000,'g'],
-  ['CHOC_CHIP_78','MAISSTAERKE',100,'g'],
-  ['CHOC_CHIP_78','ROHRZUCKER',900,'g'],
-  ['CHOC_CHIP_78','ZUCKER',360,'g'],
-  ['CHOC_CHIP_78','VANILLEZUCKER',100,'g'],
-  ['CHOC_CHIP_78','NATRON',50,'g'],
-  ['CHOC_CHIP_78','SCHOKO_PACKUNG',12,'pcs'],
-
-  // Oatmeal 110
-  ['OATMEAL_110','HAFERFLOCKEN',4000,'g'],
-  ['OATMEAL_110','MAISSTAERKE',200,'g'],
-  ['OATMEAL_110','BUTTER',2000,'g'],
-  ['OATMEAL_110','ROHRZUCKER',1000,'g'],
-  ['OATMEAL_110','ZUCKER',720,'g'],
-  ['OATMEAL_110','VOLLEI',400,'ml'],
-  ['OATMEAL_110','KUVERTUERE_WEISS',800,'g'],
-  ['OATMEAL_110','ZIMT_GEMAHLEN',23,'g'],
-  ['OATMEAL_110','VANILLEZUCKER',36,'g'],
-  ['OATMEAL_110','BACKPULVER',18,'g'],
-  ['OATMEAL_110','EDELNUSS_MIX',800,'g'],
-
-  // Energy Balls 58
-  ['ENERGY_BALLS_58','KAKAO',250,'g'],
-  ['ENERGY_BALLS_58','HAFERFLOCKEN',1500,'g'],
-  ['ENERGY_BALLS_58','DATTELN_5_7',800,'g'],
-  ['ENERGY_BALLS_58','PFLAUMEN_5_7',400,'g'],
-  ['ENERGY_BALLS_58','WALNUSSKERNE',500,'g'],
-  ['ENERGY_BALLS_58','KOKOSOEL',150,'ml'],
-  ['ENERGY_BALLS_58','KOKOSRASPEL',50,'g'],
-  ['ENERGY_BALLS_58','ESPRESSO',20,'g'],
-
-  // Pistachio 108
-  ['PISTACHIO_108','BUTTER',1500,'g'],
-  ['PISTACHIO_108','WEIZENMEHL',3400,'g'],
-  ['PISTACHIO_108','NATRON',60,'g'],
-  ['PISTACHIO_108','ROHRZUCKER',1400,'g'],
-  ['PISTACHIO_108','VANILLEZUCKER',100,'g'],
-  ['PISTACHIO_108','VOLLEI',1000,'ml'],
-  ['PISTACHIO_108','ZITRONEN_SCHALE',10,'g'],
-  ['PISTACHIO_108','PISTAZIEN',1000,'g'],
-  ['PISTACHIO_108','PISTAZIEN_CREME',1200,'g'],
-  ['PISTACHIO_108','KUVERTUERE_WEISS',1000,'g']
-];
-
-const shopsSeed = [
-  { code:'CITY',  name:'City' },
-  { code:'BERGER',name:'Berger' },
-  { code:'GBW',   name:'GBW' }
-];
-
-// ----------------- SEED LOGIC ----------
-async function seedAll({ wipe = false } = {}) {
-  await ensureSchema();
-
-  if (wipe) {
-    await q(`TRUNCATE production_shop_lines, production_lines, production_plans, bom, items, products, suppliers, shops RESTART IDENTITY CASCADE`);
-  }
-
-  for (const s of suppliersSeed) {
-    await q(`INSERT INTO suppliers(code,name) VALUES($1,$2)
-             ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name`, [s.code, s.name]);
-  }
-  for (const p of productsSeed) {
-    await q(`INSERT INTO products(code,name,base_unit,unit_cost,supplier_code)
-             VALUES($1,$2,$3,$4,$5)
-             ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name, base_unit=EXCLUDED.base_unit,
-               unit_cost=EXCLUDED.unit_cost, supplier_code=EXCLUDED.supplier_code`,
-      [p.code, p.name, p.base_unit, p.cost, p.supplier]);
-  }
-  for (const i of itemsSeed) {
-    await q(`INSERT INTO items(code,name,category,yield_qty,yield_unit)
-             VALUES($1,$2,$3,$4,$5)
-             ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category,
-               yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit`,
-      [i.code, i.name, i.category, i.yield_qty, i.yield_unit]);
-  }
-  for (const row of bomSeed) {
-    const [item, prod, qty, unit] = row;
-    await q(`INSERT INTO bom(item_code,product_code,qty,unit)
-             VALUES($1,$2,$3,$4)
-             ON CONFLICT (item_code,product_code) DO UPDATE SET qty=EXCLUDED.qty, unit=EXCLUDED.unit`,
-      [item, prod, qty, unit]);
-  }
-  for (const s of shopsSeed) {
-    await q(`INSERT INTO shops(code,name) VALUES($1,$2)
-             ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name`, [s.code, s.name]);
-  }
+// ===== UNITS =====
+function toBaseQty(qty, unit) {
+  // convert to base (g/ml/pcs)
+  if (unit === 'kg') return qty * 1000;
+  if (unit === 'g') return qty;
+  if (unit === 'l') return qty * 1000;
+  if (unit === 'ml') return qty;
+  if (unit === 'pcs' || unit === 'piece' || unit === 'pieces') return qty;
+  // fallback: treat as g
+  return qty;
 }
 
-// ----------------- UNIT CONVERT --------
-function convert(qty, from, to) {
-  if (from === to) return qty;
-  const key = `${from}->${to}`;
-  switch (key) {
-    case 'kg->g': return qty * 1000;
-    case 'g->kg': return qty / 1000;
-    case 'l->ml': return qty * 1000;
-    case 'ml->l': return qty / 1000;
-    default: return qty; // keep as-is for pcs or unknown; we keep base in g/ml/pcs
-  }
+// Pretty print helpers
+function fmtUnit(unit) { return unit; }
+function fmtQty(unit, qtyBase) {
+  // if grams or ml, show kg/l when big:
+  if (unit === 'g') return qtyBase >= 1000 ? (qtyBase/1000).toFixed(3) + ' kg' : qtyBase + ' g';
+  if (unit === 'ml') return qtyBase >= 1000 ? (qtyBase/1000).toFixed(3) + ' l' : qtyBase + ' ml';
+  if (unit === 'pcs') return qtyBase + ' pcs';
+  return qtyBase + ' ' + unit;
 }
 
-// ----------------- ROUTES --------------
-// health
-app.get('/healthz', (req, res) => res.send('ok'));
-
-// root -> login or dashboard
-app.get('/', (req, res) => {
-  if (authed(req)) return res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-  return res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-// ===== AUTH =====
+// ===== AUTH ROUTES =====
 app.get('/api/session', (req, res) => {
-  return res.json({ ok: true, user: authed(req) ? req.session.user : null });
+  res.json({ ok: true, user: authed(req) ? req.session.user : null });
 });
 
 app.post('/api/login', (req, res) => {
@@ -424,7 +148,6 @@ app.post('/api/login', (req, res) => {
   const expectedEmail = String(ADMIN_EMAIL || '').trim();
   const expectedPass  = String(ADMIN_PASSWORD || '').trim();
 
-  // TEMP debug (no password printed)
   console.log('[login] attempt', {
     email,
     expectedEmail,
@@ -432,7 +155,11 @@ app.post('/api/login', (req, res) => {
     envPassSet: !!expectedPass
   });
 
-  if (email && password && email === expectedEmail && password === expectedPass) {
+  if (
+    email && password &&
+    email.toLowerCase().trim() === expectedEmail.toLowerCase().trim() &&
+    password === expectedPass
+  ) {
     req.session.user = { email, role: 'admin' };
     return res.json({ ok: true });
   }
@@ -440,226 +167,217 @@ app.post('/api/login', (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie('sid');
-    res.json({ ok: true });
-  });
+  req.session.destroy(() => { res.clearCookie('sid'); res.json({ ok: true }); });
 });
 
-// SEED endpoints (admin)
-app.post('/api/seed/full', requireAuth, async (req, res) => {
-  try {
-    const wipe = String(req.query.wipe || '').toLowerCase() === 'true';
-    await seedAll({ wipe });
-    const counts = await q(`
-      SELECT
-        (SELECT COUNT(*) FROM suppliers) AS suppliers,
-        (SELECT COUNT(*) FROM products)  AS products,
-        (SELECT COUNT(*) FROM items)     AS items,
-        (SELECT COUNT(*) FROM bom)       AS bom,
-        (SELECT COUNT(*) FROM shops)     AS shops
-    `);
-    res.json({ ok:true, wipe, stats: counts.rows[0] });
-  } catch (e) {
-    console.error('seed error', e);
-    res.status(500).json({ ok:false, error:'seed_failed' });
-  }
+// ===== BASIC PAGES =====
+app.get('/', (req, res) => {
+  if (authed(req)) return res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+  return res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// PRODUCTS
+app.get('/production', requireAuth, (req, res) => {
+  return res.sendFile(path.join(__dirname, 'public', 'production.html'));
+});
+
+app.get('/admin', requireAuth, (req, res) => {
+  return res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// ===== CRUD APIs (minimal) =====
+
+// Products (Rohwaren)
 app.get('/api/products', requireAuth, async (req, res) => {
-  try {
-    const { rows } = await q(`SELECT code,name,base_unit,COALESCE(unit_cost,0) unit_cost,supplier_code FROM products ORDER BY name`);
-    res.json({ ok:true, products: rows });
-  } catch (e) {
-    console.error(e); res.status(500).json({ ok:false, error:'db_error' });
-  }
+  const { rows } = await q(`SELECT code,name,unit_base,price_per_base,supplier_code FROM products ORDER BY name;`);
+  res.json({ ok: true, data: rows });
 });
 
-// Bulk price import: expects "CODE, price" per line
-app.post('/api/products/bulk-prices', requireAuth, async (req, res) => {
-  try {
-    const text = (req.body?.text || '').trim();
-    if (!text) return res.status(400).json({ ok:false, error:'missing_text' });
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    let applied = 0;
-    for (const line of lines) {
-      const [codeRaw, priceRaw] = line.split(/,|;|\t/);
-      if (!codeRaw || !priceRaw) continue;
-      const code = codeRaw.trim();
-      const price = Number(String(priceRaw).replace(/[€\s]/g,'').replace(',','.'));
-      if (!Number.isFinite(price)) continue;
-      await q(`UPDATE products SET unit_cost=$2 WHERE code=$1`, [code, price]);
-      applied++;
-    }
-    res.json({ ok:true, applied });
-  } catch (e) {
-    console.error(e); res.status(500).json({ ok:false, error:'db_error' });
-  }
-});
-
-// ITEMS / RECIPES
+// Items
 app.get('/api/items', requireAuth, async (req, res) => {
-  try {
-    const { rows } = await q(`SELECT code,name,category,yield_qty,yield_unit FROM items ORDER BY category,name`);
-    res.json({ ok:true, items: rows });
-  } catch (e) { console.error(e); res.status(500).json({ ok:false, error:'db_error' }); }
+  const { rows } = await q(`SELECT code,name,category,yield_qty,yield_unit FROM items ORDER BY name;`);
+  res.json({ ok: true, data: rows });
 });
 
-app.get('/api/items/:code/bom', requireAuth, async (req,res)=>{
-  try {
-    const { code } = req.params;
-    const item = (await q(`SELECT code,name,yield_qty,yield_unit FROM items WHERE code=$1`,[code])).rows[0];
-    if (!item) return res.status(404).json({ ok:false, error:'not_found' });
-    const bom = (await q(`
-      SELECT b.product_code as code, p.name, b.qty, b.unit, p.base_unit, p.unit_cost
-      FROM bom b JOIN products p ON p.code=b.product_code
-      WHERE b.item_code=$1
-      ORDER BY p.name
-    `,[code])).rows;
-    res.json({ ok:true, item, bom });
-  } catch(e){ console.error(e); res.status(500).json({ ok:false, error:'db_error' }); }
+// Recipe (BOM) for an item
+app.get('/api/recipes/:itemCode', requireAuth, async (req, res) => {
+  const item = req.params.itemCode;
+  const { rows } = await q(`
+    SELECT r.id, r.product_code, p.name as product_name, r.qty_base, p.unit_base
+    FROM recipes r
+    JOIN products p ON p.code = r.product_code
+    WHERE r.item_code = $1
+    ORDER BY p.name;
+  `, [item]);
+  res.json({ ok: true, data: rows });
 });
 
-// Scale BOM for an output (pieces)
-app.get('/api/calc/bom', requireAuth, async (req,res)=>{
-  try {
-    const itemCode = req.query.item;
-    const output = Number(req.query.output || 0);
-    if (!itemCode || !Number.isFinite(output) || output<=0) return res.status(400).json({ ok:false, error:'bad_params' });
-
-    const item = (await q(`SELECT code,name,yield_qty,yield_unit FROM items WHERE code=$1`,[itemCode])).rows[0];
-    if (!item) return res.status(404).json({ ok:false, error:'not_found' });
-    const bom = (await q(`
-      SELECT b.product_code as code, p.name, b.qty, b.unit, p.base_unit, COALESCE(p.unit_cost,0) unit_cost
-      FROM bom b JOIN products p ON p.code=b.product_code
-      WHERE b.item_code=$1
-    `,[itemCode])).rows;
-
-    const factor = output / Number(item.yield_qty);
-    const lines = bom.map(r=>{
-      const qtyScaled = r.qty * factor;
-      const qtyBase = convert(qtyScaled, r.unit, r.base_unit);
-      const costTotal = qtyBase * Number(r.unit_cost || 0);
-      return {
-        product_code: r.code,
-        product_name: r.name,
-        qty: Number(qtyScaled),
-        unit: r.unit,
-        base_qty: Number(qtyBase),
-        base_unit: r.base_unit,
-        unit_cost: Number(r.unit_cost || 0),
-        cost_total: Number(costTotal)
-      };
-    });
-    const totalCost = lines.reduce((s,l)=>s + l.cost_total, 0);
-    res.json({ ok:true, item, output, lines, totalCost });
-  } catch(e){ console.error(e); res.status(500).json({ ok:false, error:'db_error' }); }
+// Production list (simple)
+app.get('/api/production', requireAuth, async (req, res) => {
+  const { date } = req.query;
+  if (!date) return res.json({ ok: true, data: [] });
+  const { rows } = await q(`
+    SELECT id, plan_date, item_code, qty FROM production
+    WHERE plan_date = $1
+    ORDER BY id;
+  `, [date]);
+  res.json({ ok: true, data: rows });
 });
 
-// SHOPS
-app.get('/api/shops', requireAuth, async (req,res)=>{
-  const { rows } = await q(`SELECT code,name FROM shops ORDER BY name`);
-  res.json({ ok:true, shops: rows });
+app.post('/api/production', requireAuth, async (req, res) => {
+  const { plan_date, lines } = req.body || {};
+  if (!plan_date || !Array.isArray(lines)) return res.status(400).json({ ok:false, error: 'bad_request' });
+  await q(`DELETE FROM production WHERE plan_date = $1`, [plan_date]);
+  for (const L of lines) {
+    if (!L.item_code || !L.qty) continue;
+    await q(`INSERT INTO production(plan_date,item_code,qty) VALUES($1,$2,$3)`, [plan_date, L.item_code, Number(L.qty)]);
+  }
+  res.json({ ok: true });
 });
 
-// PRODUCTION
-// Save current plan (today). Body: { lines:[{item_code,total_qty, shops:{CITY:10,...}}] }
-app.post('/api/production/save', requireAuth, async (req,res)=>{
-  try{
-    const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
-    if (!lines.length) return res.status(400).json({ ok:false, error:'no_lines' });
+// ===== CALCULATOR =====
+// POST /api/calc/requirements  { lines: [{item_code, qty}] }
+// returns aggregated raw needs & cost
+app.post('/api/calc/requirements', requireAuth, async (req, res) => {
+  const { lines } = req.body || {};
+  if (!Array.isArray(lines) || lines.length === 0) return res.json({ ok: true, data: { rows: [], total_cost: 0 } });
 
-    const plan = await q(`INSERT INTO production_plans(plan_date) VALUES (CURRENT_DATE)
-                          ON CONFLICT(plan_date) DO UPDATE SET plan_date=EXCLUDED.plan_date
-                          RETURNING id`);
-    const planId = plan.rows[0].id;
+  // Load all needed items & recipes
+  const itemCodes = [...new Set(lines.map(l => l.item_code))];
+  const itemsRes = await q(`SELECT code, yield_qty, yield_unit FROM items WHERE code = ANY($1)`, [itemCodes]);
+  const itemsMap = {};
+  for (const it of itemsRes.rows) itemsMap[it.code] = it;
 
-    // Upsert lines + shop lines
-    for (const ln of lines) {
-      const total = Number(ln.total_qty || 0);
-      if (!ln.item_code || !Number.isFinite(total) || total<0) continue;
+  const recRes = await q(`
+    SELECT r.item_code, r.product_code, r.qty_base, p.name as product_name, p.unit_base, p.price_per_base
+    FROM recipes r
+    JOIN products p ON p.code = r.product_code
+    WHERE r.item_code = ANY($1)
+  `, [itemCodes]);
 
-      await q(`INSERT INTO production_lines(plan_id,item_code,total_qty)
-               VALUES ($1,$2,$3)
-               ON CONFLICT(plan_id,item_code) DO UPDATE SET total_qty=EXCLUDED.total_qty`,
-        [planId, ln.item_code, total]);
-
-      if (ln.shops && typeof ln.shops === 'object') {
-        // Clear first
-        await q(`DELETE FROM production_shop_lines WHERE plan_id=$1 AND item_code=$2`, [planId, ln.item_code]);
-        for (const [shop, qtyRaw] of Object.entries(ln.shops)) {
-          const qty = Number(qtyRaw || 0);
-          if (qty>0) {
-            await q(`INSERT INTO production_shop_lines(plan_id,item_code,shop_code,qty)
-                     VALUES ($1,$2,$3,$4)`, [planId, ln.item_code, shop, qty]);
-          }
-        }
+  // Aggregate
+  const agg = {}; // by product_code
+  for (const L of lines) {
+    const it = itemsMap[L.item_code];
+    if (!it) continue;
+    const factor = Number(L.qty) / Number(it.yield_qty); // scale from batch yield to requested qty
+    for (const R of recRes.rows.filter(r => r.item_code === L.item_code)) {
+      const need = Number(R.qty_base) * factor;
+      if (!agg[R.product_code]) {
+        agg[R.product_code] = {
+          product_code: R.product_code,
+          product_name: R.product_name,
+          unit_base: R.unit_base,
+          qty_base: 0,
+          cost: 0,
+          price_per_base: Number(R.price_per_base)
+        };
       }
+      agg[R.product_code].qty_base += need;
     }
-    res.json({ ok:true, plan_id: planId });
-  }catch(e){ console.error(e); res.status(500).json({ ok:false, error:'db_error' }); }
+  }
+
+  // Compute cost
+  let totalCost = 0;
+  for (const k of Object.keys(agg)) {
+    const row = agg[k];
+    row.cost = (row.qty_base * row.price_per_base);
+    totalCost += row.cost;
+  }
+
+  // Build rows pretty
+  const rows = Object.values(agg)
+    .sort((a,b) => a.product_name.localeCompare(b.product_name))
+    .map(r => ({
+      product_code: r.product_code,
+      product_name: r.product_name,
+      unit_base: r.unit_base,
+      qty_base: Number(r.qty_base.toFixed(2)),
+      qty_pretty: fmtQty(r.unit_base, Math.round(r.qty_base*100)/100),
+      price_per_base: Number(r.price_per_base.toFixed(6)),
+      cost: Number(r.cost.toFixed(2))
+    }));
+
+  res.json({ ok: true, data: { rows, total_cost: Number(totalCost.toFixed(2)) } });
 });
 
-// Compute raw material usage for today's plan
-app.get('/api/production/usage', requireAuth, async (req,res)=>{
-  try{
-    const plan = await q(`SELECT id FROM production_plans WHERE plan_date=CURRENT_DATE`);
-    if (!plan.rowCount) return res.json({ ok:true, usage: [] });
-    const planId = plan.rows[0].id;
+// ===== SEEDING =====
+app.post('/api/seed/full', requireAuth, async (req, res) => {
+  // Load JSON files
+  const base = p => path.join(__dirname, 'db', 'seed', p);
+  try {
+    const suppliers = []; // reserved if you want to add later
+    const rohwaren = JSON.parse(fs.readFileSync(base('rohwaren.json'), 'utf8'));
+    const items = JSON.parse(fs.readFileSync(base('items.json'), 'utf8'));
+    const recipes = JSON.parse(fs.readFileSync(base('recipes.json'), 'utf8'));
 
-    const lines = (await q(`
-      SELECT l.item_code, l.total_qty, it.yield_qty
-      FROM production_lines l JOIN items it ON it.code=l.item_code
-      WHERE l.plan_id=$1
-    `,[planId])).rows;
+    // Wipe + insert (idempotent by upsert)
+    await ensureSchema();
 
-    if (!lines.length) return res.json({ ok:true, usage: [] });
-
-    // Load BOMs for involved items
-    const itemCodes = lines.map(l=>l.item_code);
-    const bomRows = (await q(`
-      SELECT b.item_code, b.product_code, b.qty, b.unit, p.base_unit, p.name, COALESCE(p.unit_cost,0) unit_cost
-      FROM bom b JOIN products p ON p.code=b.product_code
-      WHERE b.item_code = ANY($1)
-    `,[itemCodes])).rows;
-
-    // Aggregate usage
-    const usageMap = new Map(); // product_code -> {name, base_qty, base_unit, cost}
-    for (const ln of lines) {
-      const factor = Number(ln.total_qty) / Number(ln.yield_qty);
-      const boms = bomRows.filter(r=>r.item_code === ln.item_code);
-      for (const r of boms) {
-        const qtyScaled = Number(r.qty) * factor;
-        const qtyBase = convert(qtyScaled, r.unit, r.base_unit);
-        const key = r.product_code;
-        if (!usageMap.has(key)) {
-          usageMap.set(key, { product_code: key, product_name: r.name, base_unit: r.base_unit, base_qty: 0, unit_cost: Number(r.unit_cost) });
-        }
-        usageMap.get(key).base_qty += qtyBase;
-      }
+    // Suppliers (optional)
+    for (const S of suppliers) {
+      await q(`
+        INSERT INTO suppliers(code,name) VALUES($1,$2)
+        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+      `,[S.code, S.name]);
     }
 
-    const usage = Array.from(usageMap.values()).map(u => ({
-      ...u,
-      cost_total: u.base_qty * (u.unit_cost || 0)
-    })).sort((a,b)=> a.product_name.localeCompare(b.product_name));
+    // Products
+    for (const P of rohwaren) {
+      // Expect fields: code,name,unit_base,price_per_base
+      await q(`
+        INSERT INTO products(code,name,unit_base,price_per_base,supplier_code)
+        VALUES($1,$2,$3,$4,$5)
+        ON CONFLICT (code) DO UPDATE
+        SET name=EXCLUDED.name, unit_base=EXCLUDED.unit_base, price_per_base=EXCLUDED.price_per_base, supplier_code=EXCLUDED.supplier_code
+      `,[P.code, P.name, P.unit_base, Number(P.price_per_base), P.supplier_code || null]);
+    }
 
-    res.json({ ok:true, usage, total_cost: usage.reduce((s,u)=>s+u.cost_total,0) });
-  }catch(e){ console.error(e); res.status(500).json({ ok:false, error:'db_error' }); }
+    // Items
+    for (const I of items) {
+      await q(`
+        INSERT INTO items(code,name,category,yield_qty,yield_unit)
+        VALUES($1,$2,$3,$4,$5)
+        ON CONFLICT (code) DO UPDATE
+        SET name=EXCLUDED.name, category=EXCLUDED.category, yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit
+      `,[I.code, I.name, I.category || null, Number(I.yield_qty), I.yield_unit || 'pcs']);
+    }
+
+    // Recipes — clear first then insert
+    await q(`DELETE FROM recipes`);
+    for (const R of recipes) {
+      // fields: item_code, product_code, qty, unit
+      const { item_code, product_code, qty, unit } = R;
+      // Fetch product unit_base to normalize
+      const pr = await q(`SELECT unit_base FROM products WHERE code=$1`, [product_code]);
+      if (pr.rowCount === 0) continue;
+      const baseUnit = pr.rows[0].unit_base;
+
+      // convert qty to product.base
+      let qtyBase = 0;
+      if ((baseUnit === 'g' && (unit === 'g' || unit === 'kg')) ||
+          (baseUnit === 'ml' && (unit === 'ml' || unit === 'l')) ||
+          (baseUnit === 'pcs' && (unit === 'pcs' || unit === 'piece' || unit === 'pieces'))) {
+        qtyBase = toBaseQty(Number(qty), unit);
+      } else {
+        // If unit mismatch (e.g., ml vs g), we just take the number directly (advanced mapping could be added)
+        qtyBase = Number(qty);
+      }
+
+      await q(`
+        INSERT INTO recipes(item_code,product_code,qty_base)
+        VALUES($1,$2,$3)
+      `,[item_code, product_code, qtyBase]);
+    }
+
+    res.json({ ok: true, counts: { rohwaren: rohwaren.length, items: items.length, recipes: recipes.length }});
+  } catch (e) {
+    console.error('Seed error', e);
+    res.status(500).json({ ok:false, error: e.message });
+  }
 });
 
-// HTML fallbacks (auth-gated where needed)
-app.get('/login', (req,res)=> res.sendFile(path.join(__dirname,'public','login.html')));
-app.get('/dashboard', (req,res)=> authed(req) ? res.sendFile(path.join(__dirname,'public','dashboard.html')) : res.redirect('/login'));
-app.get('/products',  (req,res)=> authed(req) ? res.sendFile(path.join(__dirname,'public','products.html'))  : res.redirect('/login'));
-app.get('/recipes',   (req,res)=> authed(req) ? res.sendFile(path.join(__dirname,'public','recipes.html'))   : res.redirect('/login'));
-app.get('/production',(req,res)=> authed(req) ? res.sendFile(path.join(__dirname,'public','production.html')): res.redirect('/login'));
-
-// ----------------- STARTUP ------------
-(async ()=>{
-  await ensureSchema();
-  // You can auto-seed on boot if you want:
-  // await seedAll({ wipe: false });
-  app.listen(PORT, ()=> console.log(`BUNCA minimal running on :${PORT}`));
-})();
+// ===== STARTUP =====
+const PORT = process.env.PORT || 3000;
+ensureSchema().then(() => {
+  app.listen(PORT, () => console.log(`BUNCA Planner running on :${PORT}`));
+});
