@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>BUNCA – Produktion</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body data-page="production">
+  <nav class="nav">
+    <div class="brand">BUNCA Planner</div>
+    <div class="spacer"></div>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/products">Rohwaren</a>
+    <a href="/recipes">Rezepte</a>
+    <button id="logout" class="button" style="margin-left:10px">Logout</button>
+  </nav>
+
+  <main class="container">
+    <div class="card">
+      <h3 style="margin-top:0">Produktionsplan (heute)</h3>
+      <div class="card" style="padding:0">
+        <div style="overflow:auto">
+          <table class="table">
+            <thead id="plan-head"></thead>
+            <tbody id="plan-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button id="save-plan" class="button primary">Plan speichern</button>
+        <button id="show-usage" class="button">Rohwarenverbrauch berechnen</button>
+      </div>
+
+      <h4 style="margin-top:18px">Rohwarenverbrauch (heute)</h4>
+      <div class="card" style="padding:0">
+        <div style="overflow:auto">
+          <table class="table">
+            <thead><tr><th>Produkt</th><th>Menge (Basis)</th><th>€/Basis</th><th>Kosten</th></tr></thead>
+            <tbody id="usage-body"><tr><td colspan="4">Noch keine Berechnung…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="margin-top:8px" class="muted">Gesamt: <strong id="usage-total">0,00 €</strong></div>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
