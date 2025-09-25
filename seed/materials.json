@@ -1,0 +1,60 @@
+[
+  { "code": "WEIZENMEHL",          "name": "Weizenmehl",                "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "ZUCKER_WEISS",        "name": "Kristallzucker",            "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "ZUCKER_BRAUN",        "name": "Braun Zucker",              "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "ROHRZUCKER",          "name": "Rohrzucker",                "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "PUDERZUCKER",         "name": "Puderzucker",               "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "VANILLENZUCKER",      "name": "Vanillenzucker",            "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "KAKAO",               "name": "Kakao",                     "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+
+  { "code": "MARKENBUTTER_BLOCK",  "name": "Markenbutter Block",        "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "BACKMARGARINE",       "name": "Backmargarine",             "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+
+  { "code": "VOLLEI",              "name": "Vollei",                    "unit": "ml", "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "EIGELB",              "name": "Eigelb",                    "unit": "ml", "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "EIERSATZ",            "name": "Eiersatz",                  "unit": "ml", "supplier_code": "OTHER",   "price_per_unit": null, "note": "" },
+
+  { "code": "MILCH",               "name": "Milch",                     "unit": "ml", "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "SAHNE_30",            "name": "Sahne 30%",                 "unit": "ml", "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "HAFERMILCH",          "name": "Hafermilch",                "unit": "ml", "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+
+  { "code": "BACKPULVER",          "name": "Backpulver",                "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "NATRON",              "name": "Natron",                    "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "MAISSTAERKE",         "name": "Maisstärke",                "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+
+  { "code": "ZIMT_GEM",            "name": "Zimt gemahlen",             "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+
+  { "code": "BANANEN",             "name": "Bananen",                   "unit": "g",  "supplier_code": "FRESHLY", "price_per_unit": null, "note": "" },
+  { "code": "AEPFEL",              "name": "Äpfel",                     "unit": "g",  "supplier_code": "FRESHLY", "price_per_unit": null, "note": "" },
+  { "code": "ZITRONEN_SAFT",       "name": "Zitronen (Saft)",           "unit": "ml", "supplier_code": "FRESHLY", "price_per_unit": null, "note": "" },
+  { "code": "ZITRONEN_SCHALE",     "name": "Zitronenschale (Zest)",     "unit": "g",  "supplier_code": "FRESHLY", "price_per_unit": null, "note": "" },
+  { "code": "KAROTTEN_STIFTE",     "name": "Karotten (Stifte)",         "unit": "g",  "supplier_code": "FRESHLY", "price_per_unit": null, "note": "" },
+  { "code": "ORANGENSAFT",         "name": "Orangensaft",               "unit": "ml", "supplier_code": "FRESHLY", "price_per_unit": null, "note": "" },
+  { "code": "MINZE",               "name": "Minze",                     "unit": "g",  "supplier_code": "FRESHLY", "price_per_unit": null, "note": "" },
+  { "code": "INGWER",              "name": "Ingwer",                    "unit": "g",  "supplier_code": "FRESHLY", "price_per_unit": null, "note": "" },
+
+  { "code": "KUV_DUNKEL_BLOCK",    "name": "Kuvertüre Dunkel Block",    "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "KUV_WEISS_CALLETS",   "name": "Kuvertüre Weiß Callets",    "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "KUV_VOLLMILCH_BLOCK", "name": "Kuvertüre Vollmilch Block", "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "SCHOKO_STREUSEL",     "name": "Schokoladenstreusel",       "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "SCHOKO_PACKUNG",      "name": "Schokolade (Packung)",      "unit": "pcs","supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+
+  { "code": "MANDELN_GEMAHLEN",    "name": "Mandeln gemahlen",          "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "MANDELGROSS_FEIN",    "name": "Mandelgrieß Fein",          "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "MANDELN_GEHOBELT",    "name": "Mandeln gehobelt",          "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "EDELNUSS_MIX",        "name": "Edelnuss Mix",              "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "WALNUESSE",           "name": "Walnüsse",                  "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "PISTAZIEN",           "name": "Pistazien",                 "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "PISTAZIEN_CREME",     "name": "Pistazien Creme",           "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "ERDNUESSE",           "name": "Erdnüsse",                  "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+
+  { "code": "HAFERFLOCKEN",        "name": "Haferflocken",              "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "DATTELN_GEHACKT",     "name": "Datteln gehackt 5-7mm",     "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "PFLAUMEN_GETR",       "name": "Pflaumen getrocknet 5-7mm", "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "KOKOS_RASP",          "name": "Kokos (Raspeln)",           "unit": "g",  "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "KOKOSOEL",            "name": "Kokosöl",                   "unit": "ml", "supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "ESPRESSO",            "name": "Espresso",                  "unit": "ml", "supplier_code": "OTHER",   "price_per_unit": null, "note": "" },
+
+  { "code": "BLAETTERTEIG",        "name": "Blätterteig",               "unit": "pcs","supplier_code": "BACKO",   "price_per_unit": null, "note": "" },
+  { "code": "ROTWEIN",             "name": "Rotwein",                   "unit": "ml", "supplier_code": "OTHER",   "price_per_unit": null, "note": "" }
+]
