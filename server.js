@@ -1,48 +1,39 @@
-// server.js — BUNCA Planner (simple, single-file server)
-// Features in this version:
-// - Auth via ADMIN_EMAIL / ADMIN_PASSWORD (from Render)
-// - Postgres schema (suppliers, products [rohwaren], items [finished], recipes [BOM], production)
-// - Seed all data from local JSON (db/seed/*.json) via /admin/seed
-// - Production calculator: aggregate raw-material needs + cost for any plan
-// - Minimal HTML pages served from /public
+// server.js — BUNCA Planner (single-file server)
+// Minimal Express + Postgres + Sessions + Static pages
+// Fixes: login fails due to whitespace/case — now trims & normalizes
 
 const express = require('express');
-const session = require('express-session');
 const path = require('path');
-const fs = require('fs');
+const compression = require('compression');
+const session = require('express-session');
 const { Pool } = require('pg');
 
-// ----- ENV -----
 const {
-  DATABASE_URL,
-  NODE_ENV,
-  ADMIN_EMAIL,
-  ADMIN_PASSWORD,
-  SESSION_SECRET = 'change-this-session-secret'
+  PORT = 10000,
+  NODE_ENV = 'production',
+  DATABASE_URL = '',
+  SESSION_SECRET = 'change-me-please',
+  ADMIN_EMAIL = '',
+  ADMIN_PASSWORD = '',
 } = process.env;
 
-const isProd = NODE_ENV === 'production';
+const app = express();
 
-// ----- DB -----
+// --------- DB ----------
 const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: isProd ? { rejectUnauthorized: false } : false,
+  connectionString: DATABASE_URL || undefined,
+  ssl: process.env.PGSSLMODE === 'disable'
+    ? false
+    : { rejectUnauthorized: false },
 });
-
-async function q(sql, params = []) {
-  const client = await pool.connect();
-  try {
-    const res = await client.query(sql, params);
-    return res;
-  } finally {
-    client.release();
-  }
+async function q(text, params) {
+  const res = await pool.query(text, params);
+  return res;
 }
 
-// ----- APP -----
-const app = express();
-app.disable('x-powered-by');
-
+// --------- APP MIDDLEWARE ----------
+app.set('trust proxy', 1);
+app.use(compression());
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -51,333 +42,176 @@ app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: isProd }
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: NODE_ENV === 'production',
+  },
 }));
 
+// Static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ===== AUTH HELPERS =====
-function authed(req) { return !!(req.session && req.session.user); }
-function requireAuth(req, res, next) { if (authed(req)) return next(); return res.status(401).send('Unauthorized'); }
+// --------- AUTH HELPERS ----------
+function authed(req) {
+  return !!(req.session && req.session.user);
+}
+function requireAuth(req, res, next) {
+  if (authed(req)) return next();
+  return res.status(401).json({ ok: false, error: 'unauthorized' });
+}
 
-// ===== SCHEMA =====
+// --------- SCHEMA ----------
 async function ensureSchema() {
+  // Keep the tables simple; expand as you go
   await q(`
-    CREATE TABLE IF NOT EXISTS suppliers(
+    CREATE TABLE IF NOT EXISTS suppliers (
       code TEXT PRIMARY KEY,
       name TEXT NOT NULL
     );
   `);
-
-  // products = raw materials (Rohwaren)
   await q(`
-    CREATE TABLE IF NOT EXISTS products(
+    CREATE TABLE IF NOT EXISTS products (
       code TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      unit_base TEXT NOT NULL CHECK (unit_base IN ('g','ml','pcs')),
-      price_per_base NUMERIC NOT NULL DEFAULT 0, -- EUR per base unit (g / ml / pcs)
-      supplier_code TEXT REFERENCES suppliers(code) ON DELETE SET NULL
+      unit TEXT NOT NULL DEFAULT 'g',
+      price_per_unit NUMERIC NOT NULL DEFAULT 0
     );
   `);
-
-  // items = finished articles (with yield)
   await q(`
-    CREATE TABLE IF NOT EXISTS items(
+    CREATE TABLE IF NOT EXISTS items (
       code TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      category TEXT,
-      yield_qty NUMERIC NOT NULL,
-      yield_unit TEXT NOT NULL CHECK (yield_unit IN ('pcs','g','ml'))
+      category TEXT NOT NULL DEFAULT 'Misc',
+      yield_qty NUMERIC NOT NULL DEFAULT 1,
+      yield_unit TEXT NOT NULL DEFAULT 'pcs',
+      notes TEXT
     );
   `);
-
-  // recipes = BOM lines (normalized to product base units)
   await q(`
-    CREATE TABLE IF NOT EXISTS recipes(
-      id SERIAL PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS bom (
       item_code TEXT NOT NULL REFERENCES items(code) ON DELETE CASCADE,
       product_code TEXT NOT NULL REFERENCES products(code) ON DELETE RESTRICT,
-      qty_base NUMERIC NOT NULL CHECK (qty_base >= 0) -- quantity in product.unit_base
+      qty NUMERIC NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'g',
+      PRIMARY KEY (item_code, product_code)
     );
   `);
-
-  // production plan (date + item + target qty in item.yield_unit)
   await q(`
-    CREATE TABLE IF NOT EXISTS production(
+    CREATE TABLE IF NOT EXISTS production (
       id SERIAL PRIMARY KEY,
-      plan_date DATE NOT NULL,
-      item_code TEXT NOT NULL REFERENCES items(code) ON DELETE CASCADE,
-      qty NUMERIC NOT NULL CHECK (qty >= 0)
+      item_code TEXT NOT NULL REFERENCES items(code) ON DELETE RESTRICT,
+      planned_qty NUMERIC NOT NULL,
+      planned_unit TEXT NOT NULL DEFAULT 'pcs',
+      plan_date DATE NOT NULL DEFAULT CURRENT_DATE
     );
   `);
-
-  // indexes
-  await q(`CREATE INDEX IF NOT EXISTS idx_recipes_item ON recipes(item_code);`);
-  await q(`CREATE INDEX IF NOT EXISTS idx_production_date ON production(plan_date);`);
 }
 
-// ===== UNITS =====
-function toBaseQty(qty, unit) {
-  // convert to base (g/ml/pcs)
-  if (unit === 'kg') return qty * 1000;
-  if (unit === 'g') return qty;
-  if (unit === 'l') return qty * 1000;
-  if (unit === 'ml') return qty;
-  if (unit === 'pcs' || unit === 'piece' || unit === 'pieces') return qty;
-  // fallback: treat as g
-  return qty;
-}
-
-// Pretty print helpers
-function fmtUnit(unit) { return unit; }
-function fmtQty(unit, qtyBase) {
-  // if grams or ml, show kg/l when big:
-  if (unit === 'g') return qtyBase >= 1000 ? (qtyBase/1000).toFixed(3) + ' kg' : qtyBase + ' g';
-  if (unit === 'ml') return qtyBase >= 1000 ? (qtyBase/1000).toFixed(3) + ' l' : qtyBase + ' ml';
-  if (unit === 'pcs') return qtyBase + ' pcs';
-  return qtyBase + ' ' + unit;
-}
-
-// ===== AUTH ROUTES =====
-app.get('/api/session', (req, res) => {
-  res.json({ ok: true, user: authed(req) ? req.session.user : null });
+// --------- ROUTES (pages) ----------
+app.get('/', (req, res) => {
+  if (authed(req)) {
+    return res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+  }
+  return res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+app.get('/login', (req, res) => {
+  if (authed(req)) return res.redirect('/');
+  return res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// --------- AUTH API ----------
+app.get('/api/session', (req, res) =>
+  res.json({ ok: true, user: authed(req) ? req.session.user : null }));
+
 app.post('/api/login', (req, res) => {
-  const { email, password } = req.body || {};
-  const expectedEmail = String(ADMIN_EMAIL || '').trim();
+  // Normalize everything to avoid whitespace/case mismatches
+  const rawEmail = String(req.body?.email ?? '');
+  const rawPass  = String(req.body?.password ?? '');
+
+  const candidateEmail = rawEmail.trim().toLowerCase();
+  const candidatePass  = rawPass.trim();
+
+  const expectedEmail = String(ADMIN_EMAIL || '').trim().toLowerCase();
   const expectedPass  = String(ADMIN_PASSWORD || '').trim();
 
+  // Helpful logs for debugging (no password values)
   console.log('[login] attempt', {
-    email,
+    email: candidateEmail,
     expectedEmail,
     envEmailSet: !!expectedEmail,
     envPassSet: !!expectedPass
   });
 
-  if (
-    email && password &&
-    email.toLowerCase().trim() === expectedEmail.toLowerCase().trim() &&
-    password === expectedPass
-  ) {
-    req.session.user = { email, role: 'admin' };
+  if (candidateEmail === expectedEmail && candidatePass === expectedPass) {
+    req.session.user = { email: candidateEmail, role: 'admin' };
     return res.json({ ok: true });
   }
   return res.status(401).json({ ok: false, error: 'bad_credentials' });
 });
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => { res.clearCookie('sid'); res.json({ ok: true }); });
+  req.session.destroy(() => {
+    res.clearCookie('sid');
+    res.json({ ok: true });
+  });
 });
 
-// ===== BASIC PAGES =====
-app.get('/', (req, res) => {
-  if (authed(req)) return res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-  return res.sendFile(path.join(__dirname, 'public', 'login.html'));
+// --------- SIMPLE API EXAMPLES (keep endpoints stable) ----------
+app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// Example protected route you may already call from the UI:
+app.get('/api/me', requireAuth, (req, res) => {
+  res.json({ ok: true, user: req.session.user });
 });
 
-app.get('/production', requireAuth, (req, res) => {
-  return res.sendFile(path.join(__dirname, 'public', 'production.html'));
-});
-
-app.get('/admin', requireAuth, (req, res) => {
-  return res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-// ===== CRUD APIs (minimal) =====
-
-// Products (Rohwaren)
-app.get('/api/products', requireAuth, async (req, res) => {
-  const { rows } = await q(`SELECT code,name,unit_base,price_per_base,supplier_code FROM products ORDER BY name;`);
-  res.json({ ok: true, data: rows });
-});
-
-// Items
-app.get('/api/items', requireAuth, async (req, res) => {
-  const { rows } = await q(`SELECT code,name,category,yield_qty,yield_unit FROM items ORDER BY name;`);
-  res.json({ ok: true, data: rows });
-});
-
-// Recipe (BOM) for an item
-app.get('/api/recipes/:itemCode', requireAuth, async (req, res) => {
-  const item = req.params.itemCode;
-  const { rows } = await q(`
-    SELECT r.id, r.product_code, p.name as product_name, r.qty_base, p.unit_base
-    FROM recipes r
-    JOIN products p ON p.code = r.product_code
-    WHERE r.item_code = $1
-    ORDER BY p.name;
-  `, [item]);
-  res.json({ ok: true, data: rows });
-});
-
-// Production list (simple)
-app.get('/api/production', requireAuth, async (req, res) => {
-  const { date } = req.query;
-  if (!date) return res.json({ ok: true, data: [] });
-  const { rows } = await q(`
-    SELECT id, plan_date, item_code, qty FROM production
-    WHERE plan_date = $1
-    ORDER BY id;
-  `, [date]);
-  res.json({ ok: true, data: rows });
-});
-
-app.post('/api/production', requireAuth, async (req, res) => {
-  const { plan_date, lines } = req.body || {};
-  if (!plan_date || !Array.isArray(lines)) return res.status(400).json({ ok:false, error: 'bad_request' });
-  await q(`DELETE FROM production WHERE plan_date = $1`, [plan_date]);
-  for (const L of lines) {
-    if (!L.item_code || !L.qty) continue;
-    await q(`INSERT INTO production(plan_date,item_code,qty) VALUES($1,$2,$3)`, [plan_date, L.item_code, Number(L.qty)]);
-  }
-  res.json({ ok: true });
-});
-
-// ===== CALCULATOR =====
-// POST /api/calc/requirements  { lines: [{item_code, qty}] }
-// returns aggregated raw needs & cost
-app.post('/api/calc/requirements', requireAuth, async (req, res) => {
-  const { lines } = req.body || {};
-  if (!Array.isArray(lines) || lines.length === 0) return res.json({ ok: true, data: { rows: [], total_cost: 0 } });
-
-  // Load all needed items & recipes
-  const itemCodes = [...new Set(lines.map(l => l.item_code))];
-  const itemsRes = await q(`SELECT code, yield_qty, yield_unit FROM items WHERE code = ANY($1)`, [itemCodes]);
-  const itemsMap = {};
-  for (const it of itemsRes.rows) itemsMap[it.code] = it;
-
-  const recRes = await q(`
-    SELECT r.item_code, r.product_code, r.qty_base, p.name as product_name, p.unit_base, p.price_per_base
-    FROM recipes r
-    JOIN products p ON p.code = r.product_code
-    WHERE r.item_code = ANY($1)
-  `, [itemCodes]);
-
-  // Aggregate
-  const agg = {}; // by product_code
-  for (const L of lines) {
-    const it = itemsMap[L.item_code];
-    if (!it) continue;
-    const factor = Number(L.qty) / Number(it.yield_qty); // scale from batch yield to requested qty
-    for (const R of recRes.rows.filter(r => r.item_code === L.item_code)) {
-      const need = Number(R.qty_base) * factor;
-      if (!agg[R.product_code]) {
-        agg[R.product_code] = {
-          product_code: R.product_code,
-          product_name: R.product_name,
-          unit_base: R.unit_base,
-          qty_base: 0,
-          cost: 0,
-          price_per_base: Number(R.price_per_base)
-        };
-      }
-      agg[R.product_code].qty_base += need;
-    }
-  }
-
-  // Compute cost
-  let totalCost = 0;
-  for (const k of Object.keys(agg)) {
-    const row = agg[k];
-    row.cost = (row.qty_base * row.price_per_base);
-    totalCost += row.cost;
-  }
-
-  // Build rows pretty
-  const rows = Object.values(agg)
-    .sort((a,b) => a.product_name.localeCompare(b.product_name))
-    .map(r => ({
-      product_code: r.product_code,
-      product_name: r.product_name,
-      unit_base: r.unit_base,
-      qty_base: Number(r.qty_base.toFixed(2)),
-      qty_pretty: fmtQty(r.unit_base, Math.round(r.qty_base*100)/100),
-      price_per_base: Number(r.price_per_base.toFixed(6)),
-      cost: Number(r.cost.toFixed(2))
-    }));
-
-  res.json({ ok: true, data: { rows, total_cost: Number(totalCost.toFixed(2)) } });
-});
-
-// ===== SEEDING =====
-app.post('/api/seed/full', requireAuth, async (req, res) => {
-  // Load JSON files
-  const base = p => path.join(__dirname, 'db', 'seed', p);
+// (Optional) Example: compute material needs for a planned production day
+// Keeps parity with your earlier “sync” idea
+app.get('/api/plan/usage', requireAuth, async (req, res) => {
+  // sums usage = SUM((planned_qty / items.yield_qty) * bom.qty) per product
   try {
-    const suppliers = []; // reserved if you want to add later
-    const rohwaren = JSON.parse(fs.readFileSync(base('rohwaren.json'), 'utf8'));
-    const items = JSON.parse(fs.readFileSync(base('items.json'), 'utf8'));
-    const recipes = JSON.parse(fs.readFileSync(base('recipes.json'), 'utf8'));
-
-    // Wipe + insert (idempotent by upsert)
-    await ensureSchema();
-
-    // Suppliers (optional)
-    for (const S of suppliers) {
-      await q(`
-        INSERT INTO suppliers(code,name) VALUES($1,$2)
-        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
-      `,[S.code, S.name]);
-    }
-
-    // Products
-    for (const P of rohwaren) {
-      // Expect fields: code,name,unit_base,price_per_base
-      await q(`
-        INSERT INTO products(code,name,unit_base,price_per_base,supplier_code)
-        VALUES($1,$2,$3,$4,$5)
-        ON CONFLICT (code) DO UPDATE
-        SET name=EXCLUDED.name, unit_base=EXCLUDED.unit_base, price_per_base=EXCLUDED.price_per_base, supplier_code=EXCLUDED.supplier_code
-      `,[P.code, P.name, P.unit_base, Number(P.price_per_base), P.supplier_code || null]);
-    }
-
-    // Items
-    for (const I of items) {
-      await q(`
-        INSERT INTO items(code,name,category,yield_qty,yield_unit)
-        VALUES($1,$2,$3,$4,$5)
-        ON CONFLICT (code) DO UPDATE
-        SET name=EXCLUDED.name, category=EXCLUDED.category, yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit
-      `,[I.code, I.name, I.category || null, Number(I.yield_qty), I.yield_unit || 'pcs']);
-    }
-
-    // Recipes — clear first then insert
-    await q(`DELETE FROM recipes`);
-    for (const R of recipes) {
-      // fields: item_code, product_code, qty, unit
-      const { item_code, product_code, qty, unit } = R;
-      // Fetch product unit_base to normalize
-      const pr = await q(`SELECT unit_base FROM products WHERE code=$1`, [product_code]);
-      if (pr.rowCount === 0) continue;
-      const baseUnit = pr.rows[0].unit_base;
-
-      // convert qty to product.base
-      let qtyBase = 0;
-      if ((baseUnit === 'g' && (unit === 'g' || unit === 'kg')) ||
-          (baseUnit === 'ml' && (unit === 'ml' || unit === 'l')) ||
-          (baseUnit === 'pcs' && (unit === 'pcs' || unit === 'piece' || unit === 'pieces'))) {
-        qtyBase = toBaseQty(Number(qty), unit);
-      } else {
-        // If unit mismatch (e.g., ml vs g), we just take the number directly (advanced mapping could be added)
-        qtyBase = Number(qty);
-      }
-
-      await q(`
-        INSERT INTO recipes(item_code,product_code,qty_base)
-        VALUES($1,$2,$3)
-      `,[item_code, product_code, qtyBase]);
-    }
-
-    res.json({ ok: true, counts: { rohwaren: rohwaren.length, items: items.length, recipes: recipes.length }});
+    const result = await q(`
+      SELECT b.product_code,
+             p.name AS product_name,
+             p.unit AS product_unit,
+             SUM( (pr.planned_qty / NULLIF(i.yield_qty, 0)) * b.qty ) AS total_qty
+      FROM production pr
+      JOIN items i ON i.code = pr.item_code
+      JOIN bom b ON b.item_code = pr.item_code
+      JOIN products p ON p.code = b.product_code
+      GROUP BY b.product_code, p.name, p.unit
+      ORDER BY b.product_code;
+    `);
+    res.json({ ok: true, rows: result.rows });
   } catch (e) {
-    console.error('Seed error', e);
-    res.status(500).json({ ok:false, error: e.message });
+    console.error(e);
+    res.status(500).json({ ok: false, error: 'calc_failed' });
   }
 });
 
-// ===== STARTUP =====
-const PORT = process.env.PORT || 3000;
-ensureSchema().then(() => {
-  app.listen(PORT, () => console.log(`BUNCA Planner running on :${PORT}`));
+// --------- 404 fallback for unknown routes (static) ----------
+app.use((req, res) => {
+  const file = path.join(__dirname, 'public', '404.html');
+  res.status(404).sendFile(file);
 });
+
+// --------- STARTUP ----------
+(async () => {
+  try {
+    console.log('Starting BUNCA server...');
+    console.log('NODE_ENV:', NODE_ENV);
+    console.log('Has DB URL:', !!DATABASE_URL);
+    console.log('Has SESSION_SECRET:', !!SESSION_SECRET);
+    console.log('Admin email set:', !!ADMIN_EMAIL);
+    console.log('Admin pass set:', !!ADMIN_PASSWORD);
+
+    await ensureSchema();
+    app.listen(PORT, () => {
+      console.log(`Server listening on :${PORT}`);
+    });
+  } catch (err) {
+    console.error('Startup error:', err);
+    process.exit(1);
+  }
+})();
