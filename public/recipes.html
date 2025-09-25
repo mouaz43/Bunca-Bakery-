@@ -164,4 +164,144 @@ async function loadLists() {
   // list
   const UL = document.getElementById('itemList');
   const q = document.getElementById('search').value.trim().toLowerCase();
-  const filtered = ITEMS.filter(i => !q || i.name.toLowerCase().includes(q)
+  const filtered = ITEMS.filter(i => !q || i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q));
+  UL.innerHTML = filtered.map(itemLi).join('');
+  // click
+  UL.querySelectorAll('li').forEach(li=>{
+    li.onclick = ()=> openItem(li.getAttribute('data-code'));
+  });
+}
+
+async function openItem(code) {
+  const it = ITEMS.find(i => i.code === code);
+  if (!it) return;
+  CURRENT = it.code;
+  document.getElementById('editorTitle').textContent = `Rezept Editor – ${it.name}`;
+  document.getElementById('code').value = it.code;
+  document.getElementById('name').value = it.name;
+  document.getElementById('yieldQty').value = it.yield_qty;
+  document.getElementById('yieldUnit').value = it.yield_unit;
+  document.getElementById('category').value = it.category || '';
+  document.getElementById('note').value = it.note || '';
+  // load BOM
+  const r = await fetch(`/api/items/${encodeURIComponent(code)}/bom`).then(r=>r.json());
+  const lines = r.data || [];
+  const TB = document.getElementById('bomBody');
+  TB.innerHTML = lines.map(bomRow).join('');
+  wireBomTable();
+  // compute costs at batch yield
+  await recomputeCosts();
+}
+
+function wireBomTable() {
+  document.querySelectorAll('#bomBody .del').forEach(b=>{
+    b.onclick = (e)=> e.target.closest('tr').remove();
+  });
+}
+
+function readBom() {
+  const out = [];
+  document.querySelectorAll('#bomBody tr').forEach(tr=>{
+    const tds = tr.querySelectorAll('td');
+    out.push({
+      material_code: tds[0].querySelector('select').value,
+      qty: Number(tds[1].querySelector('input').value || 0),
+      unit: tds[2].querySelector('input').value || ''
+    });
+  });
+  return out;
+}
+
+async function saveItem() {
+  const payload = {
+    code: document.getElementById('code').value.trim(),
+    name: document.getElementById('name').value.trim(),
+    category: document.getElementById('category').value.trim(),
+    yield_qty: Number(document.getElementById('yieldQty').value || 1),
+    yield_unit: document.getElementById('yieldUnit').value,
+    note: document.getElementById('note').value.trim()
+  };
+  const r = await fetch('/api/items', {
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if (r.ok) {
+    alert('Stammdaten gespeichert.');
+    await loadLists();
+  } else alert('Fehler beim Speichern.');
+}
+
+async function saveBom() {
+  const code = document.getElementById('code').value.trim();
+  const lines = readBom();
+  const r = await fetch(`/api/items/${encodeURIComponent(code)}/bom`, {
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body: JSON.stringify({ lines })
+  });
+  if (r.ok) {
+    alert('Zutaten gespeichert.');
+    await openItem(code);
+  } else alert('Fehler beim Speichern.');
+}
+
+async function recomputeCosts() {
+  const code = document.getElementById('code').value.trim();
+  const yq = Number(document.getElementById('yieldQty').value || 1);
+  const res = await fetch(`/api/items/${encodeURIComponent(code)}/scale?qty=${yq}`).then(r=>r.json());
+  if (!res.ok) { document.getElementById('batchCost').textContent = '—'; document.getElementById('pieceCost').textContent='—'; return; }
+  const total = res.data.total_cost || 0;
+  document.getElementById('batchCost').textContent = euro(total);
+  document.getElementById('pieceCost').textContent = euro(yq ? total / yq : total);
+}
+
+document.getElementById('addLineBtn').onclick = ()=>{
+  const tb = document.getElementById('bomBody');
+  const row = document.createElement('tr');
+  row.innerHTML = bomRow({});
+  tb.appendChild(row);
+  wireBomTable();
+};
+
+document.getElementById('saveItemBtn').onclick = saveItem;
+document.getElementById('saveBomBtn').onclick = saveBom;
+
+document.getElementById('scaleBtn').onclick = async ()=>{
+  const code = document.getElementById('code').value.trim();
+  const qty = Number(document.getElementById('scaleQty').value || 0);
+  if (!qty) return;
+  const r = await fetch(`/api/items/${encodeURIComponent(code)}/scale?qty=${qty}`).then(r=>r.json());
+  if (!r.ok) return;
+  const box = document.getElementById('scaleBox');
+  const lines = r.data.lines || [];
+  box.classList.remove('hidden');
+  box.innerHTML = `
+    <div class="text-stone-700 mb-1">Skaliert auf <strong>${qty}</strong>:</div>
+    <ul class="list-disc pl-6">
+      ${lines.map(l=>`<li>${l.material_name || l.material_code}: ${l.qty} ${l.unit} (${euro(l.cost)})</li>`).join('')}
+    </ul>
+    <div class="mt-2 font-medium">Summe: ${euro(r.data.total_cost||0)}</div>
+  `;
+};
+
+document.getElementById('logoutBtn').onclick = async ()=>{
+  await fetch('/api/logout',{method:'POST'});
+  location.href = '/login.html';
+};
+
+document.getElementById('search').addEventListener('input', loadLists);
+['yieldQty','yieldUnit'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', recomputeCosts);
+});
+
+(async () => {
+  await guard();
+  await loadLists();
+  // open first item by default
+  const first = document.querySelector('#itemList li');
+  if (first) first.click();
+})();
+</script>
+</body>
+</html>
