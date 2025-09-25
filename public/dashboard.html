@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>BUNCA – Dashboard</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body data-page="dashboard">
+  <nav class="nav">
+    <div class="brand">BUNCA Planner</div>
+    <div class="spacer"></div>
+    <a href="/products">Rohwaren</a>
+    <a href="/recipes">Rezepte</a>
+    <a href="/production">Produktion</a>
+    <button id="logout" class="button" style="margin-left:10px">Logout</button>
+  </nav>
+  <main class="container">
+    <div class="row">
+      <div class="col">
+        <div class="card">
+          <h3 style="margin-top:0">Willkommen 👋</h3>
+          <p>Ein schlanker Start: Login → Rohwarenpreise pflegen → Rezepte skalieren → Produktionsplan → Rohwarenverbrauch.</p>
+          <div class="card" style="display:flex;gap:10px;align-items:center">
+            <button id="seed" class="button primary">Code-Seed ausführen</button>
+            <label class="small"><input id="wipe" type="checkbox"/> vor Seed leeren (Wipe)</label>
+            <span class="muted small">Nutzt die Daten im <code>server.js</code>.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
