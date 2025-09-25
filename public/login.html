@@ -1,32 +1,34 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
   <title>BUNCA – Login</title>
-  <link rel="stylesheet" href="/styles.css"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-page="login">
-  <nav class="nav"><div class="brand">BUNCA Planner</div></nav>
-  <main class="container" style="max-width:520px">
-    <div class="card">
-      <h2 style="margin:0 0 12px 0">Login</h2>
-      <form id="login-form" class="row">
-        <div class="col">
-          <label>E-Mail</label>
-          <input id="email" class="input" type="email" placeholder="admin@bunca" required/>
-        </div>
-        <div class="col">
-          <label>Passwort</label>
-          <input id="password" class="input" type="password" required/>
-        </div>
-        <div class="col">
-          <button class="button primary" type="submit" style="width:100%">Anmelden</button>
-        </div>
-      </form>
-      <p class="muted small" style="margin-top:8px">Nutzt <code>ADMIN_EMAIL</code> / <code>ADMIN_PASSWORD</code> aus Render.</p>
-    </div>
-  </main>
-  <script src="/app.js"></script>
+<body class="wrap">
+  <div class="card">
+    <h1>Login</h1>
+    <form id="f">
+      <label>E-Mail</label>
+      <input id="email" type="email" placeholder="you@example.com" required />
+      <label>Passwort</label>
+      <input id="pass" type="password" required />
+      <button type="submit">Anmelden</button>
+      <p class="hint">Nutzt <code>ADMIN_EMAIL</code> / <code>ADMIN_PASSWORD</code> aus Render.</p>
+    </form>
+    <p id="err" class="error" style="display:none">Login fehlgeschlagen</p>
+  </div>
+
+<script>
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('pass').value;
+  const r = await fetch('/api/login', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ email, password }) });
+  if (r.ok) { location.href = '/'; }
+  else { document.getElementById('err').style.display = 'block'; }
+});
+</script>
 </body>
 </html>
