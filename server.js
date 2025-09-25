@@ -89,19 +89,23 @@ async function ensureSchema() {
   try {
     await exec('BEGIN');
 
-    // 0) Fix/rename legacy tables if needed
+    /* 0) Legacy table rename */
     await exec(`
       DO $$
       BEGIN
-        -- bom_items -> bom
-        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='bom_items') AND
-           NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='bom') THEN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_name='bom_items'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_name='bom'
+        ) THEN
           ALTER TABLE bom_items RENAME TO bom;
         END IF;
       END$$;
     `);
 
-    // 1) Create core tables (minimal columns; add drift columns after)
+    /* 1) Create minimal tables (IF NOT EXISTS) */
     await exec(`
       CREATE TABLE IF NOT EXISTS suppliers (
         code   TEXT PRIMARY KEY,
@@ -126,7 +130,7 @@ async function ensureSchema() {
 
       CREATE TABLE IF NOT EXISTS bom (
         id            SERIAL PRIMARY KEY,
-        product_code  TEXT NOT NULL,
+        product_code  TEXT,
         material_code TEXT,
         qty           NUMERIC NOT NULL,
         unit          TEXT NOT NULL
@@ -150,7 +154,7 @@ async function ensureSchema() {
       );
     `);
 
-    // 2) Add/rename columns to match our canonical schema
+    /* 2) Add missing columns / rename drifted ones */
     await exec(`
       DO $$
       BEGIN
@@ -165,7 +169,7 @@ async function ensureSchema() {
           ALTER TABLE suppliers ADD COLUMN email TEXT;
         END IF;
 
-        -- materials drift fields
+        -- materials extra fields
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='supplier_code') THEN
           ALTER TABLE materials ADD COLUMN supplier_code TEXT;
         END IF;
@@ -173,62 +177,46 @@ async function ensureSchema() {
           ALTER TABLE materials ADD COLUMN note TEXT;
         END IF;
 
-        -- bom column renames/adds
+        -- ===== bom column normalisation =====
+        -- old schemas used 'recipe_code' -> should be product_code
         IF EXISTS (
           SELECT 1 FROM information_schema.columns
-          WHERE table_name='bom' AND column_name='product'
+          WHERE table_name='bom' AND column_name='recipe_code'
         ) THEN
+          ALTER TABLE bom RENAME COLUMN recipe_code TO product_code;
+        END IF;
+
+        -- other legacy names we saw in older iterations
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='product') THEN
           ALTER TABLE bom RENAME COLUMN product TO product_code;
         END IF;
-
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='bom' AND column_name='productid'
-        ) THEN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='productid') THEN
           ALTER TABLE bom RENAME COLUMN productid TO product_code;
         END IF;
-
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='bom' AND column_name='product_code_id'
-        ) THEN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='product_code_id') THEN
           ALTER TABLE bom RENAME COLUMN product_code_id TO product_code;
         END IF;
 
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name='bom' AND column_name='product_code' AND data_type <> 'text'
-        ) THEN
-          -- best effort: ensure text type
-          ALTER TABLE bom ALTER COLUMN product_code TYPE TEXT USING product_code::text;
+        -- ensure product_code exists
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='product_code') THEN
+          ALTER TABLE bom ADD COLUMN product_code TEXT;
         END IF;
 
-        -- Ensure material_code exists (rename legacy product_code/material/product to material_code if misused)
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='material_code'
-        ) THEN
+        -- ensure material_code exists (rename 'material' if present)
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='material_code') THEN
           ALTER TABLE bom ADD COLUMN material_code TEXT;
         END IF;
-
-        -- if someone used 'material' column
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='material'
-        ) THEN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='material') THEN
           UPDATE bom SET material_code = COALESCE(material_code, material::text) WHERE material_code IS NULL;
         END IF;
 
-        -- Normalize unit default
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='unit'
-        ) THEN
-          UPDATE materials SET unit='g' WHERE unit IS NULL;
-        END IF;
+        -- make sure units in materials have a default
+        UPDATE materials SET unit='g' WHERE unit IS NULL;
       END$$;
     `);
 
-    // 3) Foreign Keys (drop/re-add safely)
+    /* 3) Recreate FKs safely */
     await exec(`
-      -- materials -> suppliers
       DO $$
       BEGIN
         IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name='materials' AND constraint_name='materials_supplier_fk') THEN
@@ -239,7 +227,6 @@ async function ensureSchema() {
           FOREIGN KEY (supplier_code) REFERENCES suppliers(code) ON DELETE SET NULL;
       END$$;
 
-      -- bom FKs
       DO $$
       BEGIN
         IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name='bom' AND constraint_name='bom_product_fk') THEN
@@ -249,32 +236,37 @@ async function ensureSchema() {
           ALTER TABLE bom DROP CONSTRAINT bom_material_fk;
         END IF;
 
-        ALTER TABLE bom
-          ADD CONSTRAINT bom_product_fk
-          FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE;
+        -- only add if the columns are there
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='product_code')
+           AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='items') THEN
+          ALTER TABLE bom
+            ADD CONSTRAINT bom_product_fk
+            FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE;
+        END IF;
 
-        ALTER TABLE bom
-          ADD CONSTRAINT bom_material_fk
-          FOREIGN KEY (material_code) REFERENCES materials(code) ON DELETE RESTRICT;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='material_code')
+           AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='materials') THEN
+          ALTER TABLE bom
+            ADD CONSTRAINT bom_material_fk
+            FOREIGN KEY (material_code) REFERENCES materials(code) ON DELETE RESTRICT;
+        END IF;
       END$$;
 
-      -- plan FK
       DO $$
       BEGIN
         IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name='production_plan' AND constraint_name='plan_item_fk') THEN
           ALTER TABLE production_plan DROP CONSTRAINT plan_item_fk;
         END IF;
-
         ALTER TABLE production_plan
           ADD CONSTRAINT plan_item_fk
           FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE;
       END$$;
     `);
 
-    // 4) Indexes
-    await exec(`CREATE INDEX IF NOT EXISTS idx_bom_product   ON bom(product_code);`);
-    await exec(`CREATE INDEX IF NOT EXISTS idx_bom_material  ON bom(material_code);`);
-    await exec(`CREATE INDEX IF NOT EXISTS idx_plan_day      ON production_plan(day);`);
+    /* 4) Indexes */
+    await exec(`CREATE INDEX IF NOT EXISTS idx_bom_product  ON bom(product_code);`);
+    await exec(`CREATE INDEX IF NOT EXISTS idx_bom_material ON bom(material_code);`);
+    await exec(`CREATE INDEX IF NOT EXISTS idx_plan_day     ON production_plan(day);`);
 
     await exec('COMMIT');
     console.log('DB schema OK');
