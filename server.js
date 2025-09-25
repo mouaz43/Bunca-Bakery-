@@ -56,149 +56,185 @@ function toBase(qty, unit){ const m=U[String(unit||'').toLowerCase()]; return m?
 
 // --------------------- SCHEMA (revised) ---------------------
 async function ensureSchema() {
-  console.log('[schema] ensuring…');
-  await q('BEGIN');
-
+  const exec = (sql, params=[]) => q(sql, params);
   try {
-    // 0) Rename legacy structures up-front (no constraints touched yet)
-    await q(`
-      DO $$
-      BEGIN
-        -- bom_items -> bom (only if bom doesn't exist)
-        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='bom_items')
-           AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='bom') THEN
-          EXECUTE 'ALTER TABLE bom_items RENAME TO bom';
-        END IF;
+    await exec('BEGIN');
 
-        -- bom.recipe_code -> bom.product_code
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bom' AND column_name='recipe_code') THEN
-          EXECUTE 'ALTER TABLE bom RENAME COLUMN recipe_code TO product_code';
-        END IF;
-
-        -- materials.unit -> materials.base_unit
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='unit')
-           AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='base_unit') THEN
-          EXECUTE 'ALTER TABLE materials RENAME COLUMN unit TO base_unit';
-        END IF;
-
-        -- materials.price -> materials.price_per_unit
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='price')
-           AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='price_per_unit') THEN
-          EXECUTE 'ALTER TABLE materials RENAME COLUMN price TO price_per_unit';
-        END IF;
-
-        -- production_plan.item_code -> production_plan.product_code
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='production_plan' AND column_name='item_code') THEN
-          EXECUTE 'ALTER TABLE production_plan RENAME COLUMN item_code TO product_code';
-        END IF;
-      END$$;
-    `);
-
-    // 1) Create tables if they don't exist
-    await q(`
+    // --- core tables (create if missing) ---
+    await exec(`
       CREATE TABLE IF NOT EXISTS suppliers (
-        code TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
+        code  TEXT PRIMARY KEY,
+        name  TEXT NOT NULL,
         contact TEXT,
         phone TEXT,
         email TEXT
       );
+    `);
 
+    await exec(`
       CREATE TABLE IF NOT EXISTS materials (
-        code TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        base_unit TEXT NOT NULL DEFAULT 'g',
-        pack_qty NUMERIC,
-        pack_unit TEXT,
-        pack_price NUMERIC,
-        price_per_unit NUMERIC NOT NULL DEFAULT 0,
-        supplier_code TEXT,
-        note TEXT
+        code           TEXT PRIMARY KEY,
+        name           TEXT NOT NULL
+        -- columns below are added/ensured in the DO block
       );
+    `);
 
+    await exec(`
       CREATE TABLE IF NOT EXISTS items (
-        code TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        category TEXT,
-        yield_qty NUMERIC NOT NULL DEFAULT 1,
+        code       TEXT PRIMARY KEY,
+        name       TEXT NOT NULL,
+        category   TEXT,
+        yield_qty  NUMERIC NOT NULL DEFAULT 1,
         yield_unit TEXT NOT NULL DEFAULT 'pcs',
-        note TEXT
+        note       TEXT
       );
+    `);
 
+    await exec(`
       CREATE TABLE IF NOT EXISTS bom (
-        id SERIAL PRIMARY KEY,
-        product_code TEXT,
-        material_code TEXT,
-        qty NUMERIC NOT NULL,
-        unit TEXT NOT NULL
+        id           SERIAL PRIMARY KEY,
+        product_code TEXT NOT NULL,
+        material_code TEXT NOT NULL,
+        qty          NUMERIC NOT NULL,
+        unit         TEXT NOT NULL
       );
+    `);
 
+    await exec(`
       CREATE TABLE IF NOT EXISTS production_plan (
-        id SERIAL PRIMARY KEY,
-        day DATE NOT NULL,
-        start_time TIME,
-        end_time TIME,
-        product_code TEXT,
-        qty NUMERIC NOT NULL DEFAULT 0,
-        note TEXT
+        id           SERIAL PRIMARY KEY,
+        day          DATE NOT NULL,
+        start_time   TIME,
+        end_time     TIME,
+        product_code TEXT NOT NULL,
+        qty          NUMERIC NOT NULL DEFAULT 0,
+        note         TEXT
       );
+    `);
 
+    await exec(`
       CREATE TABLE IF NOT EXISTS material_price_history (
         id SERIAL PRIMARY KEY,
         material_code TEXT NOT NULL,
         price_per_unit NUMERIC NOT NULL,
-        changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        changed_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
     `);
 
-    // 2) Ensure columns EXIST on old DBs (critical for your error)
-    await q(`ALTER TABLE materials        ADD COLUMN IF NOT EXISTS base_unit TEXT NOT NULL DEFAULT 'g';`);
-    await q(`ALTER TABLE materials        ADD COLUMN IF NOT EXISTS price_per_unit NUMERIC NOT NULL DEFAULT 0;`);
-    await q(`ALTER TABLE materials        ADD COLUMN IF NOT EXISTS supplier_code TEXT;`);
-    await q(`ALTER TABLE materials        ADD COLUMN IF NOT EXISTS note TEXT;`);
+    // --- make columns/constraints exist (idempotent, safe on existing DBs) ---
+    await exec(`
+      DO $$
+      BEGIN
+        -- MATERIALS
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='materials' AND column_name='base_unit'
+        ) THEN
+          ALTER TABLE materials ADD COLUMN base_unit TEXT;
+          -- if an old 'unit' column exists, copy its values
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='materials' AND column_name='unit'
+          ) THEN
+            EXECUTE 'UPDATE materials SET base_unit = unit WHERE base_unit IS NULL';
+          END IF;
+          ALTER TABLE materials ALTER COLUMN base_unit SET DEFAULT 'g';
+          UPDATE materials SET base_unit = 'g' WHERE base_unit IS NULL;
+        END IF;
 
-    await q(`ALTER TABLE bom              ADD COLUMN IF NOT EXISTS product_code  TEXT;`);
-    await q(`ALTER TABLE bom              ADD COLUMN IF NOT EXISTS material_code TEXT;`);
-    await q(`ALTER TABLE bom              ADD COLUMN IF NOT EXISTS qty           NUMERIC NOT NULL DEFAULT 0;`);
-    await q(`ALTER TABLE bom              ADD COLUMN IF NOT EXISTS unit          TEXT NOT NULL DEFAULT 'g';`);
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='materials' AND column_name='price_per_unit'
+        ) THEN
+          ALTER TABLE materials ADD COLUMN price_per_unit NUMERIC;
+          UPDATE materials SET price_per_unit = 0 WHERE price_per_unit IS NULL;
+        END IF;
 
-    await q(`ALTER TABLE items            ADD COLUMN IF NOT EXISTS yield_qty  NUMERIC NOT NULL DEFAULT 1;`);
-    await q(`ALTER TABLE items            ADD COLUMN IF NOT EXISTS yield_unit TEXT NOT NULL DEFAULT 'pcs';`);
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='materials' AND column_name='pack_qty'
+        ) THEN
+          ALTER TABLE materials ADD COLUMN pack_qty NUMERIC;
+        END IF;
 
-    await q(`ALTER TABLE production_plan  ADD COLUMN IF NOT EXISTS product_code TEXT;`);
-    await q(`ALTER TABLE production_plan  ADD COLUMN IF NOT EXISTS qty          NUMERIC NOT NULL DEFAULT 0;`);
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='materials' AND column_name='pack_unit'
+        ) THEN
+          ALTER TABLE materials ADD COLUMN pack_unit TEXT;
+        END IF;
 
-    // 3) Drop and recreate FKs AFTER the columns exist
-    await q(`ALTER TABLE IF EXISTS materials       DROP CONSTRAINT IF EXISTS materials_supplier_fk;`);
-    await q(`ALTER TABLE IF EXISTS bom             DROP CONSTRAINT IF EXISTS bom_product_fk;`);
-    await q(`ALTER TABLE IF EXISTS bom             DROP CONSTRAINT IF EXISTS bom_material_fk;`);
-    await q(`ALTER TABLE IF EXISTS production_plan DROP CONSTRAINT IF EXISTS plan_item_fk;`);
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='materials' AND column_name='pack_price'
+        ) THEN
+          ALTER TABLE materials ADD COLUMN pack_price NUMERIC;
+        END IF;
 
-    await q(`
-      ALTER TABLE materials
-        ADD CONSTRAINT materials_supplier_fk
-        FOREIGN KEY (supplier_code) REFERENCES suppliers(code) ON DELETE SET NULL;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='materials' AND column_name='supplier_code'
+        ) THEN
+          ALTER TABLE materials ADD COLUMN supplier_code TEXT;
+        END IF;
 
-      ALTER TABLE bom
-        ADD CONSTRAINT bom_product_fk  FOREIGN KEY (product_code)  REFERENCES items(code)     ON DELETE CASCADE;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='materials' AND column_name='note'
+        ) THEN
+          ALTER TABLE materials ADD COLUMN note TEXT;
+        END IF;
 
-      ALTER TABLE bom
-        ADD CONSTRAINT bom_material_fk FOREIGN KEY (material_code) REFERENCES materials(code) ON DELETE RESTRICT;
+        -- FK from materials -> suppliers
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name='materials_supplier_fk'
+        ) THEN
+          ALTER TABLE materials
+            ADD CONSTRAINT materials_supplier_fk
+            FOREIGN KEY (supplier_code) REFERENCES suppliers(code) ON DELETE SET NULL;
+        END IF;
 
-      ALTER TABLE production_plan
-        ADD CONSTRAINT plan_item_fk FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE;
+        -- BOM FKs (items/materials)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name='bom_product_fk'
+        ) THEN
+          ALTER TABLE bom
+            ADD CONSTRAINT bom_product_fk
+            FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name='bom_material_fk'
+        ) THEN
+          ALTER TABLE bom
+            ADD CONSTRAINT bom_material_fk
+            FOREIGN KEY (material_code) REFERENCES materials(code) ON DELETE RESTRICT;
+        END IF;
+
+        -- Production plan FK
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name='plan_item_fk'
+        ) THEN
+          ALTER TABLE production_plan
+            ADD CONSTRAINT plan_item_fk
+            FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE;
+        END IF;
+      END$$;
     `);
 
-    // 4) Indexes
-    await q(`CREATE INDEX IF NOT EXISTS idx_bom_product ON bom(product_code);`);
-    await q(`CREATE INDEX IF NOT EXISTS idx_bom_material ON bom(material_code);`);
-    await q(`CREATE INDEX IF NOT EXISTS idx_plan_day ON production_plan(day);`);
+    // Helpful indexes
+    await exec(`CREATE INDEX IF NOT EXISTS idx_bom_product   ON bom(product_code);`);
+    await exec(`CREATE INDEX IF NOT EXISTS idx_bom_material  ON bom(material_code);`);
+    await exec(`CREATE INDEX IF NOT EXISTS idx_plan_day      ON production_plan(day);`);
 
-    await q('COMMIT');
+    await exec('COMMIT');
     console.log('[schema] OK');
   } catch (e) {
-    await q('ROLLBACK').catch(()=>{});
-    console.error('Schema error:', e);
+    await exec('ROLLBACK');
     throw e;
   }
 }
