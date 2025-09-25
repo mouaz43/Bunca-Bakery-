@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>BUNCA – Produktionsplan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-stone-50 text-stone-900">
+<header class="bg-white border-b border-stone-200">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/" class="h-8 w-8 rounded-lg bg-emerald-600 block"></a>
+      <h1 class="text-lg font-semibold tracking-tight">Produktionsplan</h1>
+    </div>
+    <nav class="flex items-center gap-2 text-sm">
+      <a href="/recipes.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Rezepte</a>
+      <a href="/materials.html" class="px-3 py-1.5 rounded-lg hover:bg-stone-100">Rohwaren</a>
+      <button id="logoutBtn" class="ml-2 px-3 py-1.5 rounded-lg bg-stone-900 text-white hover:bg-stone-800">Logout</button>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6">
+  <!-- Date + actions -->
+  <section class="bg-white rounded-2xl shadow p-4 mb-6">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <label class="text-sm">Datum</label>
+        <input id="date" type="date" class="rounded-xl border border-stone-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="addRowBtn" class="px-3 py-2 rounded-xl border border-stone-300 hover:bg-stone-100">Zeile hinzufügen</button>
+        <button id="saveBtn" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Speichern</button>
+        <button id="calcBtn" class="px-4 py-2 rounded-xl bg-stone-900 text-white hover:bg-stone-800">Berechnen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Plan table -->
+  <section class="bg-white rounded-2xl shadow overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-stone-50">
+          <tr>
+            <th class="text-left px-4 py-2.5">Start</th>
+            <th class="text-left px-4 py-2.5">Ende</th>
+            <th class="text-left px-4 py-2.5">Produkt</th>
+            <th class="text-left px-4 py-2.5">Menge</th>
+            <th class="text-left px-4 py-2.5">Notiz</th>
+            <th class="text-left px-4 py-2.5"></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Totals -->
+  <section class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="bg-white rounded-2xl shadow p-5">
+      <p class="text-sm text-stone-500">Gesamtkosten</p>
+      <p id="totalCost" class="text-2xl font-semibold mt-1">—</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow p-5 md:col-span-2">
+      <p class="text-sm text-stone-500 mb-2">Rohwaren (Summe)</p>
+      <div class="max-h-64 overflow-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-stone-50">
+            <tr>
+              <th class="text-left px-4 py-2">Rohware</th>
+              <th class="text-left px-4 py-2">Menge</th>
+              <th class="text-left px-4 py-2">Kosten</th>
+            </tr>
+          </thead>
+          <tbody id="sumBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Add Row Modal -->
+<div id="modal" class="fixed inset-0 bg-black/40 hidden items-end sm:items-center justify-center p-4">
+  <div class="bg-white w-full sm:w-[560px] rounded-2xl shadow-xl p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold">Zeile hinzufügen</h3>
+      <button id="closeModal" class="text-stone-500 hover:text-stone-800">×</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="text-sm">Start</label>
+        <input id="mStart" type="time" class="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2">
+      </div>
+      <div>
+        <label class="text-sm">Ende</label>
+        <input id="mEnd" type="time" class="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2">
+      </div>
+      <div class="sm:col-span-2">
+        <label class="text-sm">Produkt</label>
+        <select id="mProduct" class="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="text-sm">Menge</label>
+        <input id="mQty" type="number" min="0" step="1" value="0" class="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2">
+      </div>
+      <div>
+        <label class="text-sm">Notiz</label>
+        <input id="mNote" type="text" class="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2">
+      </div>
+    </div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button id="modalAdd" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function euro(n){ return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n||0); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+async function guard() {
+  const s = await fetch('/api/session').then(r=>r.json());
+  if (!s.user) location.href = '/login.html';
+}
+let ITEMS = [];
+
+function rowTemplate(r, idx) {
+  return `
+    <tr data-i="${idx}" class="border-b border-stone-100">
+      <td class="px-4 py-2.5"><input value="${r.start_time||''}" type="time" class="w-28 rounded-lg border border-stone-300 px-2 py-1.5"></td>
+      <td class="px-4 py-2.5"><input value="${r.end_time||''}"   type="time" class="w-28 rounded-lg border border-stone-300 px-2 py-1.5"></td>
+      <td class="px-4 py-2.5">
+        <select class="w-64 rounded-lg border border-stone-300 px-2 py-1.5">
+          ${ITEMS.map(it=>`<option value="${it.code}" ${it.code===r.product_code?'selected':''}>${it.name}</option>`).join('')}
+        </select>
+      </td>
+      <td class="px-4 py-2.5"><input value="${r.qty}" type="number" min="0" step="1" class="w-28 rounded-lg border border-stone-300 px-2 py-1.5"></td>
+      <td class="px-4 py-2.5"><input value="${r.note||''}" type="text" class="w-56 rounded-lg border border-stone-300 px-2 py-1.5"></td>
+      <td class="px-4 py-2.5"><button class="del px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-100">Löschen</button></td>
+    </tr>
+  `;
+}
+
+async function loadItems() {
+  const r = await fetch('/api/items').then(r=>r.json());
+  ITEMS = r.data || [];
+}
+
+async function loadPlan() {
+  const date = document.getElementById('date').value;
+  const r = await fetch('/api/plan?date='+date).then(r=>r.json());
+  const rows = r.data || [];
+  const tb = document.getElementById('rows');
+  tb.innerHTML = rows.map((rr, i) => rowTemplate(rr, i)).join('');
+  wireRowEvents();
+}
+
+function wireRowEvents() {
+  // delete buttons
+  document.querySelectorAll('#rows .del').forEach(btn=>{
+    btn.onclick = (e)=>{
+      const tr = e.target.closest('tr');
+      tr.remove();
+    };
+  });
+}
+
+function readRows() {
+  const out = [];
+  document.querySelectorAll('#rows tr').forEach(tr=>{
+    const tds = tr.querySelectorAll('td');
+    out.push({
+      start_time: tds[0].querySelector('input').value || null,
+      end_time:   tds[1].querySelector('input').value || null,
+      product_code: tds[2].querySelector('select').value,
+      qty: Number(tds[3].querySelector('input').value || 0),
+      note: tds[4].querySelector('input').value || ''
+    });
+  });
+  return out;
+}
+
+async function savePlan() {
+  const date = document.getElementById('date').value;
+  const rows = readRows();
+  const r = await fetch('/api/plan/save', {
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body: JSON.stringify({ date, rows })
+  });
+  if (r.ok) {
+    alert('Plan gespeichert.');
+    await loadPlan();
+  } else {
+    alert('Fehler beim Speichern.');
+  }
+}
+
+async function calcPlan() {
+  const date = document.getElementById('date').value;
+  const res = await fetch('/api/plan/calc', {
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body: JSON.stringify({ date })
+  }).then(r=>r.json());
+  const data = res.data || { lines:[], total_cost:0 };
+  document.getElementById('totalCost').textContent = euro(data.total_cost || 0);
+  const tbody = document.getElementById('sumBody');
+  tbody.innerHTML = '';
+  for (const m of data.lines) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="px-4 py-2">${m.material_name || m.material_code}</td>
+      <td class="px-4 py-2">${m.qty} ${m.unit}</td>
+      <td class="px-4 py-2">${euro(m.cost)}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function openModal() { document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex'); }
+function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('modal').classList.remove('flex'); }
+
+document.getElementById('addRowBtn').onclick = openModal;
+document.getElementById('closeModal').onclick = closeModal;
+
+document.getElementById('modalAdd').onclick = () => {
+  const r = {
+    start_time: document.getElementById('mStart').value || null,
+    end_time:   document.getElementById('mEnd').value || null,
+    product_code: document.getElementById('mProduct').value,
+    qty: Number(document.getElementById('mQty').value || 0),
+    note: document.getElementById('mNote').value || ''
+  };
+  const tb = document.getElementById('rows');
+  const idx = tb.querySelectorAll('tr').length;
+  const wrapper = document.createElement('tbody');
+  wrapper.innerHTML = rowTemplate(r, idx);
+  tb.appendChild(wrapper.firstElementChild);
+  wireRowEvents();
+  closeModal();
+};
+
+document.getElementById('saveBtn').onclick = savePlan;
+document.getElementById('calcBtn').onclick = calcPlan;
+
+document.getElementById('logoutBtn').onclick = async () => {
+  await fetch('/api/logout', { method:'POST' });
+  location.href = '/login.html';
+};
+
+(async () => {
+  await guard();
+  // date default
+  const di = document.getElementById('date');
+  di.value = todayISO();
+  di.addEventListener('change', async ()=>{ await loadPlan(); await calcPlan(); });
+
+  // load items for selects
+  await loadItems();
+  // populate modal select
+  const sel = document.getElementById('mProduct');
+  sel.innerHTML = ITEMS.map(i=>`<option value="${i.code}">${i.name}</option>`).join('');
+
+  await loadPlan();
+  await calcPlan();
+})();
+</script>
+</body>
+</html>
