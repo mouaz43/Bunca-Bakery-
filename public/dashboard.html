@@ -6,34 +6,313 @@
   <title>Bakeflow — Dashboard</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
+  <style>
+    /* Page-local polish */
+    .hero-grid{ display:grid; gap:14px; grid-template-columns: 1.2fr .8fr; }
+    @media (max-width: 980px){ .hero-grid{ grid-template-columns:1fr; } }
+    .stat-card{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px; }
+    .kicker{ font-size:11px; text-transform:uppercase; letter-spacing:.11em; color:var(--text-muted) }
+    .stat-big{ font-size:28px; font-weight:800 }
+    .spark{ width:100%; height:44px }
+    .quick{ display:grid; gap:10px; grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 700px){ .quick{ grid-template-columns: 1fr; } }
+    .chip{ padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid var(--border) }
+    .muter{ color:var(--text-muted) }
+    .list{ display:grid; gap:10px }
+    .rowy{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:var(--card) }
+    .rowy small{ color:var(--text-muted) }
+  </style>
 </head>
-<body data-active="dash">
-<div id="appHeader"></div>
+<body>
 
-<div class="container">
-  <div class="grid grid-3">
-    <div class="card">
-      <h3>Willkommen 👋</h3>
-      <p class="muted">Plane die Woche oder bearbeite Rezepte/Rohwaren.</p>
-      <div class="row">
-        <a class="btn primary" href="/plan.html">Produktionsplan</a>
-        <a class="btn" href="/items.html">Rezepte</a>
+<header class="header">
+  <nav class="nav">
+    <div class="brand">🍞 Bakeflow — Übersicht</div>
+    <div class="menu-wrap">
+      <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
+      <button class="btn" onclick="location.href='/items.html'">Rezepte</button>
+      <button class="btn" onclick="location.href='/plan.html'">Plan</button>
+      <button class="btn" onclick="location.href='/tools.html'">Data&nbsp;Studio</button>
+      <button class="btn danger" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+</header>
+
+<main class="container">
+
+  <!-- Top hero: Today + Week -->
+  <div class="hero-grid">
+    <!-- Today card -->
+    <section class="card">
+      <div class="card-title-row">
+        <div>
+          <div class="kicker">Heute</div>
+          <h2 style="margin:4px 0 0 0" id="todayTitle">Produktion</h2>
+        </div>
+        <div class="row-gap">
+          <button class="btn" onclick="location.href='/plan.html'">Zum Plan</button>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div>
+          <div class="muter small">Einträge heute</div>
+          <div class="stat-big" id="todayRows">—</div>
+        </div>
+        <div>
+          <div class="muter small">Gesamtkosten (heute)</div>
+          <div class="stat-big" id="todayCost">—</div>
+        </div>
+        <div>
+          <div class="muter small">Geplante Menge</div>
+          <div class="stat-big" id="todayQty">—</div>
+        </div>
+      </div>
+      <div class="card-pad">
+        <div class="list" id="todayList">
+          <!-- recent rows render here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Week card -->
+    <section class="card">
+      <div class="card-title-row">
+        <div>
+          <div class="kicker">Diese Woche</div>
+          <h2 style="margin:4px 0 0 0" id="weekTitle">Auslastung</h2>
+        </div>
+        <div class="row-gap">
+          <button class="btn" id="prevW">←</button>
+          <button class="btn" id="nextW">→</button>
+        </div>
+      </div>
+      <div class="card-pad">
+        <svg id="spark" class="spark" viewBox="0 0 200 44" preserveAspectRatio="none">
+          <rect x="0" y="0" width="200" height="44" rx="8" ry="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
+          <!-- path injected -->
+        </svg>
+        <div class="row-gap" style="margin-top:8px; align-items:center">
+          <span class="chip" id="wkRange">—</span>
+          <span class="muter">Summe Menge:&nbsp;<b id="wkQty">—</b></span>
+          <span class="muter">Tage aktiv:&nbsp;<b id="wkDays">—</b></span>
+          <span class="muter">Ø pro Tag:&nbsp;<b id="wkAvg">—</b></span>
+        </div>
+        <div class="list" style="margin-top:10px" id="wkTop">
+          <!-- top 3 items of the week -->
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Stats & quick actions -->
+  <section class="card" style="margin-top:14px">
+    <div class="card-title-row">
+      <div>
+        <div class="kicker">Bestand & Rezepte</div>
+        <h2 style="margin:4px 0 0 0">Überblick</h2>
+      </div>
+      <div class="row-gap">
+        <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
+        <button class="btn" onclick="location.href='/items.html'">Artikel</button>
+        <button class="btn" onclick="location.href='/plan.html'">Plan</button>
       </div>
     </div>
-    <div class="card"><h3>Status</h3><div id="status" class="muted">lädt…</div></div>
-    <div class="card">
-      <h3>Schnellzugriff</h3>
-      <p><a href="/tools.html">Tools</a> • <a href="/materials.html">Rohwaren</a></p>
-      <p class="muted">Tipp: <b>⌘K / Ctrl+K</b> → Befehlsleiste.</p>
+    <div class="card-pad">
+      <div class="grid">
+        <div class="col-12 col-4">
+          <div class="stat-card" style="border:1px solid var(--border); border-radius:12px; background:var(--card)">
+            <div>
+              <div class="muter small">Rohwaren</div>
+              <div class="stat-big" id="statMaterials">—</div>
+            </div>
+            <button class="btn" onclick="location.href='/materials.html'">Verwalten</button>
+          </div>
+        </div>
+        <div class="col-12 col-4">
+          <div class="stat-card" style="border:1px solid var(--border); border-radius:12px; background:var(--card)">
+            <div>
+              <div class="muter small">Artikel</div>
+              <div class="stat-big" id="statItems">—</div>
+            </div>
+            <button class="btn" onclick="location.href='/items.html'">Verwalten</button>
+          </div>
+        </div>
+        <div class="col-12 col-4">
+          <div class="stat-card" style="border:1px solid var(--border); border-radius:12px; background:var(--card)">
+            <div>
+              <div class="muter small">Rezepte mit BOM</div>
+              <div class="stat-big" id="statBOM">—</div>
+            </div>
+            <button class="btn" onclick="location.href='/items.html'">Rezepte öffnen</button>
+          </div>
+        </div>
+      </div>
+
+      <hr class="sep" style="margin:16px 0"/>
+
+      <div class="quick">
+        <button class="btn primary" onclick="location.href='/plan.html'">+ Produktion planen</button>
+        <button class="btn" onclick="location.href='/items.html'">+ Artikel anlegen</button>
+        <button class="btn" onclick="location.href='/materials.html'">+ Rohware anlegen</button>
+      </div>
     </div>
-  </div>
-</div>
+  </section>
+
+</main>
 
 <script>
-(async () => {
-  const user = await sessionInfo();
-  $$('#status').textContent = user ? `Angemeldet als ${user.email} (${user.role||'role'})` : 'Nicht angemeldet';
+function logout(){ api('/api/logout',{method:'POST'}).then(()=>location.href='/login.html'); }
+
+/* ===== Dates ===== */
+function pad2(n){ return String(n).padStart(2,'0'); }
+function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function startOfWeek(d){ const x=new Date(d); const k=(x.getDay()+6)%7; x.setDate(x.getDate()-k); x.setHours(0,0,0,0); return x; }
+function addDays(d, n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function iso(d){ return d.toISOString().slice(0,10); }
+const WEEKDAY = ['MO','DI','MI','DO','FR','SA','SO'];
+
+/* ===== Today ===== */
+async function loadToday(){
+  const date = todayISO();
+  $$('#todayTitle').textContent = `Produktion · ${date}`;
+  const r = await api(`/api/plan?date=${encodeURIComponent(date)}`);
+  const rows = r.data || [];
+  $$('#todayRows').textContent = rows.length;
+  const qty = rows.reduce((s,x)=> s + Number(x.qty||0), 0);
+  $$('#todayQty').textContent = qty;
+
+  // Cost: call calc with rows (server supports { rows: [{product_code, qty}] })
+  let cost = 0;
+  if (rows.length){
+    const calc = await api('/api/plan/calc', {
+      method:'POST',
+      body: JSON.stringify({ rows: rows.map(x=>({ product_code: x.product_code, qty: Number(x.qty||0) })) })
+    });
+    cost = Number(calc?.data?.total_cost||0);
+  }
+  $$('#todayCost').textContent = `${cost.toFixed(2)} €`;
+
+  // Render mini list (up to 6)
+  const host = $$('#todayList');
+  host.innerHTML = rows.slice(0,6).map(r=>`
+    <div class="rowy">
+      <div>
+        <div><b>${r.product_code}</b> <small>· ${r.product_name||''}</small></div>
+        <small>${r.start_time||''}${r.end_time? '–'+r.end_time : ''} ${r.shop? ' · '+r.shop : ''} ${r.note? ' · '+r.note : ''}</small>
+      </div>
+      <div class="mono">${r.qty}</div>
+    </div>
+  `).join('') || `<div class="muter">Heute ist noch nichts geplant.</div>`;
+}
+
+/* ===== Week sparkline ===== */
+let WEEK_START = startOfWeek(new Date());
+async function loadWeek(dir=0){
+  WEEK_START = addDays(WEEK_START, 7*dir);
+  const start = iso(WEEK_START);
+  const end   = iso(addDays(WEEK_START, 6));
+  $$('#weekTitle').textContent = `Auslastung · ${start} – ${end}`;
+  $$('#wkRange').textContent = `${start} → ${end}`;
+
+  // fetch each day via existing API, then aggregate
+  const daily = [];
+  const topMap = new Map(); // product_code -> qty
+  for (let i=0;i<7;i++){
+    const d = iso(addDays(WEEK_START, i));
+    const r = await api(`/api/plan?date=${encodeURIComponent(d)}`);
+    const rows = r.data || [];
+    const qty = rows.reduce((s,x)=> s + Number(x.qty||0), 0);
+    daily.push(qty);
+    for (const x of rows){
+      const cur = topMap.get(x.product_code)||0;
+      topMap.set(x.product_code, cur + Number(x.qty||0));
+    }
+  }
+
+  // Sparkline
+  drawSparkline(daily);
+
+  // Stats
+  const sum = daily.reduce((s,v)=>s+v,0);
+  const daysActive = daily.filter(v=>v>0).length;
+  $$('#wkQty').textContent = sum;
+  $$('#wkDays').textContent = daysActive;
+  $$('#wkAvg').textContent = (sum/7).toFixed(1);
+
+  // Top 3 items
+  const top = [...topMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const host = $$('#wkTop');
+  host.innerHTML = top.length ? top.map(([code,qty])=>`
+    <div class="rowy">
+      <div><b>${code}</b></div>
+      <div class="mono">${qty}</div>
+    </div>
+  `).join('') : `<div class="muter">Keine Einträge in dieser Woche.</div>`;
+}
+function drawSparkline(vals){
+  const svg = $$('#spark');
+  // clear previous path
+  Array.from(svg.querySelectorAll('path[data-line], circle[data-dot]')).forEach(n=>n.remove());
+  if (!vals.length) return;
+  const W=200, H=44, pad=6;
+  const max = Math.max(1, ...vals);
+  const step = (W - pad*2) / (vals.length-1 || 1);
+  const y = (v)=> H - pad - (v/max)*(H - pad*2);
+  const pts = vals.map((v,i)=>[pad + i*step, y(v)]);
+  const d = pts.map((p,i)=> (i? 'L':'M') + p[0]+','+p[1]).join(' ');
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('d', d);
+  path.setAttribute('stroke', 'url(#sparkGrad)');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('data-line','1');
+  svg.appendChild(path);
+
+  // gradient defs (once)
+  if (!svg.querySelector('#sparkGrad')){
+    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    defs.innerHTML = `<linearGradient id="sparkGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7aa2ff"/><stop offset="100%" stop-color="#a07aff"/>
+    </linearGradient>`;
+    svg.appendChild(defs);
+  }
+  // dots
+  pts.forEach(p=>{
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx', p[0]); c.setAttribute('cy', p[1]); c.setAttribute('r', 2.4);
+    c.setAttribute('fill', 'url(#sparkGrad)');
+    c.setAttribute('data-dot','1');
+    svg.appendChild(c);
+  });
+}
+
+/* ===== Stats (materials/items/bom) ===== */
+async function loadStats(){
+  const m = (await api('/api/materials')).data||[];
+  const i = (await api('/api/items')).data||[];
+  $$('#statMaterials').textContent = m.length;
+  $$('#statItems').textContent = i.length;
+
+  // best-effort count: items that have at least one BOM line (calls existing endpoint per item)
+  let bomItems = 0;
+  for (const it of i){
+    try{
+      const r = await api(`/api/items/${encodeURIComponent(it.code)}/bom`);
+      if ((r.data||[]).length) bomItems++;
+    }catch{}
+  }
+  $$('#statBOM').textContent = `${bomItems}/${i.length}`;
+}
+
+/* ===== Events & boot ===== */
+$$('#prevW').addEventListener('click', ()=> loadWeek(-1));
+$$('#nextW').addEventListener('click', ()=> loadWeek(+1));
+
+(async function(){
+  const u = await sessionInfo(); if(!u){ location.href='/login.html'; return; }
+  await Promise.all([loadToday(), loadWeek(0), loadStats()]);
 })();
 </script>
+
 </body>
 </html>
