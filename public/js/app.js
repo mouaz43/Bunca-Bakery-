@@ -1,10 +1,11 @@
-// BUNCA UI core — theme, accent, density, toast, API, nav, sorting, palette
+// public/js/app.js — core helpers exported to window (so inline scripts can use them)
 
-const $$ = (sel, root = document) => root.querySelector(sel);
-const $$$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+// tiny DOM helpers
+window.$$  = (sel, root = document) => root.querySelector(sel);
+window.$$$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-/* ---------- Toast ---------- */
-const toast = (msg) => {
+// toast
+window.toast = (msg) => {
   const t = document.createElement('div');
   t.className = 'toast';
   t.textContent = msg;
@@ -13,21 +14,21 @@ const toast = (msg) => {
   setTimeout(() => t.remove(), 2600);
 };
 
-/* ---------- API ---------- */
-async function api(path, opts = {}) {
+// api + session
+window.api = async (path, opts = {}) => {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
   let json = {};
   try { json = await res.json(); } catch {}
   if (!res.ok || json.ok === false) throw new Error(json.error || `request_failed_${res.status}`);
   return json;
-}
-async function sessionInfo() { try { return (await api('/api/session')).user; } catch { return null; } }
-function navActive(id) { const el = document.querySelector(`[data-tab="${id}"]`); if (el) el.classList.add('active'); }
+};
+window.sessionInfo = async () => { try { return (await window.api('/api/session')).user; } catch { return null; } };
+window.navActive = (id) => { const el = document.querySelector(`[data-tab="${id}"]`); if (el) el.classList.add('active'); };
 
 /* ---------- Theme / Accent / Density ---------- */
 (function initTheme(){
-  const savedTheme = localStorage.getItem('theme') || 'dark';
-  const savedAccent = localStorage.getItem('accent') || '#6aa6ff';
+  const savedTheme   = localStorage.getItem('theme')   || 'dark';
+  const savedAccent  = localStorage.getItem('accent')  || '#6aa6ff';
   const savedDensity = localStorage.getItem('density') || 'comfy';
   if (savedTheme === 'light') document.documentElement.classList.add('light');
   if (savedDensity === 'compact') document.documentElement.classList.add('compact');
@@ -50,7 +51,7 @@ function navActive(id) { const el = document.querySelector(`[data-tab="${id}"]`)
 })();
 
 /* ---------- Sortable tables ---------- */
-function makeTableSortable(table) {
+window.makeTableSortable = (table) => {
   if (!table) return;
   const ths = table.tHead ? Array.from(table.tHead.querySelectorAll('th')) : [];
   ths.forEach((th, idx) => {
@@ -72,19 +73,19 @@ function makeTableSortable(table) {
       rows.forEach(r => tbody.appendChild(r));
     });
   });
-}
+};
 
 /* ---------- Client search (simple contains filter) ---------- */
-function attachClientFilter(inputEl, table) {
+window.attachClientFilter = (inputEl, table) => {
   if (!inputEl || !table) return;
   inputEl.addEventListener('input', () => {
     const q = inputEl.value.trim().toLowerCase();
-    $$$('tbody tr', table).forEach(tr => {
+    window.$$$('tbody tr', table).forEach(tr => {
       const hit = tr.textContent.toLowerCase().includes(q);
       tr.style.display = hit ? '' : 'none';
     });
   });
-}
+};
 
 /* ---------- Command palette (Ctrl/Cmd+K) ---------- */
 (function initKbar(){
@@ -98,33 +99,34 @@ function attachClientFilter(inputEl, table) {
   document.body.appendChild(wrapper);
 
   const items = [
-    { label: 'Dashboard', action: () => location.href='/dashboard.html' },
-    { label: 'Rohwaren', action: () => location.href='/materials.html' },
-    { label: 'Rezepte', action: () => location.href='/items.html' },
-    { label: 'Produktionsplan', action: () => location.href='/plan.html' },
-    { label: 'Tools', action: () => location.href='/tools.html' },
-    { label: 'Logout', action: async () => { await api('/api/logout', { method:'POST' }); location.href='/login.html'; } },
+    { label: 'Dashboard',        action: () => location.href='/dashboard.html' },
+    { label: 'Rohwaren',         action: () => location.href='/materials.html' },
+    { label: 'Rezepte',          action: () => location.href='/items.html' },
+    { label: 'Produktionsplan',  action: () => location.href='/plan.html' },
+    { label: 'Tools',            action: () => location.href='/tools.html' },
+    { label: 'Logout',           action: async () => { await window.api('/api/logout', { method:'POST' }); location.href='/login.html'; } },
   ];
 
-  const list = $$('#kbarList', wrapper);
-  const input = $$('#kbarInput', wrapper);
+  const list  = document.querySelector('#kbarList') || wrapper.querySelector('#kbarList');
+  const input = document.querySelector('#kbarInput') || wrapper.querySelector('#kbarInput');
+
   function render(q='') {
     const s = q.toLowerCase();
     const filtered = items.filter(i => i.label.toLowerCase().includes(s));
     list.innerHTML = filtered.map((i,idx)=>`<div class="item ${idx===0?'active':''}" data-idx="${idx}">${i.label}</div>`).join('');
-    $$$('.item', list).forEach((el, i) => el.onclick = () => { filtered[i].action(); close(); });
+    Array.from(list.querySelectorAll('.item')).forEach((el, i) => el.onclick = () => { filtered[i].action(); close(); });
   }
-  function open() { wrapper.style.display='flex'; input.value=''; render(); setTimeout(()=>input.focus(),0); }
+  function open()  { wrapper.style.display='flex'; input.value=''; render(); setTimeout(()=>input.focus(),0); }
   function close() { wrapper.style.display='none'; }
 
   input.addEventListener('input', (e)=>render(e.target.value));
   input.addEventListener('keydown', (e)=>{
-    const itemsEls = $$$('.item', list);
+    const itemsEls = Array.from(list.querySelectorAll('.item'));
     let idx = itemsEls.findIndex(x=>x.classList.contains('active'));
     if (e.key === 'ArrowDown') { e.preventDefault(); itemsEls[idx]?.classList.remove('active'); idx = Math.min(itemsEls.length-1, idx+1); itemsEls[idx]?.classList.add('active'); }
-    if (e.key === 'ArrowUp') { e.preventDefault(); itemsEls[idx]?.classList.remove('active'); idx = Math.max(0, idx-1); itemsEls[idx]?.classList.add('active'); }
-    if (e.key === 'Enter') { e.preventDefault(); const active = itemsEls[idx]; if (active) items[Array.from(list.children).indexOf(active)].action(); close(); }
-    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); itemsEls[idx]?.classList.remove('active'); idx = Math.max(0, idx-1);  itemsEls[idx]?.classList.add('active'); }
+    if (e.key === 'Enter')     { e.preventDefault(); const active = itemsEls[idx]; if (active) items[Array.from(list.children).indexOf(active)].action(); close(); }
+    if (e.key === 'Escape')    { e.preventDefault(); close(); }
   });
 
   window.addEventListener('keydown', (e)=>{
