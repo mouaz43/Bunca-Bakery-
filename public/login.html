@@ -3,39 +3,19 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>BUNCA — Login</title>
+  <title>Bakeflow — Login</title>
   <link rel="stylesheet" href="/styles.css"/>
-  <!-- app.js provides $$, api, toast, theme, etc. -->
   <script defer src="/js/app.js"></script>
 </head>
-<body>
-<header class="header">
-  <nav class="nav">
-    <div class="brand">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M4 12c0-4.418 3.582-8 8-8a8 8 0 1 1-8 8Z" stroke="currentColor" opacity=".8"/>
-        <path d="M12 4v16M4 12h16" stroke="currentColor" opacity=".6"/>
-      </svg>
-      BUNCA Planner
-    </div>
-    <div class="right header-controls">
-      <div class="accent">
-        <div class="dot"></div>
-        <input id="accentPicker" type="color" value="#6aa6ff"
-               style="background:transparent;border:none;width:20px;height:20px;padding:0"/>
-      </div>
-      <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
-      <button class="density-toggle" onclick="toggleDensity()">↕︎</button>
-    </div>
-  </nav>
-</header>
+<body data-active="login">
+<div id="appHeader"></div>
 
 <div class="container center">
   <div class="card" style="width:440px">
     <h2 style="margin-bottom:6px">Anmelden</h2>
-    <p class="muted" style="margin-bottom:12px">Admin oder Nutzerzugang</p>
+    <p class="muted" style="margin-bottom:16px">Admin oder Nutzerzugang</p>
     <div class="grid">
-      <div><label>Email</label><input id="email" class="input" placeholder="you@bunca.de"/></div>
+      <div><label>Email</label><input id="email" class="input" placeholder="you@bakeflow.de"/></div>
       <div><label>Passwort</label><input id="password" class="input" type="password" placeholder="••••••••"/></div>
       <button id="loginBtn" class="btn primary">Login</button>
     </div>
@@ -43,48 +23,17 @@
 </div>
 
 <script>
-/* Run after DOM is ready (defer loads app.js before this, but we guard anyway) */
 window.addEventListener('DOMContentLoaded', () => {
-  /* ---- Fallbacks if /js/app.js failed to load ---- */
-  if (typeof window.$$ !== 'function') {
-    window.$$  = (sel, root=document) => root.querySelector(sel);
-    window.toast = (m)=> { alert(m); };
-  }
-  if (typeof window.api !== 'function') {
-    window.api = async (path, opts={}) => {
-      const res = await fetch(path, { headers:{'Content-Type':'application/json'}, ...opts });
-      const json = await res.json().catch(()=>({}));
-      if (!res.ok || json.ok === false) throw new Error(json.error || `request_failed_${res.status}`);
-      return json;
-    };
-  }
-  if (typeof window.changeAccent !== 'function') {
-    window.changeAccent = (hex)=> document.documentElement.style.setProperty('--accent', hex);
-  }
-
-  /* ---- UI wiring ---- */
-  $$('#accentPicker').addEventListener('input', (e)=> changeAccent(e.target.value));
-
   const btn = document.getElementById('loginBtn');
   btn.addEventListener('click', async () => {
     const email = $$('#email').value.trim();
     const password = $$('#password').value.trim();
     if (!email || !password) return toast('Bitte Email & Passwort eingeben');
-    try {
-      await api('/api/login', { method:'POST', body: JSON.stringify({ email, password }) });
+    try { await api('/api/login', { method:'POST', body: JSON.stringify({ email, password }) });
       location.href = '/dashboard.html';
-    } catch (e) {
-      console.error('Login failed:', e);
-      toast('Login fehlgeschlagen');
-    }
+    } catch (e) { console.error(e); toast('Login fehlgeschlagen'); }
   });
-
-  // allow Enter key
-  ['email','password'].forEach(id => {
-    document.getElementById(id).addEventListener('keydown', (e)=>{
-      if (e.key === 'Enter') btn.click();
-    });
-  });
+  ['email','password'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') btn.click(); }));
 });
 </script>
 </body>
