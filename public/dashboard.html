@@ -2,230 +2,39 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BUNCA Planner – Dashboard</title>
+  <!-- Tailwind CDN is fine for now; we can switch to compiled later -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 min-h-screen">
-  <!-- NAV -->
-  <header class="bg-white shadow">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-6">
-        <h1 class="text-xl font-bold">BUNCA Planner</h1>
-        <nav class="hidden md:flex items-center gap-2">
-          <button data-tab="tab-overview"  class="tab px-3 py-2 rounded-md font-medium bg-gray-900 text-white">Übersicht</button>
-          <button data-tab="tab-seed"      class="tab px-3 py-2 rounded-md font-medium hover:bg-gray-200">Seed (Wizard)</button>
-          <button data-tab="tab-materials" class="tab px-3 py-2 rounded-md font-medium hover:bg-gray-200">Rohwaren</button>
-          <button data-tab="tab-items"     class="tab px-3 py-2 rounded-md font-medium hover:bg-gray-200">Artikel & Rezepte</button>
-          <button data-tab="tab-plan"      class="tab px-3 py-2 rounded-md font-medium hover:bg-gray-200">Produktionsplan</button>
-          <button data-tab="tab-tools"     class="tab px-3 py-2 rounded-md font-medium hover:bg-gray-200">Tools</button>
-        </nav>
-      </div>
-      <div class="flex items-center gap-3">
-        <span id="who" class="text-sm text-gray-600"></span>
-        <button id="logout" class="px-3 py-2 rounded-md bg-gray-800 text-white">Logout</button>
+<body class="bg-slate-50 text-slate-800">
+  <!-- Top bar -->
+  <header class="bg-white border-b">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center gap-4">
+      <div class="font-extrabold text-xl tracking-tight">BUNCA <span class="font-light">Planner</span></div>
+
+      <nav class="flex gap-2 ml-4">
+        <button data-view="home" class="tab px-3 py-1.5 rounded-md bg-slate-100">Übersicht</button>
+        <button data-view="seed" class="tab px-3 py-1.5 rounded-md hover:bg-slate-100">Seed (Wizard)</button>
+        <button data-view="materials" class="tab px-3 py-1.5 rounded-md hover:bg-slate-100">Rohwaren</button>
+        <button data-view="items" class="tab px-3 py-1.5 rounded-md hover:bg-slate-100">Artikel & Rezepte</button>
+        <button data-view="plan" class="tab px-3 py-1.5 rounded-md hover:bg-slate-100">Produktionsplan</button>
+        <button data-view="tools" class="tab px-3 py-1.5 rounded-md hover:bg-slate-100">Tools</button>
+      </nav>
+
+      <div class="ml-auto flex items-center gap-3">
+        <span id="userEmail" class="text-sm text-slate-600"></span>
+        <button id="logoutBtn" class="px-3 py-1.5 rounded-md bg-slate-900 text-white hover:bg-black">Logout</button>
       </div>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 py-6 space-y-8">
-    <!-- OVERVIEW (unchanged but shortened) -->
-    <section id="tab-overview" class="tab-pane">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-xl shadow p-6">
-          <h2 class="font-semibold text-lg mb-2">Status</h2>
-          <div class="text-sm text-gray-600" id="status">Lade…</div>
-        </div>
-        <div class="bg-white rounded-xl shadow p-6">
-          <h2 class="font-semibold text-lg mb-2">Quick Seed (alle Dateien)</h2>
-          <button id="seed-quick" class="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Seed anwenden</button>
-          <pre id="seed-quick-log" class="mt-4 text-xs bg-gray-100 p-3 rounded-lg overflow-auto max-h-60"></pre>
-        </div>
-      </div>
-    </section>
-
-    <!-- SEED WIZARD -->
-    <section id="tab-seed" class="tab-pane hidden">
-      <div class="bg-white rounded-xl shadow p-6 space-y-8">
-        <h2 class="font-semibold text-lg">Seed (Schritt für Schritt)</h2>
-
-        <!-- Step 0: Suppliers -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <h3 class="font-medium">0) Lieferanten</h3>
-            <div class="space-x-2">
-              <button data-tpl="suppliers" class="tpl px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm">Template</button>
-              <button id="seed-suppliers" class="px-3 py-1 rounded bg-emerald-600 text-white text-sm">Anwenden</button>
-            </div>
-          </div>
-          <textarea id="txt-suppliers" rows="6" class="w-full rounded-md border-gray-300 font-mono text-xs"></textarea>
-          <pre id="log-suppliers" class="text-xs bg-gray-50 p-2 rounded"></pre>
-        </div>
-
-        <!-- Step 1: Materials -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <h3 class="font-medium">1) Rohwaren (+ Preise)</h3>
-            <div class="space-x-2">
-              <button data-tpl="materials" class="tpl px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm">Template</button>
-              <button id="seed-materials" class="px-3 py-1 rounded bg-emerald-600 text-white text-sm">Anwenden</button>
-            </div>
-          </div>
-          <textarea id="txt-materials" rows="10" class="w-full rounded-md border-gray-300 font-mono text-xs"></textarea>
-          <pre id="log-materials" class="text-xs bg-gray-50 p-2 rounded"></pre>
-        </div>
-
-        <!-- Step 2: Items -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <h3 class="font-medium">2) Artikel (Yield)</h3>
-            <div class="space-x-2">
-              <button data-tpl="items" class="tpl px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm">Template</button>
-              <button id="seed-items" class="px-3 py-1 rounded bg-emerald-600 text-white text-sm">Anwenden</button>
-            </div>
-          </div>
-          <textarea id="txt-items" rows="8" class="w-full rounded-md border-gray-300 font-mono text-xs"></textarea>
-          <pre id="log-items" class="text-xs bg-gray-50 p-2 rounded"></pre>
-        </div>
-
-        <!-- Step 3: BOM -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <h3 class="font-medium">3) Rezepte (BOM)</h3>
-            <div class="space-x-2">
-              <button data-tpl="bom" class="tpl px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm">Template</button>
-              <button id="seed-bom" class="px-3 py-1 rounded bg-emerald-600 text-white text-sm">Anwenden</button>
-            </div>
-          </div>
-          <textarea id="txt-bom" rows="10" class="w-full rounded-md border-gray-300 font-mono text-xs"></textarea>
-          <pre id="log-bom" class="text-xs bg-gray-50 p-2 rounded"></pre>
-        </div>
-
-        <!-- Step 4: Plan -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <h3 class="font-medium">4) Produktionsplan (Beispiel)</h3>
-            <div class="space-x-2">
-              <button data-tpl="plan" class="tpl px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm">Template</button>
-              <button id="seed-plan" class="px-3 py-1 rounded bg-emerald-600 text-white text-sm">Anwenden</button>
-            </div>
-          </div>
-          <textarea id="txt-plan" rows="6" class="w-full rounded-md border-gray-300 font-mono text-xs"></textarea>
-          <pre id="log-plan" class="text-xs bg-gray-50 p-2 rounded"></pre>
-        </div>
-      </div>
-    </section>
-
-    <!-- The rest (Rohwaren, Items, Plan, Tools) remains as in your last dashboard -->
-    <!-- … (keep your existing sections for Materials / Items & BOM / Plan / Tools) … -->
+  <!-- Main content -->
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    <div id="view" class="min-h-[50vh]"></div>
   </main>
 
-  <script>
-    const $ = (s)=>document.querySelector(s);
-    const $$=(s)=>Array.from(document.querySelectorAll(s));
-    async function get(u){ const r=await fetch(u,{credentials:'include'}); return r.json();}
-    async function post(u,d){ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(d||{})}); return r.json(); }
-
-    // tabs
-    $$('.tab').forEach(b=>b.addEventListener('click',()=>{
-      $$('.tab').forEach(x=>x.classList.remove('bg-gray-900','text-white'));
-      b.classList.add('bg-gray-900','text-white');
-      const id=b.getAttribute('data-tab');
-      $$('.tab-pane').forEach(p=>p.classList.add('hidden'));
-      $('#'+id).classList.remove('hidden');
-    }));
-
-    // header
-    $('#logout').onclick=async()=>{ await post('/api/logout'); location.href='/'; };
-
-    // overview
-    async function boot(){
-      const s=await get('/api/session'); if(!s.user){location.href='/';return;}
-      $('#who').textContent=s.user.email;
-      try{ const hz=await get('/healthz'); $('#status').textContent = hz.ok ? 'Backend OK' : 'Backend Fehler'; }catch{ $('#status').textContent='Backend Fehler'; }
-    }
-    boot();
-
-    // Quick seed button (existing global seed)
-    $('#seed-quick')?.addEventListener('click', async ()=>{
-      $('#seed-quick-log').textContent='Wird angewendet…';
-      const r=await post('/api/admin/seed/apply');
-      $('#seed-quick-log').textContent=JSON.stringify(r,null,2);
-    });
-
-    // Seed Wizard templates
-    const templates = {
-      suppliers: [
-        { "code":"FRESHLY", "name":"Freshly", "contact":"", "phone":"", "email":"" },
-        { "code":"BACKO",   "name":"Backo",   "contact":"", "phone":"", "email":"" }
-      ],
-      materials: [
-        { "code":"WEIZENMEHL", "name":"Weizenmehl", "base_unit":"g", "pack_qty":25000, "pack_unit":"g", "pack_price":14.00, "supplier_code":"FRESHLY" },
-        { "code":"ZUCKER",     "name":"Zucker",     "base_unit":"g", "pack_qty":25000, "pack_unit":"g", "pack_price":20.00, "supplier_code":"FRESHLY" },
-        { "code":"ROHRZUCKER", "name":"Rohrzucker", "base_unit":"g", "pack_qty":25000, "pack_unit":"g", "pack_price":46.25, "supplier_code":"BACKO" }
-      ],
-      items: [
-        { "code":"COOKIE_CHOC", "name":"Chocolate Cookie", "category":"Cookies", "yield_qty":90, "yield_unit":"pcs" },
-        { "code":"BROWNIE",     "name":"Brownie Blech",    "category":"Blech",  "yield_qty":1,  "yield_unit":"pcs" }
-      ],
-      bom: [
-        { "product_code":"COOKIE_CHOC",
-          "ingredients":[
-            { "material_code":"WEIZENMEHL", "qty":2000, "unit":"g" },
-            { "material_code":"ZUCKER",     "qty":900,  "unit":"g" }
-          ]
-        }
-      ],
-      plan: [
-        { "date":"2025-09-26", "start_time":"06:00", "end_time":"08:00", "product_code":"COOKIE_CHOC", "planned_qty":180, "note":"Frühschicht" }
-      ]
-    };
-
-    $$('.tpl').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const kind = btn.getAttribute('data-tpl');
-        const target = {
-          suppliers:'#txt-suppliers',
-          materials:'#txt-materials',
-          items:'#txt-items',
-          bom:'#txt-bom',
-          plan:'#txt-plan'
-        }[kind];
-        if (target) $(target).value = JSON.stringify(templates[kind], null, 2);
-      });
-    });
-
-    // Apply handlers
-    $('#seed-suppliers')?.addEventListener('click', async ()=>{
-      const v=$('#txt-suppliers').value.trim(); if(!v) return;
-      $('#log-suppliers').textContent='…';
-      const r=await post('/api/admin/seed/suppliers', JSON.parse(v));
-      $('#log-suppliers').textContent=JSON.stringify(r,null,2);
-    });
-    $('#seed-materials')?.addEventListener('click', async ()=>{
-      const v=$('#txt-materials').value.trim(); if(!v) return;
-      $('#log-materials').textContent='…';
-      const r=await post('/api/admin/seed/materials', JSON.parse(v));
-      $('#log-materials').textContent=JSON.stringify(r,null,2);
-    });
-    $('#seed-items')?.addEventListener('click', async ()=>{
-      const v=$('#txt-items').value.trim(); if(!v) return;
-      $('#log-items').textContent='…';
-      const r=await post('/api/admin/seed/items', JSON.parse(v));
-      $('#log-items').textContent=JSON.stringify(r,null,2);
-    });
-    $('#seed-bom')?.addEventListener('click', async ()=>{
-      const v=$('#txt-bom').value.trim(); if(!v) return;
-      $('#log-bom').textContent='…';
-      const r=await post('/api/admin/seed/bom', JSON.parse(v));
-      $('#log-bom').textContent=JSON.stringify(r,null,2);
-    });
-    $('#seed-plan')?.addEventListener('click', async ()=>{
-      const v=$('#txt-plan').value.trim(); if(!v) return;
-      $('#log-plan').textContent='…';
-      const r=await post('/api/admin/seed/plan', JSON.parse(v));
-      $('#log-plan').textContent=JSON.stringify(r,null,2);
-    });
-  </script>
+  <!-- Very small SPA controller -->
+  <script src="/js/app.js"></script>
 </body>
 </html>
