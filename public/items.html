@@ -3,17 +3,38 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Bakeflow — Rezepte</title>
+  <title>Bakeflow — Artikel & Rezepte</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
+  <style>
+    .grid-top{ display:grid; gap:10px; grid-template-columns: 1fr auto auto }
+    @media (max-width: 720px){ .grid-top{ grid-template-columns:1fr } }
+    .row-actions{ display:flex; gap:8px; justify-content:flex-end }
+    .del{ background:rgba(255,0,0,.08); border-color:rgba(255,0,0,.25) }
+    /* Drawer recipe */
+    .drawer{ position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:14px; }
+    .drawer.open{ display:flex }
+    .sheet{ width:min(920px,96vw); background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow: var(--shadow); overflow:hidden }
+    .sheet-head{ padding:12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:10px }
+    .sheet-body{ padding:12px; display:grid; gap:12px }
+    .mini{ font-size:12px; color:var(--text-muted) }
+    .pill{ padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--border); font-size:12px }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace }
+    .suggest{ position:absolute; z-index:5; background:var(--card); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow); display:none; }
+    .suggest.open{ display:block }
+    .suggest div{ padding:6px 8px; cursor:pointer }
+    .suggest div:hover{ background:rgba(255,255,255,.06) }
+    .rel{ position:relative }
+    .right{text-align:right}
+  </style>
 </head>
 <body>
 
 <header class="header">
   <nav class="nav">
-    <div class="brand">🍞 Bakeflow — Rezepte</div>
+    <div class="brand">🍞 Bakeflow — Artikel & Rezepte</div>
     <div class="menu-wrap">
-      <input id="q" class="input" placeholder="Suchen …  ( / )" style="min-width:260px"/>
+      <button class="btn" onclick="location.href='/dashboard.html'">Dashboard</button>
       <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
       <button class="btn" onclick="location.href='/plan.html'">Plan</button>
       <button class="btn danger" onclick="logout()">Logout</button>
@@ -22,505 +43,246 @@
 </header>
 
 <main class="container">
-
-  <!-- Cards (mobile-first) -->
-  <div id="cards" class="grid"></div>
-
-  <!-- Table (power view) -->
-  <div class="card" style="margin-top:18px">
+  <section class="card">
     <div class="card-title-row">
-      <div class="row-gap">
-        <h2 style="margin:0">Alle Artikel</h2>
-        <span class="muted small">Desktop-Ansicht • sortierbar</span>
-      </div>
-      <div class="row-gap">
-        <button class="btn" id="reload">Neu laden</button>
-        <button class="btn" id="exportItems">Export CSV</button>
+      <h2 style="margin:0">Artikel</h2>
+      <div class="grid-top">
+        <input id="search" class="input" placeholder="Suchen… (Code / Name / Kategorie)"/>
+        <button class="btn" id="newBtn">+ Neuer Artikel</button>
+        <button class="btn" id="reloadBtn">Neu laden</button>
       </div>
     </div>
-    <div class="table-wrap">
-      <table id="tbl" class="table">
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Name</th>
-            <th>Kategorie</th>
-            <th>Yield</th>
-            <th>Notiz</th>
-            <th style="width:220px">Aktionen</th>
-          </tr>
-        </thead>
-        <tbody id="rows"><tr><td colspan="6" class="muted">Lade…</td></tr></tbody>
-      </table>
+
+    <div class="card-pad">
+      <div class="table-wrap">
+        <table class="table" id="tbl">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Kategorie</th>
+              <th>Yield Qty</th>
+              <th>Yield Unit</th>
+              <th>Notiz</th>
+              <th class="right">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="7" class="muted">Lade…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
+  </section>
 </main>
 
-<!-- Floating + button -->
-<button class="fab" id="fab">+ Neuer Artikel</button>
-
-<!-- Item Drawer -->
-<aside id="itemDrawer" class="drawer">
-  <div class="drawer-head">
-    <h3 id="iTitle" style="margin:0">Artikel</h3>
-    <div class="row-gap">
-      <button class="btn subtle" onclick="Drawer.close()">Schließen (Esc)</button>
-    </div>
-  </div>
-  <div class="drawer-body">
-    <div class="grid">
-      <div class="col-6">
-        <label>Code</label>
-        <input id="i_code" class="input" placeholder="Z.B. MUFFIN_CHOCO"/>
-      </div>
-      <div class="col-6">
-        <label>Name</label>
-        <input id="i_name" class="input" placeholder="Muffin Schoko"/>
-      </div>
-      <div class="col-6">
-        <label>Kategorie</label>
-        <input id="i_cat" class="input" placeholder="Backwaren"/>
-      </div>
-      <div class="col-3">
-        <label>Yield Qty</label>
-        <input id="i_yqty" class="input" type="number" step="0.01" value="1"/>
-      </div>
-      <div class="col-3">
-        <label>Yield Unit</label>
-        <input id="i_yunit" class="input" value="pcs"/>
-      </div>
-      <div class="col-12">
-        <label>Notiz</label>
-        <input id="i_note" class="input" placeholder="optional…"/>
-      </div>
-    </div>
-  </div>
-  <div class="drawer-foot">
-    <button class="btn danger" id="i_delBtn" title="Löschen">Löschen</button>
-    <div class="spacer"></div>
-    <button class="btn" onclick="Drawer.close()">Abbrechen</button>
-    <button class="btn primary" id="i_saveBtn">Speichern</button>
-  </div>
-</aside>
-
 <!-- Recipe Drawer -->
-<aside id="recipeDrawer" class="drawer">
-  <div class="drawer-head">
-    <h3 id="rTitle" style="margin:0">Rezept</h3>
-    <div class="row-gap">
-      <button class="btn subtle" onclick="Drawer.close()">Schließen (Esc)</button>
-    </div>
-  </div>
-
-  <div class="drawer-body" style="padding-bottom:0">
-    <!-- Top controls -->
-    <div class="row-gap" style="justify-content:space-between">
-      <div class="row-gap">
-        <label class="muted">Menge</label>
-        <input id="r_qty" class="input" type="number" step="0.01" style="width:120px" value="1"/>
-        <span id="r_yield" class="muted small"></span>
+<div id="recipeDrawer" class="drawer">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div>
+        <div id="rTitle" style="font-weight:800">Rezept</div>
+        <div class="mini" id="rYield"></div>
       </div>
       <div class="row-gap">
-        <button class="btn" id="r_calc">Kosten aus BOM</button>
-        <button class="btn primary" id="r_save">Rezept speichern</button>
+        <input id="rScale" type="number" class="input mono" step="0.01" style="width:160px" value="1"/>
+        <button class="btn" id="rCostBtn">Kosten</button>
+        <button class="btn primary" id="rSaveBtn">Speichern</button>
+        <button class="btn" onclick="Drawer.close()">Schließen</button>
       </div>
     </div>
-
-    <!-- Autocomplete quick add -->
-    <div class="card" style="margin:12px 0; padding:12px">
-      <div class="row-gap" style="align-items:center">
-        <button class="btn" id="r_addLine">+ Zutat</button>
-        <div class="muted">Schnellsuche Rohwaren:</div>
-        <div style="position:relative">
-          <input id="r_search" class="input" placeholder="Tippen, z. B. Zucker…" style="min-width:260px"/>
-          <div id="acWrap" class="dropdown hidden"></div>
-        </div>
+    <div class="sheet-body">
+      <div class="table-wrap">
+        <table class="table" id="rTable">
+          <thead>
+            <tr>
+              <th style="width:40%">Material</th>
+              <th class="right" style="width:16%">Menge</th>
+              <th style="width:16%">Einheit</th>
+              <th class="right" style="width:18%">€</th>
+              <th class="right" style="width:10%">—</th>
+            </tr>
+          </thead>
+          <tbody id="rBody">
+            <tr><td colspan="5" class="muted">Noch kein Rezept</td></tr>
+          </tbody>
+        </table>
       </div>
-    </div>
-
-    <!-- Two-column layout: left table, right summary -->
-    <div class="grid">
-      <div class="col-12 col-6">
-        <div class="table-wrap">
-          <table id="bomTbl" class="table">
-            <thead>
-              <tr>
-                <th style="width:36%">Material</th>
-                <th style="width:18%">Menge</th>
-                <th style="width:16%">Einheit</th>
-                <th style="width:14%">€/base</th>
-                <th style="width:14%">Zeilen €</th>
-                <th style="width:2%"></th>
-              </tr>
-            </thead>
-            <tbody id="bomRows">
-              <tr><td colspan="6" class="muted">Noch kein Rezept</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="col-12 col-6">
-        <div class="card card-pad">
-          <div class="row-gap" style="justify-content:space-between">
-            <div>
-              <div class="muted small">Gesamtkosten</div>
-              <div id="sumCost" style="font-size:28px; font-weight:800">0.00 €</div>
-            </div>
-            <div>
-              <div class="muted small">Kosten pro Stück</div>
-              <div id="perPiece" style="font-size:18px; font-weight:700">—</div>
-            </div>
-          </div>
-
-          <!-- Donut chart -->
-          <div id="donutWrap" style="margin-top:12px; display:flex; justify-content:center">
-            <svg id="donut" width="220" height="220" viewBox="0 0 42 42" style="filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))">
-              <circle cx="21" cy="21" r="15.915" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)" stroke-width="4"></circle>
-              <!-- segments injected by JS -->
-            </svg>
-          </div>
-          <div id="legend" class="small" style="margin-top:10px; display:grid; gap:6px"></div>
-        </div>
-      </div>
+      <button class="btn" id="rAdd">+ Zutat</button>
+      <div class="mini">Suche greift auf Rohwaren zu. Kosten werden live pro Zeile kalkuliert.</div>
     </div>
   </div>
-
-  <div class="drawer-foot">
-    <div class="muted small">Tipp: Drücke <span class="kbd">Enter</span> im Suchfeld, um den ersten Treffer zu übernehmen</div>
-    <div class="spacer"></div>
-    <button class="btn" onclick="Drawer.close()">Schließen</button>
-    <button class="btn primary" id="r_save2">Speichern</button>
-  </div>
-</aside>
+</div>
 
 <script>
-/* ====== State ====== */
 function logout(){ api('/api/logout',{method:'POST'}).then(()=>location.href='/login.html'); }
-let ITEMS=[], CURRENT=null, BOM=[]; // BOM: {material_code, material_name, qty, unit, ppu, cost}
 
-/* ====== Load & Render (cards + table) ====== */
+let DATA = [];
+let CURRENT = null; // current item {code,name,yield_qty,yield_unit}
+let R_LINES = [];   // [{material_code, name, qty, unit, cost}]
+
+function rowHTML(it){
+  return `<tr data-code="${it.code}">
+    <td><input class="input mono" value="${it.code||''}" data-k="code"/></td>
+    <td><input class="input" value="${it.name||''}" data-k="name"/></td>
+    <td><input class="input" value="${it.category||''}" data-k="category"/></td>
+    <td><input class="input mono" type="number" step="0.01" value="${Number(it.yield_qty||1)}" data-k="yield_qty"/></td>
+    <td>
+      <select class="input" data-k="yield_unit">
+        ${['pcs','g','ml'].map(u=>`<option ${it.yield_unit===u?'selected':''} value="${u}">${u}</option>`).join('')}
+      </select>
+    </td>
+    <td><input class="input" value="${it.note||''}" data-k="note"/></td>
+    <td class="right">
+      <div class="row-actions">
+        <button class="btn" onclick="saveItem(this)">Speichern</button>
+        <button class="btn" onclick="openRecipe('${it.code}', this)">Rezept</button>
+        <button class="btn del" onclick="delItem('${it.code}')">Löschen</button>
+      </div>
+    </td>
+  </tr>`;
+}
 async function load(){
   const r = await api('/api/items');
-  ITEMS = r.data || [];
-  renderCards(ITEMS); renderTable(ITEMS);
+  DATA = r.data || [];
+  const tb = document.getElementById('tbody');
+  tb.innerHTML = DATA.map(rowHTML).join('') || `<tr><td colspan="7" class="muted">Keine Einträge</td></tr>`;
+  makeTableSortable(document.getElementById('tbl'));
 }
-function renderCards(list){
-  const host = $$('#cards'); host.innerHTML = '';
-  if (!list.length){
-    host.innerHTML = `<div class="col-12 card card-pad center muted">Noch keine Artikel — klicke unten <b class="bold" style="margin-left:6px">“+ Neuer Artikel”</b></div>`;
-    return;
-  }
-  list.forEach(it=>{
-    const el = document.createElement('div');
-    el.className = 'col-12 col-6 col-4';
-    el.innerHTML = `
-      <div class="m-card">
-        <div class="m-title">${it.name}</div>
-        <div class="m-sub">
-          <span class="mono small badge">${it.code}</span>
-          <span class="badge">${it.category||'—'}</span>
-          <span class="badge">${it.yield_qty} ${it.yield_unit}</span>
-        </div>
-        <div class="row-actions" style="margin-top:6px">
-          <button class="btn subtle" data-rez="${it.code}">Rezept</button>
-          <button class="btn subtle" data-edit="${it.code}">Bearbeiten</button>
-          <button class="btn danger right-ghost" data-del="${it.code}">Löschen</button>
-        </div>
-      </div>`;
-    host.appendChild(el);
+function valuesOf(tr){
+  const obj = {};
+  $$$('input,select', tr).forEach(el=>{
+    obj[el.dataset.k] = (el.type==='number' && el.value!=='') ? Number(el.value) : (el.value || null);
+  });
+  return obj;
+}
+async function saveItem(btn){
+  const tr = btn.closest('tr');
+  const v = valuesOf(tr);
+  await api('/api/items', { method:'POST', body: JSON.stringify(v) });
+  toast('Artikel gespeichert');
+}
+async function delItem(code){
+  if (!confirm(`Artikel ${code} löschen (inkl. Rezept & Planzeilen)?`)) return;
+  await api('/api/items/'+encodeURIComponent(code), { method:'DELETE' });
+  await load(); toast('Artikel gelöscht');
+}
+function addNew(){
+  const tb = document.getElementById('tbody');
+  tb.insertAdjacentHTML('afterbegin', rowHTML({ code:'', name:'', category:'', yield_qty:1, yield_unit:'pcs', note:'' }));
+}
+
+/* ---------- Recipe drawer ---------- */
+function rLineHTML(L, idx){
+  const cost = Number(L.cost||0);
+  return `<tr data-idx="${idx}">
+    <td class="rel">
+      <input class="input" placeholder="Material suchen…" value="${L.name||L.material_code||''}" data-k="name"/>
+      <div class="suggest" id="sg-${idx}"></div>
+    </td>
+    <td class="right"><input class="input mono" type="number" step="0.01" value="${Number(L.qty||0)||0}" data-k="qty"/></td>
+    <td>
+      <select class="input" data-k="unit">
+        ${['g','kg','ml','l','pcs'].map(u=>`<option ${L.unit===u?'selected':''} value="${u}">${u}</option>`).join('')}
+      </select>
+    </td>
+    <td class="right mono" data-k="cost">${cost ? cost.toFixed(2) : ''}</td>
+    <td class="right"><button class="btn del" onclick="rRemove(${idx})">x</button></td>
+  </tr>`;
+}
+function rRender(){
+  const tb = document.getElementById('rBody');
+  tb.innerHTML = R_LINES.length ? R_LINES.map(rLineHTML).join('') : `<tr><td colspan="5" class="muted">Noch kein Rezept</td></tr>`;
+  // attach behaviors
+  $$$('#rBody tr').forEach(tr=>{
+    const idx = Number(tr.dataset.idx);
+    const name = tr.querySelector('input[data-k="name"]');
+    const qty  = tr.querySelector('input[data-k="qty"]');
+    const unit = tr.querySelector('select[data-k="unit"]');
+    const sgBox= tr.querySelector('.suggest');
+    // search
+    let t;
+    name.addEventListener('input', async (e)=>{
+      const q = e.target.value.trim(); clearTimeout(t);
+      if (!q) { sgBox.classList.remove('open'); sgBox.innerHTML=''; return; }
+      t = setTimeout(async ()=>{
+        const res = await api('/api/materials/search?q=' + encodeURIComponent(q));
+        sgBox.innerHTML = (res.data||[]).map(m=>`<div data-code="${m.code}" data-unit="${m.base_unit}" data-ppu="${m.price_per_unit}">${m.name} <span class="mini mono">(${m.code})</span></div>`).join('');
+        sgBox.classList.add('open');
+        $$$('div', sgBox).forEach(el=>{
+          el.onclick = ()=>{
+            const code = el.dataset.code;
+            const base = el.dataset.unit;
+            const ppu  = Number(el.dataset.ppu||0);
+            R_LINES[idx].material_code = code;
+            R_LINES[idx].name = el.textContent;
+            R_LINES[idx].base_unit = base;
+            R_LINES[idx].price_per_unit = ppu;
+            name.value = el.textContent;
+            sgBox.classList.remove('open');
+            rRecalc(idx);
+          };
+        });
+      }, 150);
+    });
+    name.addEventListener('blur', ()=> setTimeout(()=> sgBox.classList.remove('open'), 180));
+
+    // qty/unit change
+    qty.addEventListener('input', ()=> rRecalc(idx));
+    unit.addEventListener('change', ()=> rRecalc(idx));
   });
 }
-function renderTable(list){
-  const tbody = $$('#rows');
-  if (!list.length){ tbody.innerHTML = `<tr><td colspan="6" class="muted">Leer</td></tr>`; return;}
-  tbody.innerHTML = list.map(it=>`
-    <tr>
-      <td>${it.code}</td>
-      <td>${it.name}</td>
-      <td>${it.category||''}</td>
-      <td>${it.yield_qty} ${it.yield_unit}</td>
-      <td>${it.note||''}</td>
-      <td class="row-actions">
-        <button class="btn subtle" data-rez="${it.code}">Rezept</button>
-        <button class="btn subtle" data-edit="${it.code}">Bearb.</button>
-        <button class="btn danger" data-del="${it.code}">Löschen</button>
-      </td>
-    </tr>
-  `).join('');
-  makeTableSortable($$('#tbl'));
-}
-attachClientFilter($$('#q'), $$('#tbl'));
-document.addEventListener('keydown', (e)=>{ if(e.key==='/'){ e.preventDefault(); $$('#q').focus(); } });
-
-/* ====== Item Drawer ====== */
-function openItem(title){ $$('#iTitle').textContent=title; Drawer.open('#itemDrawer'); }
-function fillItem(it){
-  $$('#i_code').value = it?.code||'';
-  $$('#i_name').value = it?.name||'';
-  $$('#i_cat').value  = it?.category||'';
-  $$('#i_yqty').value = it?.yield_qty||1;
-  $$('#i_yunit').value= it?.yield_unit||'pcs';
-  $$('#i_note').value = it?.note||'';
-}
-function readItem(){ return {
-  code: $$('#i_code').value.trim(),
-  name: $$('#i_name').value.trim(),
-  category: $$('#i_cat').value.trim(),
-  yield_qty: Number($$('#i_yqty').value||1),
-  yield_unit: $$('#i_yunit').value.trim()||'pcs',
-  note: $$('#i_note').value.trim()
-};}
-
-$$('#fab').addEventListener('click', ()=>{
-  CURRENT=null; fillItem(null); openItem('Neuer Artikel'); $$('#i_code').focus();
-});
-$$('#i_saveBtn').addEventListener('click', async ()=>{
-  const payload = readItem();
-  if(!payload.code || !payload.name) return toast('Code & Name erforderlich');
-  try{ await api('/api/items',{method:'POST', body:JSON.stringify(payload)}); toast('Gespeichert'); Drawer.close(); load(); }
-  catch(e){ toast(e.message||'Fehler'); }
-});
-$$('#i_delBtn').addEventListener('click', async ()=>{
-  const code = $$('#i_code').value.trim(); if(!code) return;
-  if(!confirm(`Artikel ${code} löschen?`)) return;
-  try{ await api(`/api/items/${encodeURIComponent(code)}`, { method:'DELETE' }); toast('Gelöscht'); Drawer.close(); load(); }
-  catch(e){ toast('Fehler beim Löschen'); }
-});
-
-/* ====== Recipe Drawer ====== */
-function openRecipe(title){ $$('#rTitle').textContent=title; Drawer.open('#recipeDrawer'); }
-function closeRecipe(){ Drawer.close(); BOM=[]; renderBOM(); renderSummary(); drawDonut([]); }
-async function loadBOM(code){
-  const r = await api(`/api/items/${encodeURIComponent(code)}/bom`);
-  BOM = (r.data||[]).map(x=>({ material_code:x.material_code, material_name:x.material_name, qty:Number(x.qty), unit:x.unit, ppu:0, cost:0 }));
-  // pre-calc line costs for current qty (the item yield)
-  await Promise.all(BOM.map(async (L, idx)=>{
-    const c = await calcLine(L.material_code, L.qty, L.unit);
-    BOM[idx].ppu = c.price_per_unit; BOM[idx].cost = c.cost;
-  }));
-  renderBOM(); renderSummary(); drawDonutFromBOM();
-}
-function renderBOM(){
-  const tb = $$('#bomRows');
-  if (!BOM.length){ tb.innerHTML = `<tr><td colspan="6" class="muted">Noch kein Rezept</td></tr>`; return; }
-  tb.innerHTML = BOM.map((l,idx)=>`
-    <tr>
-      <td>
-        <div class="mono small muted">${l.material_code}</div>
-        <div>${l.material_name||''}</div>
-      </td>
-      <td><input class="input" type="number" step="0.01" value="${l.qty||''}" data-q="${idx}"/></td>
-      <td>
-        <select class="input" data-u="${idx}">
-          ${['g','kg','ml','l','pcs'].map(u=>`<option ${l.unit===u?'selected':''} value="${u}">${u}</option>`).join('')}
-        </select>
-      </td>
-      <td class="right">${(l.ppu??0).toFixed(6)}</td>
-      <td class="right">${(l.cost??0).toFixed(2)}</td>
-      <td class="right"><button class="btn danger" data-x="${idx}">x</button></td>
-    </tr>
-  `).join('');
-}
-function renderSummary(){
-  const sum = BOM.reduce((s,x)=>s+Number(x.cost||0),0);
-  $$('#sumCost').textContent = `${sum.toFixed(2)} €`;
-  const yieldQty = Number(($$('#r_yield').dataset.yqty)||0);
-  if (sum && yieldQty){ $$('#perPiece').textContent = `${(sum/yieldQty).toFixed(3)} €`; }
-  else { $$('#perPiece').textContent = '—'; }
-}
-async function calcLine(material_code, qty, unit){
-  const r = await api('/api/calc/line', { method:'POST', body:JSON.stringify({ material_code, qty:Number(qty||0), unit }) });
-  return r.data;
-}
-
-/* Donut */
-function drawDonutFromBOM(){
-  const parts = BOM.filter(x=>x.cost>0).map(x=>({ label: x.material_name || x.material_code, value: x.cost }));
-  drawDonut(parts);
-}
-function drawDonut(parts){
-  const svg = $$('#donut'); // 42x42 viewBox
-  // clear old segments
-  Array.from(svg.querySelectorAll('path[data-seg]')).forEach(n=>n.remove());
-  const total = parts.reduce((s,p)=>s+p.value,0) || 1;
-  let acc = 0;
-  const colors = [
-    'url(#grad1)','url(#grad2)','url(#grad3)','url(#grad4)','url(#grad5)','url(#grad6)'
-  ];
-  // add defs for gradients once
-  if (!svg.querySelector('defs')){
-    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
-    defs.innerHTML = `
-      <linearGradient id="grad1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7aa2ff"/><stop offset="100%" stop-color="#a07aff"/></linearGradient>
-      <linearGradient id="grad2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6bd3ff"/><stop offset="100%" stop-color="#7aa2ff"/></linearGradient>
-      <linearGradient id="grad3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffd36b"/><stop offset="100%" stop-color="#ff9a6b"/></linearGradient>
-      <linearGradient id="grad4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6bff95"/><stop offset="100%" stop-color="#6bd3ff"/></linearGradient>
-      <linearGradient id="grad5" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff8cc8"/><stop offset="100%" stop-color="#a07aff"/></linearGradient>
-      <linearGradient id="grad6" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffc36b"/><stop offset="100%" stop-color="#ff6b6b"/></linearGradient>
-    `;
-    svg.appendChild(defs);
-  }
-  // legend
-  const legend = $$('#legend'); legend.innerHTML = '';
-  parts.forEach((p, i)=>{
-    const frac = p.value / total;
-    const start = acc * 360; const sweep = frac * 360; acc += frac;
-    const path = describeArc(21,21,15.915, start, start+sweep);
-    const seg = document.createElementNS('http://www.w3.org/2000/svg','path');
-    seg.setAttribute('d', path);
-    seg.setAttribute('fill','none');
-    seg.setAttribute('stroke', colors[i%colors.length]);
-    seg.setAttribute('stroke-width','4');
-    seg.setAttribute('stroke-linecap','butt');
-    seg.setAttribute('data-seg','1');
-    svg.appendChild(seg);
-
-    const row = document.createElement('div');
-    row.innerHTML = `<span class="badge" style="border-color:transparent;background:${i%2? 'rgba(160,122,255,.18)':'rgba(122,162,255,.18)'}">${p.label}</span> 
-                     <span class="muted">— ${(p.value).toFixed(2)} €</span>`;
-    legend.appendChild(row);
-  });
-}
-// helpers to draw arcs
-function polarToCartesian(cx, cy, r, deg){ const rad=(deg-90)*Math.PI/180.0; return { x: cx + (r*Math.cos(rad)), y: cy + (r*Math.sin(rad)) }; }
-function describeArc(cx,cy,r,startAngle,endAngle){
-  const start = polarToCartesian(cx,cy,r,endAngle);
-  const end   = polarToCartesian(cx,cy,r,startAngle);
-  const large = endAngle - startAngle <= 180 ? "0" : "1";
-  return ["M",start.x,start.y,"A",r,r,0,large,0,end.x,end.y].join(" ");
-}
-
-/* Autocomplete */
-let acTimer=null;
-$$('#r_search').addEventListener('input', ()=>{
-  clearTimeout(acTimer);
-  const q = $$('#r_search').value.trim();
-  if(!q){ hideAC(); return; }
-  acTimer = setTimeout(async ()=>{
-    try{
-      const r = await api(`/api/materials/search?q=${encodeURIComponent(q)}`);
-      const list = r.data||[];
-      if (!list.length) return hideAC();
-      const wrap = $$('#acWrap');
-      wrap.classList.remove('hidden');
-      wrap.innerHTML = list.map(m=>`
-        <div class="dropdown-item" data-code="${m.code}" data-name="${m.name}" data-base="${m.base_unit}" data-ppu="${m.price_per_unit}">
-          <div class="bold">${m.name}</div>
-          <div class="muted mono small">${m.code} — ${m.base_unit} @ ${(m.price_per_unit||0).toFixed(6)} €/base</div>
-        </div>`).join('');
-    }catch{ hideAC(); }
-  }, 160);
-});
-function hideAC(){ const w=$$('#acWrap'); w.classList.add('hidden'); w.innerHTML=''; }
-
-$$('#acWrap').addEventListener('click', (e)=>{
-  const el = e.target.closest('.dropdown-item'); if(!el) return;
-  addLineFromAC(el.dataset.code, el.dataset.name, el.dataset.base, Number(el.dataset.ppu||0));
-});
-$$('#r_search').addEventListener('keydown', (e)=>{
-  if (e.key==='Enter'){
-    const first = $$('#acWrap .dropdown-item');
-    if (first) { e.preventDefault(); addLineFromAC(first.dataset.code, first.dataset.name, first.dataset.base, Number(first.dataset.ppu||0)); }
-  }
-});
-function addLineFromAC(code, name, baseUnit, ppu){
-  hideAC(); $$('#r_search').value='';
-  const defaultUnit = baseUnit==='g' ? 'g' : baseUnit==='ml' ? 'ml' : 'pcs';
-  BOM.push({ material_code:code, material_name:name, qty:0, unit:defaultUnit, ppu:ppu, cost:0 });
-  renderBOM(); renderSummary(); drawDonutFromBOM();
-}
-
-/* BOM interactions */
-$$('#bomRows').addEventListener('input', async (e)=>{
-  const qIdx = e.target?.dataset?.q;
-  const uIdx = e.target?.dataset?.u;
-  if (qIdx!=null){
-    const L = BOM[Number(qIdx)];
-    L.qty = Number(e.target.value||0);
-    const c = await calcLine(L.material_code, L.qty, L.unit);
-    L.ppu = c.price_per_unit; L.cost = c.cost; renderBOM(); renderSummary(); drawDonutFromBOM();
-  }
-  if (uIdx!=null){
-    const L = BOM[Number(uIdx)];
-    L.unit = e.target.value;
-    const c = await calcLine(L.material_code, L.qty, L.unit);
-    L.ppu = c.price_per_unit; L.cost = c.cost; renderBOM(); renderSummary(); drawDonutFromBOM();
-  }
-});
-$$('#bomRows').addEventListener('click', (e)=>{
-  const idx = e.target?.dataset?.x;
-  if (idx!=null){ BOM.splice(Number(idx),1); renderBOM(); renderSummary(); drawDonutFromBOM(); }
-});
-
-/* Top controls in recipe drawer */
-$$('#r_addLine').addEventListener('click', ()=>{
-  BOM.push({ material_code:'', material_name:'', qty:0, unit:'g', ppu:0, cost:0 });
-  renderBOM(); renderSummary(); drawDonutFromBOM();
-});
-$$('#r_calc').addEventListener('click', async ()=>{
-  const qty = Number($$('#r_qty').value||0);
-  if (!qty) return toast('Menge eingeben');
-  const r = await api(`/api/items/${encodeURIComponent(CURRENT.code)}/bom/priced?qty=${qty}`);
-  const priced = r.data.lines;
-  BOM = priced.map(p=>({ material_code:p.material_code, material_name:p.material_name, qty:p.qty, unit:p.unit, ppu:p.price_per_unit, cost:p.cost }));
-  renderBOM(); renderSummary(); drawDonutFromBOM();
-});
-async function saveRecipe(){
-  const cleaned = BOM.filter(l=>l.material_code && Number(l.qty)>0).map(({material_code,qty,unit})=>({material_code,qty:Number(qty),unit}));
+async function rRecalc(idx){
+  const L = R_LINES[idx];
+  const tr = $(`#rBody tr[data-idx="${idx}"]`);
+  const qty = Number(tr.querySelector('input[data-k="qty"]').value||0);
+  const unit = tr.querySelector('select[data-k="unit"]').value;
+  R_LINES[idx].qty = qty; R_LINES[idx].unit = unit;
+  if (!L.material_code){ tr.querySelector('[data-k="cost"]').textContent=''; return; }
   try{
-    await api(`/api/items/${encodeURIComponent(CURRENT.code)}/bom`, { method:'POST', body: JSON.stringify({ lines: cleaned }) });
-    toast('Rezept gespeichert'); Drawer.close();
-  }catch(e){ toast(e.message||'Fehler beim Speichern'); }
+    const r = await api('/api/calc/line', { method:'POST', body: JSON.stringify({ material_code:L.material_code, qty, unit }) });
+    R_LINES[idx].cost = Number(r.data?.cost||0);
+    tr.querySelector('[data-k="cost"]').textContent = R_LINES[idx].cost ? R_LINES[idx].cost.toFixed(2) : '';
+  }catch{ tr.querySelector('[data-k="cost"]').textContent=''; }
 }
-$$('#r_save').addEventListener('click', saveRecipe);
-$$('#r_save2').addEventListener('click', saveRecipe);
+function rAdd(){ R_LINES.push({ material_code:null, name:'', qty:0, unit:'g', cost:0 }); rRender(); }
+function rRemove(i){ R_LINES.splice(i,1); rRender(); }
+async function openRecipe(code, btn){
+  const tr = btn.closest('tr');
+  const v = valuesOf(tr);
+  CURRENT = { code: v.code, name: v.name, yield_qty: v.yield_qty||1, yield_unit: v.yield_unit||'pcs' };
+  document.getElementById('rTitle').textContent = `Rezept: ${CURRENT.code} — ${CURRENT.name||''}`;
+  document.getElementById('rYield').textContent = `Menge (${CURRENT.yield_qty} ${CURRENT.yield_unit})`;
+  document.getElementById('rScale').value = CURRENT.yield_qty;
 
-/* Table/card actions */
-$$('#reload').addEventListener('click', load);
-$$('#exportItems').addEventListener('click', ()=>{ location.href='/api/tools/export/items?format=csv'; });
+  // load bom
+  const r = await api(`/api/items/${encodeURIComponent(CURRENT.code)}/bom`);
+  R_LINES = (r.data||[]).map(x=>({ material_code:x.material_code, name:x.material_name||x.material_code, qty:Number(x.qty), unit:x.unit, cost:0 }));
+  Drawer.open('#recipeDrawer'); rRender();
+}
+async function rSave(){
+  const clean = R_LINES.filter(x=>x.material_code && Number(x.qty)>0).map(x=>({ material_code:x.material_code, qty:Number(x.qty), unit:x.unit||'g' }));
+  await api(`/api/items/${encodeURIComponent(CURRENT.code)}/bom`, { method:'POST', body: JSON.stringify({ lines: clean }) });
+  toast('Rezept gespeichert'); Drawer.close();
+}
+async function rCost(){
+  const qty = Number(document.getElementById('rScale').value || CURRENT.yield_qty || 1);
+  try{
+    const r = await api(`/api/items/${encodeURIComponent(CURRENT.code)}/bom/priced?qty=${qty}`);
+    const total = Number(r.data?.total_cost||0);
+    toast(`Kosten für ${qty} ${CURRENT.yield_unit}: ${total.toFixed(2)} €`);
+  }catch{ toast('Kalkulation fehlgeschlagen'); }
+}
 
-$$('#cards').addEventListener('click', async (e)=>{
-  const rez = e.target?.dataset?.rez;
-  const edit = e.target?.dataset?.edit;
-  const del  = e.target?.dataset?.del;
-  if (edit){
-    const it = ITEMS.find(x=>x.code===edit); CURRENT = it; fillItem(it); openItem('Artikel bearbeiten');
-  } else if (del){
-    if (!confirm('Artikel wirklich löschen?')) return;
-    try{ await api(`/api/items/${encodeURIComponent(del)}`, { method:'DELETE' }); toast('Gelöscht'); load(); }
-    catch(e){ toast('Fehler beim Löschen'); }
-  } else if (rez){
-    const it = ITEMS.find(x=>x.code===rez); CURRENT = it;
-    $$('#r_yield').textContent = `= ${it.yield_qty} ${it.yield_unit}`; $$('#r_yield').dataset.yqty = it.yield_qty;
-    $$('#r_qty').value = it.yield_qty;
-    openRecipe(`Rezept: ${it.code} — ${it.name}`);
-    await loadBOM(it.code);
-  }
-});
-$$('#rows').addEventListener('click', async (e)=>{
-  const rez = e.target?.dataset?.rez;
-  const edit = e.target?.dataset?.edit;
-  const del  = e.target?.dataset?.del;
-  if (edit){
-    const it = ITEMS.find(x=>x.code===edit); CURRENT = it; fillItem(it); openItem('Artikel bearbeiten');
-  } else if (del){
-    if (!confirm('Artikel wirklich löschen?')) return;
-    try{ await api(`/api/items/${encodeURIComponent(del)}`, { method:'DELETE' }); toast('Gelöscht'); load(); }
-    catch(e){ toast('Fehler beim Löschen'); }
-  } else if (rez){
-    const it = ITEMS.find(x=>x.code===rez); CURRENT = it;
-    $$('#r_yield').textContent = `= ${it.yield_qty} ${it.yield_unit}`; $$('#r_yield').dataset.yqty = it.yield_qty;
-    $$('#r_qty').value = it.yield_qty;
-    openRecipe(`Rezept: ${it.code} — ${it.name}`);
-    await loadBOM(it.code);
-  }
-});
+document.getElementById('newBtn').addEventListener('click', addNew);
+document.getElementById('reloadBtn').addEventListener('click', load);
+attachClientFilter(document.getElementById('search'), document.getElementById('tbl'));
 
-/* ESC closes any drawer */
-window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') Drawer.close(); });
+// drawer buttons
+document.getElementById('rAdd').addEventListener('click', rAdd);
+document.getElementById('rSaveBtn').addEventListener('click', rSave);
+document.getElementById('rCostBtn').addEventListener('click', rCost);
 
-/* Boot */
 (async function(){
   const u = await sessionInfo(); if(!u){ location.href='/login.html'; return; }
   await load();
