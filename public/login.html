@@ -8,41 +8,44 @@
   <script defer src="/js/app.js"></script>
 </head>
 <body>
-  <header class="header">
-    <nav class="nav">
-      <div style="font-weight:800">BUNCA Planner</div>
-    </nav>
-  </header>
-
-  <div class="container center">
-    <div class="card" style="width:420px">
-      <h2 style="margin-bottom:4px">Anmelden</h2>
-      <p class="muted" style="margin-bottom:12px">Bitte Admin-Zugang eingeben</p>
-      <div class="grid">
-        <div>
-          <label>Email</label>
-          <input id="email" class="input" placeholder="you@bunca.de"/>
-        </div>
-        <div>
-          <label>Passwort</label>
-          <input id="password" class="input" type="password" placeholder="••••••••"/>
-        </div>
-        <button id="loginBtn" class="btn primary">Login</button>
+<header class="header">
+  <nav class="nav">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 12c0-4.418 3.582-8 8-8a8 8 0 1 1-8 8Z" stroke="currentColor" opacity=".8"/><path d="M12 4v16M4 12h16" stroke="currentColor" opacity=".6"/></svg>
+      BUNCA Planner
+    </div>
+    <div class="right header-controls">
+      <div class="accent"><div class="dot"></div>
+        <input id="accentPicker" type="color" value="#6aa6ff" style="background:transparent;border:none; width:20px;height:20px; padding:0;"/>
       </div>
+      <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
+      <button class="density-toggle" onclick="toggleDensity()">↕︎</button>
+    </div>
+  </nav>
+</header>
+
+<div class="container center">
+  <div class="card" style="width:440px">
+    <h2 style="margin-bottom:6px">Anmelden</h2>
+    <p class="muted" style="margin-bottom:12px">Admin oder Nutzerzugang</p>
+    <div class="grid">
+      <div><label>Email</label><input id="email" class="input" placeholder="you@bunca.de"/></div>
+      <div><label>Passwort</label><input id="password" class="input" type="password" placeholder="••••••••"/></div>
+      <button id="loginBtn" class="btn primary">Login</button>
     </div>
   </div>
+</div>
 
 <script>
+$$('#accentPicker').addEventListener('input', (e)=> changeAccent(e.target.value));
 document.getElementById('loginBtn').addEventListener('click', async () => {
+  const email = $$('#email').value.trim();
+  const password = $$('#password').value.trim();
+  if (!email || !password) return toast('Bitte Email & Passwort eingeben');
   try {
-    await api('/api/login', {
-      method: 'POST',
-      body: JSON.stringify({ email: $$('#email').value, password: $$('#password').value })
-    });
+    await api('/api/login', { method:'POST', body: JSON.stringify({ email, password }) });
     location.href = '/dashboard.html';
-  } catch (e) {
-    toast('Login fehlgeschlagen', false);
-  }
+  } catch { toast('Login fehlgeschlagen'); }
 });
 </script>
 </body>
