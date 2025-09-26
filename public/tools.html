@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>BUNCA — Tools</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <script defer src="/js/app.js"></script>
+  <style>
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .w120{width:120px} .w200{width:200px} .w300{width:300px}
+    .muted small{font-size:12px}
+    .list{margin-top:8px}
+  </style>
+</head>
+<body>
+<header class="header">
+  <nav class="nav">
+    <div style="font-weight:800">BUNCA Planner</div>
+    <div class="tabs">
+      <a class="tab" data-tab="tools" href="/tools.html">Tools</a>
+      <a class="tab" data-tab="plan" href="/plan.html">Plan</a>
+      <a class="tab" data-tab="items" href="/items.html">Rezepte</a>
+      <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
+      <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
+    </div>
+    <div><button id="logout" class="btn">Logout</button></div>
+  </nav>
+</header>
+
+<div class="container">
+  <div class="grid">
+    <!-- Export -->
+    <div class="card">
+      <h3>Export</h3>
+      <p class="muted"><small>Lade Daten als CSV oder JSON herunter.</small></p>
+      <div class="row">
+        <select id="ds" class="input w200">
+          <option value="materials">materials</option>
+          <option value="items">items</option>
+          <option value="bom">bom</option>
+          <option value="plan">plan</option>
+        </select>
+        <select id="fmt" class="input w120">
+          <option value="json">json</option>
+          <option value="csv">csv</option>
+        </select>
+        <input id="week" class="input w200" type="date" placeholder="Woche (nur für plan)">
+        <button id="exportBtn" class="btn primary">Download</button>
+      </div>
+    </div>
+
+    <!-- Backup -->
+    <div class="card">
+      <h3>Backup & Restore</h3>
+      <div class="row">
+        <button id="backupBtn" class="btn">Backup herunterladen</button>
+        <input id="restoreFile" class="input" type="file" accept=".json">
+        <button id="restoreBtn" class="btn primary">Backup einspielen</button>
+      </div>
+      <p class="muted"><small>Achtung: Restore ersetzt Materialien, Items, BOM und Plan.</small></p>
+    </div>
+
+    <!-- Users -->
+    <div class="card">
+      <h3>Nutzer verwalten (Admin)</h3>
+      <div class="row">
+        <input id="uEmail" class="input w300" placeholder="email@example.com">
+        <input id="uPass"  class="input w200" type="password" placeholder="Passwort">
+        <select id="uRole" class="input w120">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
+        <button id="uSave" class="btn primary">Speichern</button>
+      </div>
+      <div class="list" id="uList" class="muted">lädt…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+navActive('tools');
+document.getElementById('logout').onclick = async () => {
+  await api('/api/logout', { method:'POST' });
+  location.href = '/login.html';
+};
+
+/* Export */
+document.getElementById('exportBtn').onclick = () => {
+  const ds = $$('#ds').value;
+  const fmt = $$('#fmt').value;
+  const wk = $$('#week').value;
+  const url = `/api/tools/export/${encodeURIComponent(ds)}?format=${encodeURIComponent(fmt)}${wk?`&start=${encodeURIComponent(wk)}`:''}`;
+  window.location = url; // triggers download
+};
+
+/* Backup */
+document.getElementById('backupBtn').onclick = () => {
+  window.location = '/api/tools/backup';
+};
+
+document.getElementById('restoreBtn').onclick = async () => {
+  const file = $$('#restoreFile').files?.[0];
+  if (!file) return toast('Bitte Backup-Datei wählen', false);
+  try {
+    const text = await file.text();
+    const obj = JSON.parse(text);
+    await api('/api/tools/backup/restore', { method:'POST', body: JSON.stringify(obj) });
+    toast('Backup erfolgreich eingespielt');
+  } catch(e){ toast('Restore fehlgeschlagen: '+e.message, false); }
+};
+
+/* Users */
+async function loadUsers(){
+  try {
+    const { data } = await api('/api/users');
+    if (!Array.isArray(data)) { $$('#uList').textContent = 'Keine Rechte oder keine Nutzer.'; return; }
+    $$('#uList').innerHTML = data.length
+      ? data.map(u => `<div class="row"><div class="muted" style="min-width:260px">${u.email}</div><div>${u.role}</div>
+          <button data-email="${u.email}" class="btn">Löschen</button></div>`).join('')
+      : '<div class="muted">Keine Nutzer</div>';
+    $$('#uList').querySelectorAll('button[data-email]').forEach(b => {
+      b.onclick = async () => {
+        if (!confirm('Nutzer wirklich löschen?')) return;
+        try { await api('/api/users/' + encodeURIComponent(b.dataset.email), { method:'DELETE' }); loadUsers(); toast('Gelöscht'); }
+        catch(e){ toast('Fehler: '+e.message, false); }
+      };
+    });
+  } catch { $$('#uList').textContent = 'Keine Admin-Rechte.'; }
+}
+document.getElementById('uSave').onclick = async () => {
+  try {
+    await api('/api/users', { method:'POST', body: JSON.stringify({
+      email: $$('#uEmail').value.trim(),
+      password: $$('#uPass').value,
+      role: $$('#uRole').value
+    })});
+    toast('Nutzer gespeichert');
+    loadUsers();
+  } catch(e){ toast('Fehler: '+e.message, false); }
+};
+loadUsers();
+</script>
+</body>
+</html>
