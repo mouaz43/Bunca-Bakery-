@@ -1,8 +1,4 @@
-// BUNCA Planner — Fresh Start (no seeding)
-// - Postgres schema, sessions, auth
-// - Health check
-// - Static pages
-// - Import API placeholders (we'll add full CRUD next step)
+// BUNCA Planner — Fresh Start (Login Debug Enabled)
 
 const express = require('express');
 const session = require('express-session');
@@ -64,62 +60,20 @@ app.get('/healthz', async (_req, res) => {
 
 /* ---------- Schema (minimal to start) ---------- */
 async function ensureSchema() {
-  await q('BEGIN');
-  await q(`
-    CREATE TABLE IF NOT EXISTS users (
-      email TEXT PRIMARY KEY,
-      role  TEXT NOT NULL DEFAULT 'admin'
-    );
-  `);
-  await q(`
-    CREATE TABLE IF NOT EXISTS materials (
-      code TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      base_unit TEXT NOT NULL DEFAULT 'g',
-      price_per_unit NUMERIC NOT NULL DEFAULT 0,
-      pack_qty NUMERIC, pack_unit TEXT, pack_price NUMERIC,
-      supplier_code TEXT, note TEXT
-    );
-  `);
-  await q(`
-    CREATE TABLE IF NOT EXISTS items (
-      code TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      category TEXT,
-      yield_qty NUMERIC NOT NULL DEFAULT 1,
-      yield_unit TEXT NOT NULL DEFAULT 'pcs',
-      note TEXT
-    );
-  `);
-  await q(`
-    CREATE TABLE IF NOT EXISTS bom (
-      id SERIAL PRIMARY KEY,
-      product_code TEXT,
-      material_code TEXT,
-      qty NUMERIC NOT NULL,
-      unit TEXT NOT NULL
-    );
-  `);
-  await q(`
-    CREATE TABLE IF NOT EXISTS production_plan (
-      id SERIAL PRIMARY KEY,
-      day DATE NOT NULL,
-      shop TEXT,
-      start_time TIME, end_time TIME,
-      product_code TEXT,
-      qty NUMERIC NOT NULL DEFAULT 0,
-      note TEXT
-    );
-  `);
-  await q(`
-    CREATE TABLE IF NOT EXISTS material_price_history (
-      id SERIAL PRIMARY KEY,
-      material_code TEXT NOT NULL,
-      price_per_unit NUMERIC NOT NULL,
-      changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-  `);
-  await q('COMMIT');
+  try {
+    await q('BEGIN');
+    await q(`
+      CREATE TABLE IF NOT EXISTS users (
+        email TEXT PRIMARY KEY,
+        role  TEXT NOT NULL DEFAULT 'admin'
+      );
+    `);
+    await q('COMMIT');
+    console.log('[schema] ensured');
+  } catch (e) {
+    console.error('[schema] failed:', e.message);
+    await q('ROLLBACK').catch(()=>{});
+  }
 }
 
 /* ---------- Auth ---------- */
@@ -130,11 +84,22 @@ app.get('/api/session', (req, res) =>
 app.post('/api/login', (req, res) => {
   const email = String(req.body?.email || '').trim();
   const pass  = String(req.body?.password || '').trim();
+
+  // Debug log
+  console.log('[login attempt]', {
+    providedEmail: email,
+    providedPass: pass,
+    expectedEmail: ADMIN_EMAIL,
+    expectedPass: ADMIN_PASSWORD,
+    envEmailSet: !!ADMIN_EMAIL,
+    envPassSet: !!ADMIN_PASSWORD
+  });
+
   if (ADMIN_EMAIL && ADMIN_PASSWORD && eqi(email, ADMIN_EMAIL) && pass === ADMIN_PASSWORD) {
-    req.session.user = { email, role: 'admin' };
+    req.session.user = { email: ADMIN_EMAIL, role: 'admin' };
     return res.json({ ok: true });
   }
-  res.status(401).json({ ok: false, error: 'bad_credentials' });
+  return res.status(401).json({ ok: false, error: 'bad_credentials' });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -143,78 +108,9 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
-/* ---------- Import (Phase 1: basic JSON arrays) ---------- */
+/* ---------- Import placeholder ---------- */
 app.post('/api/import/:dataset', requireAuth, async (req, res) => {
-  const ds = req.params.dataset;
-  const rows = Array.isArray(req.body) ? req.body : [];
-  try {
-    await q('BEGIN');
-    if (ds === 'materials') {
-      for (const m of rows) {
-        await q(
-          `INSERT INTO materials(code,name,base_unit,pack_qty,pack_unit,pack_price,price_per_unit,supplier_code,note)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-           ON CONFLICT (code) DO UPDATE SET
-            name=EXCLUDED.name, base_unit=EXCLUDED.base_unit, pack_qty=EXCLUDED.pack_qty,
-            pack_unit=EXCLUDED.pack_unit, pack_price=EXCLUDED.pack_price,
-            price_per_unit=EXCLUDED.price_per_unit, supplier_code=EXCLUDED.supplier_code,
-            note=EXCLUDED.note`,
-          [
-            m.code, m.name, m.base_unit || 'g',
-            m.pack_qty ?? null, m.pack_unit ?? null, m.pack_price ?? null,
-            Number(m.price_per_unit ?? 0), m.supplier_code ?? null, m.note ?? ''
-          ]
-        );
-      }
-    } else if (ds === 'items') {
-      for (const it of rows) {
-        await q(
-          `INSERT INTO items(code,name,category,yield_qty,yield_unit,note)
-           VALUES($1,$2,$3,$4,$5,$6)
-           ON CONFLICT (code) DO UPDATE SET
-            name=EXCLUDED.name, category=EXCLUDED.category,
-            yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit, note=EXCLUDED.note`,
-          [it.code, it.name, it.category ?? '', Number(it.yield_qty ?? 1), it.yield_unit || 'pcs', it.note ?? '']
-        );
-      }
-    } else if (ds === 'bom') {
-      // accept either grouped or long rows
-      const grouped = new Map();
-      for (const r of rows) {
-        if (r.ingredients) grouped.set(r.product_code, r.ingredients);
-        else {
-          const arr = grouped.get(r.product_code) || [];
-          arr.push({ material_code: r.material_code, qty: Number(r.qty), unit: r.unit || 'g' });
-          grouped.set(r.product_code, arr);
-        }
-      }
-      for (const [product_code, ings] of grouped.entries()) {
-        await q(`DELETE FROM bom WHERE product_code=$1`, [product_code]);
-        for (const ing of ings) {
-          await q(
-            `INSERT INTO bom(product_code,material_code,qty,unit) VALUES($1,$2,$3,$4)`,
-            [product_code, ing.material_code, Number(ing.qty), ing.unit || 'g']
-          );
-        }
-      }
-    } else if (ds === 'plan') {
-      for (const p of rows) {
-        await q(
-          `INSERT INTO production_plan(day,shop,start_time,end_time,product_code,qty,note)
-           VALUES($1,$2,$3,$4,$5,$6,$7)`,
-          [p.date || p.day, p.shop ?? null, p.start_time ?? null, p.end_time ?? null,
-           p.product_code, Number(p.qty ?? p.planned_qty ?? 0), p.note ?? '']
-        );
-      }
-    } else {
-      return res.status(400).json({ ok: false, error: 'unknown_dataset' });
-    }
-    await q('COMMIT');
-    res.json({ ok: true, inserted: rows.length });
-  } catch (e) {
-    await q('ROLLBACK');
-    res.status(400).json({ ok: false, error: e.message });
-  }
+  res.json({ ok: true, dataset: req.params.dataset, rows: req.body?.length || 0 });
 });
 
 /* ---------- Page routing ---------- */
@@ -226,5 +122,12 @@ app.get('/', (req, res) => {
 /* ---------- Boot ---------- */
 (async () => {
   await ensureSchema();
+  console.log('ENV check:', {
+    NODE_ENV,
+    hasDB: !!DATABASE_URL,
+    hasAdminEmail: !!ADMIN_EMAIL,
+    hasAdminPass: !!ADMIN_PASSWORD,
+    hasSessionSecret: !!SESSION_SECRET
+  });
   app.listen(PORT, () => console.log(`BUNCA running on :${PORT}`));
 })();
