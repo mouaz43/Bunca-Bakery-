@@ -10,7 +10,10 @@
 <body>
 <header class="header">
   <nav class="nav">
-    <div class="brand">BUNCA Planner</div>
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 12c0-4.418 3.582-8 8-8a8 8 0 1 1-8 8Z" stroke="currentColor" opacity=".8"/><path d="M12 4v16M4 12h16" stroke="currentColor" opacity=".6"/></svg>
+      BUNCA Planner
+    </div>
     <div class="tabs">
       <a class="tab" data-tab="tools" href="/tools.html">Tools</a>
       <a class="tab" data-tab="plan" href="/plan.html">Plan</a>
@@ -18,9 +21,10 @@
       <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
       <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
     </div>
-    <div class="spacer"></div>
-    <div class="header-controls">
-      <button class="theme-toggle btn" onclick="toggleTheme()">🌓 Theme</button>
+    <div class="right header-controls">
+      <div class="accent"><div class="dot"></div><input id="accentPicker" type="color" style="background:transparent;border:none;width:20px;height:20px; padding:0"/></div>
+      <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
+      <button class="density-toggle" onclick="toggleDensity()">↕︎</button>
       <button id="logout" class="btn">Logout</button>
     </div>
   </nav>
@@ -28,28 +32,17 @@
 
 <div class="container">
   <div class="grid">
-    <!-- Export -->
     <div class="card">
       <h3>Export</h3>
-      <p class="muted"><small>Lade Daten als CSV, JSON oder Excel (XLSX) herunter.</small></p>
+      <p class="muted"><small>CSV, JSON oder Excel (XLSX).</small></p>
       <div class="row">
-        <select id="ds" class="input w150">
-          <option value="materials">materials</option>
-          <option value="items">items</option>
-          <option value="bom">bom</option>
-          <option value="plan">plan</option>
-        </select>
-        <select id="fmt" class="input w120">
-          <option value="json">json</option>
-          <option value="csv">csv</option>
-          <option value="xlsx">xlsx</option>
-        </select>
+        <select id="ds" class="input w150"><option>materials</option><option>items</option><option>bom</option><option>plan</option></select>
+        <select id="fmt" class="input w120"><option>json</option><option>csv</option><option>xlsx</option></select>
         <input id="week" class="input w150" type="date" placeholder="Woche (nur für plan)">
         <button id="exportBtn" class="btn primary">Download</button>
       </div>
     </div>
 
-    <!-- Backup -->
     <div class="card">
       <h3>Backup & Restore</h3>
       <div class="row">
@@ -57,93 +50,65 @@
         <input id="restoreFile" class="input" type="file" accept=".json">
         <button id="restoreBtn" class="btn primary adminOnly">Backup einspielen</button>
       </div>
-      <p class="muted"><small>Achtung: Restore ersetzt Materialien, Items, BOM und Plan. Nur Admin.</small></p>
+      <p class="muted"><small>Restore ersetzt Materialien, Items, BOM, Plan. Nur Admin.</small></p>
     </div>
 
-    <!-- Users -->
     <div class="card adminOnly">
       <h3>Nutzer verwalten (Admin)</h3>
       <div class="row">
         <input id="uEmail" class="input w150" placeholder="email@example.com">
         <input id="uPass"  class="input w150" type="password" placeholder="Passwort">
-        <select id="uRole" class="input w120">
-          <option value="viewer">viewer</option>
-          <option value="planner">planner</option>
-          <option value="admin">admin</option>
-        </select>
+        <select id="uRole" class="input w120"><option>viewer</option><option>planner</option><option>admin</option></select>
         <button id="uSave" class="btn primary">Speichern</button>
       </div>
-      <div class="list" id="uList" class="muted" style="margin-top:8px">lädt…</div>
+      <div id="uList" class="muted" style="margin-top:8px">lädt…</div>
     </div>
   </div>
 </div>
 
 <script>
 navActive('tools');
+$$('#accentPicker').addEventListener('input', (e)=> changeAccent(e.target.value));
 document.getElementById('logout').onclick = async () => { await api('/api/logout', { method:'POST' }); location.href = '/login.html'; };
 
-/* role visibility */
 let ROLE = 'viewer';
-(async () => {
-  const u = await sessionInfo();
-  if (u) ROLE = u.role || 'viewer';
+(async () => { const u = await sessionInfo(); if (u) ROLE = u.role || 'viewer';
   if (ROLE !== 'admin') document.querySelectorAll('.adminOnly').forEach(el => el.style.display='none');
 })();
 
-/* Export */
 document.getElementById('exportBtn').onclick = () => {
-  const ds = $$('#ds').value;
-  const fmt = $$('#fmt').value;
-  const wk = $$('#week').value;
-  const url = `/api/tools/export/${encodeURIComponent(ds)}?format=${encodeURIComponent(fmt)}${wk?`&start=${encodeURIComponent(wk)}`:''}`;
-  window.location = url;
+  const ds = $$('#ds').value, fmt = $$('#fmt').value, wk = $$('#week').value;
+  window.location = `/api/tools/export/${encodeURIComponent(ds)}?format=${encodeURIComponent(fmt)}${wk?`&start=${encodeURIComponent(wk)}`:''}`;
 };
-
-/* Backup */
 document.getElementById('backupBtn').onclick = () => { window.location = '/api/tools/backup'; };
 document.getElementById('restoreBtn').onclick = async () => {
-  if (ROLE !== 'admin') return toast('Nur Admin darf Restore ausführen', false);
-  const file = $$('#restoreFile').files?.[0];
-  if (!file) return toast('Bitte Backup-Datei wählen', false);
-  try {
-    const text = await file.text();
-    const obj = JSON.parse(text);
-    await api('/api/tools/backup/restore', { method:'POST', body: JSON.stringify(obj) });
-    toast('Backup erfolgreich eingespielt');
-  } catch(e){ toast('Restore fehlgeschlagen: '+e.message, false); }
+  if (ROLE !== 'admin') return toast('Nur Admin darf Restore ausführen');
+  const file = $$('#restoreFile').files?.[0]; if (!file) return toast('Bitte Backup-Datei wählen');
+  try { const obj = JSON.parse(await file.text());
+    await api('/api/tools/backup/restore', { method:'POST', body: JSON.stringify(obj) }); toast('Backup eingespielt');
+  } catch(e){ toast('Restore fehlgeschlagen: '+e.message); }
 };
-
-/* Users */
 async function loadUsers(){
   if (ROLE !== 'admin') { $$('#uList').textContent = 'Keine Admin-Rechte.'; return; }
   try {
     const { data } = await api('/api/users');
     $$('#uList').innerHTML = data.length
-      ? data.map(u => `<div class="row">
-          <div class="muted" style="min-width:220px">${u.email}</div>
-          <div>${u.role}</div>
-          <button data-email="${u.email}" class="btn">Löschen</button>
-        </div>`).join('')
-      : '<div class="muted">Keine Nutzer</div>';
-    $$('#uList').querySelectorAll('button[data-email]').forEach(b => {
-      b.onclick = async () => {
-        if (!confirm('Nutzer wirklich löschen?')) return;
-        try { await api('/api/users/' + encodeURIComponent(b.dataset.email), { method:'DELETE' }); loadUsers(); toast('Gelöscht'); }
-        catch(e){ toast('Fehler: '+e.message, false); }
-      };
+      ? data.map(u => `<div class="row"><div style="min-width:220px">${u.email}</div><div>${u.role}</div>
+        <button data-email="${u.email}" class="btn">Löschen</button></div>`).join('')
+      : '<div>Keine Nutzer</div>';
+    document.querySelectorAll('#uList [data-email]').forEach(b => b.onclick = async () => {
+      if (!confirm('Nutzer wirklich löschen?')) return;
+      try { await api('/api/users/' + encodeURIComponent(b.dataset.email), { method:'DELETE' }); loadUsers(); toast('Gelöscht'); } catch(e){ toast('Fehler: '+e.message); }
     });
   } catch(e){ $$('#uList').textContent = 'Fehler: '+e.message; }
 }
 document.getElementById('uSave').onclick = async () => {
-  if (ROLE !== 'admin') return toast('Nur Admin darf Nutzer speichern', false);
+  if (ROLE !== 'admin') return toast('Nur Admin darf Nutzer speichern');
   try {
     await api('/api/users', { method:'POST', body: JSON.stringify({
-      email: $$('#uEmail').value.trim(),
-      password: $$('#uPass').value,
-      role: $$('#uRole').value
-    })});
-    toast('Nutzer gespeichert'); loadUsers();
-  } catch(e){ toast('Fehler: '+e.message, false); }
+      email: $$('#uEmail').value.trim(), password: $$('#uPass').value, role: $$('#uRole').value
+    })}); toast('Nutzer gespeichert'); loadUsers();
+  } catch(e){ toast('Fehler: '+e.message); }
 };
 loadUsers();
 </script>
