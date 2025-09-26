@@ -6,6 +6,16 @@
   <title>Bakeflow — Rohwaren</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
+  <style>
+    .row-actions { display:flex; gap:8px; justify-content:flex-end }
+    .pill { padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--border); font-size:12px }
+    .small-note{ color:var(--text-muted); font-size:12px }
+    .grid-top{ display:grid; gap:10px; grid-template-columns: 1fr auto auto }
+    @media (max-width: 720px){ .grid-top{ grid-template-columns:1fr; } }
+    .del{ background:rgba(255,0,0,.08); border-color:rgba(255,0,0,.25) }
+    .tip-line{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+    .tight input, .tight select { padding:7px 8px; }
+  </style>
 </head>
 <body>
 
@@ -13,7 +23,7 @@
   <nav class="nav">
     <div class="brand">🍞 Bakeflow — Rohwaren</div>
     <div class="menu-wrap">
-      <input id="q" class="input" placeholder="Suchen …  ( / )" style="min-width:260px"/>
+      <button class="btn" onclick="location.href='/dashboard.html'">Dashboard</button>
       <button class="btn" onclick="location.href='/items.html'">Rezepte</button>
       <button class="btn" onclick="location.href='/plan.html'">Plan</button>
       <button class="btn danger" onclick="logout()">Logout</button>
@@ -22,303 +32,140 @@
 </header>
 
 <main class="container">
-  <!-- Cards layout (responsive) -->
-  <div id="cards" class="grid">
-    <!-- filled by JS -->
-  </div>
-
-  <!-- Table fallback (desktop power view) -->
-  <div class="card" style="margin-top:18px">
+  <section class="card">
     <div class="card-title-row">
-      <div class="row-gap">
-        <h2 style="margin:0">Alle Rohwaren</h2>
-        <span class="muted small">Desktop-Ansicht • sortierbar</span>
-      </div>
-      <div class="row-gap">
-        <button class="btn" id="exportCsv">Export CSV</button>
-        <button class="btn" id="reload">Neu laden</button>
+      <h2 style="margin:0">Rohwaren</h2>
+      <div class="grid-top">
+        <input id="search" class="input" placeholder="Suchen… (Code / Name)"/>
+        <button class="btn" id="newBtn">+ Neu</button>
+        <button class="btn" id="reloadBtn">Neu laden</button>
       </div>
     </div>
-    <div class="table-wrap">
-      <table id="tbl" class="table">
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Name</th>
-            <th>Base</th>
-            <th>€/base</th>
-            <th>Supplier</th>
-            <th>Notiz</th>
-            <th style="width:140px">Aktionen</th>
-          </tr>
-        </thead>
-        <tbody id="rows"><tr><td colspan="7" class="muted">Lade…</td></tr></tbody>
-      </table>
+
+    <div class="card-pad">
+      <div class="tip-line small-note">
+        <span class="pill">Tipp</span> Trage nur **Pack price** ein, der €/base wird automatisch berechnet und gespeichert.
+      </div>
+
+      <div class="table-wrap" style="margin-top:10px">
+        <table class="table tight" id="tbl">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Base</th>
+              <th>Pack Qty</th>
+              <th>Pack Unit</th>
+              <th>Pack Price</th>
+              <th>€/base</th>
+              <th>Supplier</th>
+              <th>Note</th>
+              <th class="right">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="10" class="muted">Lade…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
+  </section>
 </main>
 
-<!-- Floating + button -->
-<button class="fab" id="fab">+ Neue Rohware</button>
-
-<!-- Drawer Editor -->
-<aside id="drawer" class="drawer">
-  <div class="drawer-head">
-    <h3 id="dTitle" style="margin:0">Rohware</h3>
-    <div class="row-gap">
-      <button class="btn subtle" onclick="Drawer.close()">Schließen (Esc)</button>
-    </div>
-  </div>
-  <div class="drawer-body">
-    <div class="grid">
-      <div class="col-6">
-        <label>Code</label>
-        <input id="m_code" class="input" placeholder="Z.B. ZUCKER_FEIN"/>
-      </div>
-      <div class="col-6">
-        <label>Name</label>
-        <input id="m_name" class="input" placeholder="Zucker fein"/>
-      </div>
-      <div class="col-6">
-        <label>Base Unit</label>
-        <select id="m_base" class="input">
-          <option value="g">g</option>
-          <option value="ml">ml</option>
-          <option value="pcs">pcs</option>
-        </select>
-      </div>
-      <div class="col-6">
-        <label>Supplier</label>
-        <input id="m_supplier" class="input" placeholder="optional"/>
-      </div>
-      <div class="col-6">
-        <label>Pack Qty</label>
-        <input id="m_pqty" class="input" type="number" step="0.01" placeholder="1000"/>
-      </div>
-      <div class="col-6">
-        <label>Pack Unit</label>
-        <select id="m_punit" class="input">
-          <option value="">—</option>
-          <option value="g">g</option><option value="kg">kg</option>
-          <option value="ml">ml</option><option value="l">l</option>
-          <option value="pcs">pcs</option>
-        </select>
-      </div>
-      <div class="col-6">
-        <label>Pack Price (€)</label>
-        <input id="m_pprice" class="input" type="number" step="0.01" placeholder="2.49"/>
-      </div>
-      <div class="col-6">
-        <label>€/base (auto)</label>
-        <input id="m_ppu" class="input" type="number" step="0.000001" placeholder="wird berechnet"/>
-      </div>
-      <div class="col-12">
-        <label>Notiz</label>
-        <input id="m_note" class="input" placeholder="optional…"/>
-      </div>
-    </div>
-
-    <hr class="sep"/>
-
-    <div class="row-gap">
-      <div class="muted small">Preisverlauf</div>
-      <div id="history" class="muted small">—</div>
-      <div class="spacer"></div>
-      <button class="btn" id="calcPPU">€/base berechnen</button>
-    </div>
-  </div>
-  <div class="drawer-foot">
-    <button class="btn danger" id="delBtn" title="Löschen">Löschen</button>
-    <div class="spacer"></div>
-    <button class="btn" onclick="Drawer.close()">Abbrechen</button>
-    <button class="btn primary" id="saveBtn">Speichern</button>
-  </div>
-</aside>
-
 <script>
-/* ====== Page logic ====== */
 function logout(){ api('/api/logout',{method:'POST'}).then(()=>location.href='/login.html'); }
-let DATA=[], CURRENT=null;
 
-/* Load & render */
+const U = { g:1, kg:1000, ml:1, l:1000, pcs:1, piece:1, pieces:1, stk:1, 'stück':1 };
+function family(u){ u=(u||'').toLowerCase(); if (u==='g'||u==='kg') return 'g'; if (u==='ml'||u==='l') return 'ml'; if (u==='pcs'||u==='piece'||u==='pieces'||u==='stk'||u==='stück') return 'pcs'; return u; }
+function toBaseQty(qty, unit, base){ if (!qty || !unit || !base) return null; const f=family(unit), b=family(base); if (f!==b) return null; return Number(qty) * (U[unit.toLowerCase()]||1); }
+function euroBase(pack_qty, pack_unit, pack_price, base_unit){
+  const baseQty = toBaseQty(pack_qty, pack_unit, base_unit);
+  if (!baseQty || !pack_price) return 0;
+  return Number(pack_price) / Number(baseQty);
+}
+
+let DATA = [];
+
+function rowHTML(m){
+  const ppu = Number(m.price_per_unit||0);
+  return `<tr data-code="${m.code}">
+    <td><input class="input mono" value="${m.code||''}" data-k="code"/></td>
+    <td><input class="input" value="${m.name||''}" data-k="name"/></td>
+    <td>
+      <select class="input" data-k="base_unit">
+        ${['g','ml','pcs'].map(u=>`<option ${m.base_unit===u?'selected':''} value="${u}">${u}</option>`).join('')}
+      </select>
+    </td>
+    <td><input class="input mono" type="number" step="0.01" value="${m.pack_qty??''}" data-k="pack_qty"/></td>
+    <td>
+      <select class="input" data-k="pack_unit">
+        <option value=""></option>
+        ${['g','kg','ml','l','pcs'].map(u=>`<option ${m.pack_unit===u?'selected':''} value="${u}">${u}</option>`).join('')}
+      </select>
+    </td>
+    <td><input class="input mono" type="number" step="0.01" value="${m.pack_price??''}" data-k="pack_price"/></td>
+    <td class="mono" data-k="ppu">${ppu ? ppu.toFixed(6) : ''}</td>
+    <td><input class="input" value="${m.supplier_code||''}" data-k="supplier_code"/></td>
+    <td><input class="input" value="${m.note||''}" data-k="note"/></td>
+    <td class="right">
+      <div class="row-actions">
+        <button class="btn" onclick="saveRow(this)">Speichern</button>
+        <button class="btn del" onclick="delRow('${m.code}')">Löschen</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
 async function load(){
   const r = await api('/api/materials');
-  DATA = r.data||[];
-  renderCards(DATA);
-  renderTable(DATA);
+  DATA = r.data || [];
+  const tb = document.getElementById('tbody');
+  tb.innerHTML = DATA.map(rowHTML).join('') || `<tr><td colspan="10" class="muted">Keine Einträge</td></tr>`;
+  makeTableSortable(document.getElementById('tbl'));
 }
-function renderCards(list){
-  const host = $$('#cards');
-  host.innerHTML = '';
-  if (!list.length){
-    host.innerHTML = `<div class="col-12 card card-pad center muted">Noch keine Rohwaren — klicke unten <b class="bold" style="margin-left:6px">“+ Neue Rohware”</b></div>`;
-    return;
-  }
-  list.forEach(m=>{
-    const wrap = document.createElement('div');
-    wrap.className = 'col-12 col-6 col-4';
-    wrap.innerHTML = `
-      <div class="m-card">
-        <div class="m-title">${m.name}</div>
-        <div class="m-sub">
-          <span class="mono small badge">${m.code}</span>
-          <span class="badge">${m.base_unit}</span>
-          <span class="price-pill">€ ${(m.price_per_unit||0).toFixed(6)} / ${m.base_unit}</span>
-        </div>
-        <div class="m-sub"><span class="muted small">${m.supplier_code||'—'}</span></div>
-        <div class="row-actions" style="margin-top:6px">
-          <button class="btn subtle" data-edit="${m.code}">Bearbeiten</button>
-          <button class="btn danger right-ghost" data-del="${m.code}">Löschen</button>
-        </div>
-      </div>`;
-    host.appendChild(wrap);
+function valuesOf(tr){
+  const obj = {};
+  $$$('input,select', tr).forEach(el=>{
+    obj[el.dataset.k] = (el.type==='number' && el.value!=='') ? Number(el.value) : (el.value || null);
   });
+  return obj;
 }
-function renderTable(list){
-  const tbody = $$('#rows');
-  if (!list.length){ tbody.innerHTML = `<tr><td colspan="7" class="muted">Leer</td></tr>`; return;}
-  tbody.innerHTML = list.map(m=>`
-    <tr>
-      <td>${m.code}</td>
-      <td>${m.name}</td>
-      <td>${m.base_unit}</td>
-      <td>${(m.price_per_unit||0).toFixed(6)}</td>
-      <td>${m.supplier_code||''}</td>
-      <td>${m.note||''}</td>
-      <td class="row-actions">
-        <button class="btn subtle" data-edit="${m.code}">Bearb.</button>
-        <button class="btn danger" data-del="${m.code}">Löschen</button>
-      </td>
-    </tr>
-  `).join('');
-  makeTableSortable($$('#tbl'));
+async function saveRow(btn){
+  const tr = btn.closest('tr');
+  const v = valuesOf(tr);
+  // auto-compute price_per_unit from pack if available
+  const ppu = euroBase(v.pack_qty, v.pack_unit, v.pack_price, v.base_unit);
+  const body = { ...v, price_per_unit: Number(ppu||0) };
+  await api('/api/materials', { method:'POST', body: JSON.stringify(body) });
+  tr.querySelector('[data-k="ppu"]').textContent = (ppu||0).toFixed(6);
+  toast('Gespeichert');
 }
-
-/* Filter */
-attachClientFilter($$('#q'), $$('#tbl'));
-document.addEventListener('keydown', (e)=>{ if(e.key==='/'){ e.preventDefault(); $$('#q').focus(); } });
-
-/* Drawer helpers */
-function openDrawer(title){ $$('#dTitle').textContent=title; Drawer.open('#drawer'); }
-function fillForm(m){
-  $$('#m_code').value = m?.code||'';
-  $$('#m_name').value = m?.name||'';
-  $$('#m_base').value = m?.base_unit||'g';
-  $$('#m_supplier').value = m?.supplier_code||'';
-  $$('#m_pqty').value = m?.pack_qty ?? '';
-  $$('#m_punit').value = m?.pack_unit || '';
-  $$('#m_pprice').value = m?.pack_price ?? '';
-  $$('#m_ppu').value = m?.price_per_unit ?? '';
-  $$('#m_note').value = m?.note||'';
-  $$('#history').textContent = '—';
-  if (m?.code) loadHistory(m.code);
-}
-function readForm(){
-  return {
-    code: $$('#m_code').value.trim(),
-    name: $$('#m_name').value.trim(),
-    base_unit: $$('#m_base').value,
-    supplier_code: $$('#m_supplier').value.trim() || null,
-    pack_qty: $$('#m_pqty').value ? Number($$('#m_pqty').value) : null,
-    pack_unit: $$('#m_punit').value || null,
-    pack_price: $$('#m_pprice').value ? Number($$('#m_pprice').value) : null,
-    price_per_unit: $$('#m_ppu').value === '' ? null : Number($$('#m_ppu').value),
-    note: $$('#m_note').value.trim(),
-  };
-}
-
-/* PPU helper (client preview; server also derives) */
-function derivePPU(){
-  const base = $$('#m_base').value;
-  const pq = Number($$('#m_pqty').value||0);
-  const pu = $$('#m_punit').value;
-  const pp = Number($$('#m_pprice').value||0);
-  if (!pq || !pu || !pp) return;
-  const family = { kg:'g', g:'g', l:'ml', ml:'ml', pcs:'pcs' };
-  const factor = { g:1, kg:1000, ml:1, l:1000, pcs:1 };
-  if (family[pu] !== base) { toast('Pack unit passt nicht zur Base Unit'); return; }
-  const baseQty = pq * factor[pu];
-  if (baseQty>0) $$('#m_ppu').value = (pp/baseQty).toFixed(6);
-}
-
-/* History */
-async function loadHistory(code){
-  try{
-    const r = await api(`/api/materials/${encodeURIComponent(code)}/history`);
-    const h = r.data||[];
-    if (!h.length){ $$('#history').textContent = 'Keine Änderungen'; return; }
-    const latest = h.slice(0,5).map(x=>`${(x.price_per_unit||0).toFixed(6)}€`).join('  ·  ');
-    $$('#history').textContent = latest;
-  }catch{ $$('#history').textContent = '—'; }
-}
-
-/* Events */
-$$('#fab').addEventListener('click', ()=>{
-  CURRENT = null; fillForm(null); openDrawer('Neue Rohware'); $$('#m_code').focus();
-});
-$$('#cards').addEventListener('click', async (e)=>{
-  const edit = e.target?.dataset?.edit; const del = e.target?.dataset?.del;
-  if (edit){
-    const r = await api(`/api/materials/${encodeURIComponent(edit)}`); CURRENT = r.data; fillForm(CURRENT); openDrawer(`Bearbeiten — ${CURRENT.code}`);
-  } else if (del){
-    if (!confirm('Wirklich löschen?')) return;
-    try{
-      await api(`/api/materials/${encodeURIComponent(del)}`, { method:'DELETE' });
-      toast('Gelöscht'); load();
-    }catch(err){
-      if (String(err.message).includes('in_use_in_bom')) toast('Kann nicht löschen: wird in Rezepten verwendet');
-      else toast('Fehler beim Löschen');
-    }
-  }
-});
-$$('#rows').addEventListener('click', async (e)=>{
-  const edit = e.target?.dataset?.edit; const del = e.target?.dataset?.del;
-  if (edit){
-    const r = await api(`/api/materials/${encodeURIComponent(edit)}`); CURRENT = r.data; fillForm(CURRENT); openDrawer(`Bearbeiten — ${CURRENT.code}`);
-  } else if (del){
-    if (!confirm('Wirklich löschen?')) return;
-    try{
-      await api(`/api/materials/${encodeURIComponent(del)}`, { method:'DELETE' });
-      toast('Gelöscht'); load();
-    }catch(err){
-      if (String(err.message).includes('in_use_in_bom')) toast('Kann nicht löschen: wird in Rezepten verwendet');
-      else toast('Fehler beim Löschen');
-    }
-  }
-});
-$$('#calcPPU').addEventListener('click', derivePPU);
-
-$$('#saveBtn').addEventListener('click', async ()=>{
-  const payload = readForm();
-  if (!payload.code || !payload.name) return toast('Code & Name erforderlich');
-  try{
-    await api('/api/materials', { method:'POST', body: JSON.stringify(payload) });
-    toast('Gespeichert'); Drawer.close(); load();
-  }catch(e){ toast(e.message||'Fehler'); }
-});
-$$('#delBtn').addEventListener('click', async ()=>{
-  const code = $$('#m_code').value.trim(); if (!code) return;
+async function delRow(code){
+  if (!code) return;
   if (!confirm(`Rohware ${code} löschen?`)) return;
-  try{
-    await api(`/api/materials/${encodeURIComponent(code)}`, { method:'DELETE' });
-    toast('Gelöscht'); Drawer.close(); load();
-  }catch(err){
-    if (String(err.message).includes('in_use_in_bom')) toast('Kann nicht löschen: wird in Rezepten verwendet');
-    else toast('Fehler beim Löschen');
-  }
-});
+  await api('/api/materials/'+encodeURIComponent(code), { method:'DELETE' });
+  await load(); toast('Gelöscht');
+}
+function addNew(){
+  const tb = document.getElementById('tbody');
+  const tmp = {
+    code:'', name:'', base_unit:'g',
+    pack_qty:null, pack_unit:null, pack_price:null,
+    price_per_unit:0, supplier_code:'', note:''
+  };
+  tb.insertAdjacentHTML('afterbegin', rowHTML(tmp));
+}
 
-$$('#reload').addEventListener('click', load);
-$$('#exportCsv').addEventListener('click', ()=>{ location.href='/api/tools/export/materials?format=csv'; });
+document.getElementById('newBtn').addEventListener('click', addNew);
+document.getElementById('reloadBtn').addEventListener('click', load);
+// client filter
+attachClientFilter(document.getElementById('search'), document.getElementById('tbl'));
 
-/* esc closes drawer */
-window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') Drawer.close(); });
-
-/* boot */
 (async function(){
   const u = await sessionInfo(); if(!u){ location.href='/login.html'; return; }
   await load();
 })();
 </script>
+
 </body>
 </html>
