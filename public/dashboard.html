@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>BUNCA — Dashboard</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <script defer src="/js/app.js"></script>
+</head>
+<body>
+<header class="header">
+  <nav class="nav">
+    <div style="font-weight:800">BUNCA Planner</div>
+    <div class="tabs">
+      <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
+      <a class="tab" data-tab="import" href="/import.html">Import</a>
+    </div>
+    <div>
+      <button id="logout" class="btn">Logout</button>
+    </div>
+  </nav>
+</header>
+
+<div class="container">
+  <div class="grid grid-3">
+    <div class="card">
+      <h3>Willkommen 👋</h3>
+      <p class="muted">Starte mit Import oder prüfe deine Daten.</p>
+      <a class="btn primary" href="/import.html">Daten importieren</a>
+    </div>
+    <div class="card">
+      <h3>Status</h3>
+      <div id="status" class="muted">lädt…</div>
+    </div>
+    <div class="card">
+      <h3>Schnellzugriff</h3>
+      <p><a href="/import.html">Import</a> • (Materials/Items/BOM/Plan)</p>
+    </div>
+  </div>
+</div>
+
+<script>
+navActive('dash');
+document.getElementById('logout').onclick = async () => {
+  await api('/api/logout', { method:'POST' });
+  location.href = '/login.html';
+};
+(async () => {
+  const user = await sessionInfo();
+  $$('#status').textContent = user ? `Angemeldet als ${user.email}` : 'Nicht angemeldet';
+})();
+</script>
+</body>
+</html>
