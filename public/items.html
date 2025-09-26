@@ -3,32 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>BUNCA — Artikel & Rezepte</title>
+  <title>Bakeflow — Artikel & Rezepte</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
 </head>
-<body>
-<header class="header">
-  <nav class="nav">
-    <div class="brand">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 12c0-4.418 3.582-8 8-8a8 8 0 1 1-8 8Z" stroke="currentColor" opacity=".8"/><path d="M12 4v16M4 12h16" stroke="currentColor" opacity=".6"/></svg>
-      BUNCA Planner
-    </div>
-    <div class="tabs">
-      <a class="tab" data-tab="items" href="/items.html">Rezepte</a>
-      <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
-      <a class="tab" data-tab="plan" href="/plan.html">Plan</a>
-      <a class="tab" data-tab="tools" href="/tools.html">Tools</a>
-      <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
-    </div>
-    <div class="right header-controls">
-      <div class="accent"><div class="dot"></div><input id="accentPicker" type="color" style="background:transparent;border:none;width:20px;height:20px; padding:0"/></div>
-      <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
-      <button class="density-toggle" onclick="toggleDensity()">↕︎</button>
-      <button id="logout" class="btn">Logout</button>
-    </div>
-  </nav>
-</header>
+<body data-active="items">
+<div id="appHeader"></div>
 
 <div class="container">
   <div class="card">
@@ -38,13 +18,19 @@
       <button id="addRow" class="btn">+ Neuer Artikel</button>
       <button id="reload" class="btn">Neu laden</button>
     </div>
+
     <div style="overflow:auto">
       <table class="table" id="tbl">
         <thead>
           <tr>
-            <th>Code</th><th class="th-sort">Name</th><th class="th-sort">Kategorie</th>
-            <th class="th-sort">Yield Qty</th><th>Yield Unit</th><th>Notiz</th>
-            <th></th><th></th>
+            <th>Code</th>
+            <th class="th-sort">Name</th>
+            <th class="th-sort">Kategorie</th>
+            <th class="th-sort">Yield Qty</th>
+            <th>Yield Unit</th>
+            <th>Notiz</th>
+            <th></th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="body"></tbody>
@@ -53,14 +39,14 @@
   </div>
 </div>
 
-<!-- BOM modal (kept, now palette-styled) -->
+<!-- BOM modal -->
 <div id="bomModal" class="kbar" style="display:none">
   <div class="panel">
     <h3 style="margin:8px">Rezept: <span id="bomTitle"></span></h3>
     <div class="row" style="margin:8px">
       <button id="bomAdd" class="btn">+ Zutat</button>
       <div class="right" style="display:flex; gap:10px; align-items:center">
-        <input id="scaleQty" class="input w150" placeholder="Zielmenge…" />
+        <input id="scaleQty" class="input w150" placeholder="Zielmenge…"/>
         <button id="scaleBtn" class="btn">Kosten</button>
         <button id="bomSave" class="btn primary">Speichern</button>
         <button id="bomClose" class="btn">Schließen</button>
@@ -86,10 +72,6 @@
 </div>
 
 <script>
-navActive('items');
-$$('#accentPicker').addEventListener('input', (e)=> changeAccent(e.target.value));
-document.getElementById('logout').onclick = async () => { await api('/api/logout', { method:'POST' }); location.href = '/login.html'; };
-
 const bodyEl = document.getElementById('body');
 const reloadBtn = document.getElementById('reload');
 const addRowBtn = document.getElementById('addRow');
@@ -112,9 +94,9 @@ function addRow(r={}){
   const tr = document.createElement('tr');
   const code = T('input', { class:'input w120', value: r.code || '' });
   const name = T('input', { class:'input w150', value: r.name || '' });
-  const cat = T('input', { class:'input w120', value: r.category || '' });
-  const yq = T('input', { class:'input w80', value: r.yield_qty ?? 1 });
-  const yu = T('input', { class:'input w80', value: r.yield_unit || 'pcs' });
+  const cat  = T('input', { class:'input w120', value: r.category || '' });
+  const yq   = T('input', { class:'input w80',  value: r.yield_qty ?? 1 });
+  const yu   = T('input', { class:'input w80',  value: r.yield_unit || 'pcs' });
   const note = T('input', { class:'input w150', value: r.note || '' });
 
   const saveBtn = T('button', { class:'btn primary' }, 'Speichern');
@@ -137,24 +119,24 @@ function addRow(r={}){
   bodyEl.append(tr);
 }
 
-/* -------- BOM modal -------- */
+/* ----- BOM modal logic ----- */
 const bomModal = document.getElementById('bomModal');
 const bomTitle = document.getElementById('bomTitle');
-const bomBody = document.getElementById('bomBody');
-const bomAdd = document.getElementById('bomAdd');
-const bomSave = document.getElementById('bomSave');
+const bomBody  = document.getElementById('bomBody');
+const bomAdd   = document.getElementById('bomAdd');
+const bomSave  = document.getElementById('bomSave');
 const bomClose = document.getElementById('bomClose');
 const scaleQty = document.getElementById('scaleQty');
 const scaleBtn = document.getElementById('scaleBtn');
 const scaleBox = document.getElementById('scaleBox');
-const scaleBody = document.getElementById('scaleBody');
+const scaleBody= document.getElementById('scaleBody');
 const scaleTotal = document.getElementById('scaleTotal');
 
 let currentCode = null;
 function addBomRow(row={}){ const tr=document.createElement('tr');
   const mat=T('input',{class:'input w150',value:row.material_code||''});
-  const qty=T('input',{class:'input w80',value:row.qty??''});
-  const unit=T('input',{class:'input w80',value:row.unit||'g'});
+  const qty=T('input',{class:'input w80', value:row.qty??''});
+  const unit=T('input',{class:'input w80', value:row.unit||'g'});
   const del=T('button',{class:'btn'},'X'); del.onclick=()=>tr.remove();
   tr.append(td(mat),td(qty),td(unit),td(del)); bomBody.append(tr); }
 
@@ -169,6 +151,7 @@ async function openBOM(code, name, itemInfo){
     bomBody.innerHTML = ''; data.forEach(addBomRow);
   }catch{ bomBody.innerHTML = '<tr><td colspan="4" class="muted">Noch kein Rezept</td></tr>'; }
 }
+
 bomAdd.onclick = () => addBomRow({ unit:'g' });
 bomClose.onclick = () => { bomModal.style.display='none'; };
 bomSave.onclick = async () => {
@@ -194,7 +177,9 @@ scaleBtn.onclick = async () => {
   } catch(e){ toast('Berechnung fehlgeschlagen: '+e.message); }
 };
 
-reloadBtn.onclick = load; addRowBtn.onclick = () => addRow({ yield_qty:1, yield_unit:'pcs' }); load();
+reloadBtn.onclick = load;
+addRowBtn.onclick = () => addRow({ yield_qty:1, yield_unit:'pcs' });
+load();
 </script>
 </body>
 </html>
