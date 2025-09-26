@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>BUNCA — Produktionsplan</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <script defer src="/js/app.js"></script>
+  <style>
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .w80{width:80px} .w100{width:100%} .w120{width:120px} .w150{width:150px}
+    .day{margin-top:14px}
+    .day h3{margin-bottom:6px}
+    .small{font-size:12px}
+    .right{margin-left:auto}
+  </style>
+</head>
+<body>
+<header class="header">
+  <nav class="nav">
+    <div style="font-weight:800">BUNCA Planner</div>
+    <div class="tabs">
+      <a class="tab" data-tab="plan" href="/plan.html">Produktionsplan</a>
+      <a class="tab" data-tab="items" href="/items.html">Rezepte</a>
+      <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
+      <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
+    </div>
+    <div><button id="logout" class="btn">Logout</button></div>
+  </nav>
+</header>
+
+<div class="container">
+  <div class="card">
+    <div class="row">
+      <h2 style="margin-right:auto">Wöchentlicher Plan</h2>
+      <button id="prev" class="btn">◀︎ Vorherige</button>
+      <input id="weekStart" type="date" class="input">
+      <button id="next" class="btn">Nächste ▶︎</button>
+      <button id="save" class="btn primary right">Woche speichern</button>
+    </div>
+    <p class="muted small">Tipp: Codes können über die Items-Seite eingesehen werden. Zeiten optional.</p>
+  </div>
+
+  <div id="days"></div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="row">
+      <h3>Materialien &amp; Kosten</h3>
+      <button id="calc" class="btn right">Berechnen</button>
+    </div>
+    <div style="overflow:auto;margin-top:8px">
+      <table class="table">
+        <thead><tr><th>Material</th><th>Menge</th><th>Einheit</th><th>€/Einheit</th><th>Kosten</th></tr></thead>
+        <tbody id="calcBody"><tr><td colspan="5" class="muted">Noch nicht berechnet</td></tr></tbody>
+        <tfoot><tr><th colspan="4" style="text-align:right">Total</th><th id="calcTotal">0.00 €</th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+navActive('plan');
+document.getElementById('logout').onclick = async () => {
+  await api('/api/logout', { method:'POST' });
+  location.href = '/login.html';
+};
+
+const daysRoot = document.getElementById('days');
+const startEl = document.getElementById('weekStart');
+const prevBtn = document.getElementById('prev');
+const nextBtn = document.getElementById('next');
+const saveBtn = document.getElementById('save');
+const calcBtn = document.getElementById('calc');
+const calcBody = document.getElementById('calcBody');
+const calcTotal = document.getElementById('calcTotal');
+
+const T = (tag, attrs={}, ...kids) => { const el=document.createElement(tag);
+  Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v)); kids.forEach(k=>el.append(k)); return el; };
+const td = (c)=>{ const x=document.createElement('td'); x.append(c); return x; };
+
+const dayNames = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+
+function monday(d){ const dt = new Date(d); const day = (dt.getDay()+6)%7; dt.setDate(dt.getDate()-day); dt.setHours(0,0,0,0); return dt; }
+function fmtDate(dt){ return dt.toISOString().slice(0,10); }
+function plusDays(dt, n){ const x=new Date(dt); x.setDate(x.getDate()+n); return x; }
+
+function makeDayCard(dateStr, label){
+  const card = T('div', { class:'card day' });
+  card.append(T('h3', {}, `${label} — ${dateStr}`));
+  const btn = T('button', { class:'btn', style:'margin:6px 0' }, '+ Zeile');
+  const table = T('table', { class:'table' });
+  table.innerHTML = `<thead>
+    <tr><th>Shop</th><th>Start</th><th>Ende</th><th>Produkt-Code</th><th>Menge</th><th>Notiz</th><th></th></tr>
+  </thead><tbody></tbody>`;
+  const body = table.querySelector('tbody');
+  btn.onclick = ()=> addRow(body, { day: dateStr });
+  card.append(btn, table);
+  return { card, body };
+}
+
+function addRow(tbody, r={}){
+  const tr = document.createElement('tr');
+  const shop = T('input', { class:'input w120', value: r.shop || '' });
+  const st = T('input', { class:'input w80', value: r.start_time || '', placeholder:'08:00' });
+  const en = T('input', { class:'input w80', value: r.end_time || '', placeholder:'10:00' });
+  const product = T('input', { class:'input w150', value: r.product_code || '' , placeholder:'ITEM_CODE'});
+  const qty = T('input', { class:'input w80', value: r.qty ?? '' , placeholder:'0'});
+  const note = T('input', { class:'input w100', value: r.note || '' });
+  const del = T('button', { class:'btn' }, 'X'); del.onclick = ()=> tr.remove();
+  tr.append(td(shop), td(st), td(en), td(product), td(qty), td(note), td(del));
+  tr.dataset.day = r.day;
+  tbody.append(tr);
+}
+
+function collectWeekRows(){
+  return Array.from(daysRoot.querySelectorAll('tbody tr')).map(tr => {
+    const [shop, st, en, product, qty, note] = tr.querySelectorAll('input');
+    return {
+      day: tr.dataset.day,
+      shop: shop.value.trim() || null,
+      start_time: st.value.trim() || null,
+      end_time: en.value.trim() || null,
+      product_code: product.value.trim(),
+      qty: Number(String(qty.value).replace(',','.')) || 0,
+      note: note.value.trim()
+    };
+  }).filter(r => r.product_code && r.qty > 0);
+}
+
+async function loadWeek(startStr){
+  daysRoot.innerHTML = '';
+  for (let i=0;i<7;i++){
+    const d = fmtDate(plusDays(new Date(startStr), i));
+    const { card, body } = makeDayCard(d, dayNames[i]);
+    daysRoot.append(card);
+    // fill later after fetch
+  }
+  const { data } = await api(`/api/plan/week?start=${encodeURIComponent(startStr)}`);
+  // map rows to bodies
+  for (const r of data){
+    const body = daysRoot.querySelectorAll('tbody')[ (new Date(r.day).getDay()+6)%7 ];
+    addRow(body, r);
+  }
+}
+
+function setWeek(date){
+  const mon = monday(date);
+  startEl.value = fmtDate(mon);
+  loadWeek(startEl.value);
+}
+
+prevBtn.onclick = ()=> setWeek(plusDays(new Date(startEl.value), -7));
+nextBtn.onclick = ()=> setWeek(plusDays(new Date(startEl.value),  7));
+saveBtn.onclick = async ()=> {
+  const rows = collectWeekRows();
+  try{
+    await api('/api/plan/week/save', { method:'POST', body: JSON.stringify({ start: startEl.value, rows }) });
+    toast('Woche gespeichert');
+  }catch(e){ toast('Fehler: '+e.message, false); }
+};
+calcBtn.onclick = async ()=> {
+  const rows = collectWeekRows();
+  try{
+    const { data } = await api('/api/plan/calc', { method:'POST', body: JSON.stringify({ rows }) });
+    calcBody.innerHTML = data.lines.length
+      ? data.lines.map(l=>`<tr><td>${l.material_name} (${l.material_code})</td><td>${l.qty}</td><td>${l.unit}</td><td>${l.price_per_unit}</td><td>${l.cost}</td></tr>`).join('')
+      : '<tr><td colspan="5" class="muted">Keine Daten</td></tr>';
+    calcTotal.textContent = data.total_cost.toFixed(2) + ' €';
+  }catch(e){ toast('Berechnung fehlgeschlagen: '+e.message, false); }
+};
+
+setWeek(new Date());
+</script>
+</body>
+</html>
