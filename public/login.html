@@ -3,38 +3,169 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Bakeflow — Login</title>
+  <title>Bakeflow — Anmelden</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
+  <style>
+    /* page-local polish for login hero */
+    .hero{
+      min-height: calc(100vh - 64px);
+      display:grid; place-items:center; padding:24px;
+    }
+    .glass-card{
+      width:min(440px, 92vw);
+      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.05));
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .glass-head{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:16px; border-bottom:1px solid var(--border);
+      backdrop-filter: blur(8px) saturate(140%);
+    }
+    .logo-wrap{ display:flex; align-items:center; gap:10px }
+    .logo{
+      width:28px; height:28px; border-radius:50%;
+      background:conic-gradient(from 180deg, var(--accent), var(--accent-2));
+      box-shadow: inset 0 0 18px rgba(0,0,0,.35);
+      animation: spin 12s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .glass-body{ padding:16px; display:flex; flex-direction:column; gap:12px }
+    .row{ display:grid; gap:10px; grid-template-columns:1fr }
+    .hint{ color:var(--text-muted); font-size:12px }
+    .links{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+    .link{ background:transparent; border:none; color:var(--text-muted); text-decoration:underline; cursor:pointer; font:inherit }
+    .accent-picker{ display:flex; align-items:center; gap:8px }
+    .chip{ padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid var(--border) }
+    .eye{ position:absolute; right:10px; top:34px; cursor:pointer; opacity:.8 }
+    .field{ position:relative }
+    .foot{ padding:12px 16px; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; backdrop-filter: blur(8px) }
+    .brand-sub{ color:var(--text-muted); font-size:12px }
+  </style>
 </head>
-<body data-active="login">
-<div id="appHeader"></div>
+<body>
 
-<div class="container center">
-  <div class="card" style="width:440px">
-    <h2 style="margin-bottom:6px">Anmelden</h2>
-    <p class="muted" style="margin-bottom:16px">Admin oder Nutzerzugang</p>
-    <div class="grid">
-      <div><label>Email</label><input id="email" class="input" placeholder="you@bakeflow.de"/></div>
-      <div><label>Passwort</label><input id="password" class="input" type="password" placeholder="••••••••"/></div>
-      <button id="loginBtn" class="btn primary">Login</button>
+<header class="header">
+  <nav class="nav">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="opacity:.9"><path d="M4 12c0-4.418 3.582-8 8-8a8 8 0 1 1-8 8Z" stroke="currentColor" opacity=".7"/><path d="M12 4v16M4 12h16" stroke="currentColor" opacity=".5"/></svg>
+      Bakeflow
     </div>
-  </div>
-</div>
+    <div class="menu-wrap">
+      <span class="kbd">⌘K</span><span class="hint">Befehlspalette</span>
+    </div>
+  </nav>
+</header>
+
+<main class="hero">
+  <section class="glass-card">
+    <div class="glass-head">
+      <div class="logo-wrap">
+        <div class="logo"></div>
+        <div>
+          <div style="font-weight:800; letter-spacing:.2px">Willkommen</div>
+          <div class="brand-sub">Melde dich an, um fortzufahren</div>
+        </div>
+      </div>
+
+      <div class="accent-picker">
+        <span class="hint">Akzent</span>
+        <input id="accentPicker" type="color" class="input" style="width:40px; padding:0; height:32px"/>
+      </div>
+    </div>
+
+    <div class="glass-body">
+      <div class="row">
+        <label>Email</label>
+        <input id="email" class="input" placeholder="you@bakeflow.de" autocomplete="username" />
+      </div>
+
+      <div class="row field">
+        <label>Passwort</label>
+        <input id="password" class="input" type="password" placeholder="••••••••" autocomplete="current-password"/>
+        <span id="eye" class="eye">👁️</span>
+      </div>
+
+      <div class="links">
+        <label class="row-gap" style="gap:8px">
+          <input id="remember" type="checkbox" />
+          <span class="hint">Eingeloggt bleiben</span>
+        </label>
+        <button class="link" id="fillDemo" type="button">Admin-Daten füllen</button>
+      </div>
+
+      <button id="loginBtn" class="btn primary">Anmelden</button>
+
+      <div class="hint">Tipp: <span class="kbd">Enter</span> zum Anmelden • <span class="kbd">/</span> fokussiert Email</div>
+    </div>
+
+    <div class="foot">
+      <span class="chip">v1 • Creative UI</span>
+      <div class="spacer"></div>
+      <button class="btn" onclick="location.href='/materials.html'">Ohne Anmelden ansehen</button>
+    </div>
+  </section>
+</main>
 
 <script>
-window.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('loginBtn');
-  btn.addEventListener('click', async () => {
-    const email = $$('#email').value.trim();
-    const password = $$('#password').value.trim();
-    if (!email || !password) return toast('Bitte Email & Passwort eingeben');
-    try { await api('/api/login', { method:'POST', body: JSON.stringify({ email, password }) });
-      location.href = '/dashboard.html';
-    } catch (e) { console.error(e); toast('Login fehlgeschlagen'); }
-  });
-  ['email','password'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') btn.click(); }));
+/* Accent sync */
+(function(){
+  const saved = localStorage.getItem('accent');
+  const pick = document.getElementById('accentPicker');
+  if (saved) document.documentElement.style.setProperty('--accent', saved);
+  pick.value = saved || '#7aa2ff';
+  pick.addEventListener('input', (e)=>{ setAccent(e.target.value); });
+})();
+
+/* Helpers */
+const emailEl = document.getElementById('email');
+const passEl  = document.getElementById('password');
+const loginBtn= document.getElementById('loginBtn');
+
+function goLogin(){
+  const email = emailEl.value.trim();
+  const password = passEl.value.trim();
+  if (!email || !password) return toast('Bitte Email & Passwort eingeben');
+  api('/api/login', { method:'POST', body: JSON.stringify({ email, password }) })
+    .then(()=>{
+      if (document.getElementById('remember').checked) {
+        try { localStorage.setItem('bf_last_email', email); } catch {}
+      }
+      location.href = '/materials.html';
+    })
+    .catch(()=> toast('Login fehlgeschlagen'));
+}
+
+/* Events */
+document.getElementById('eye').addEventListener('click', ()=>{
+  passEl.type = passEl.type === 'password' ? 'text' : 'password';
 });
+document.getElementById('fillDemo').addEventListener('click', ()=>{
+  // Helper to quickly test on Render: reads last email, keeps password field focused
+  const last = localStorage.getItem('bf_last_email') || '';
+  emailEl.value = last || emailEl.value || 'admin@example.com';
+  passEl.focus();
+  toast('Felder ausgefüllt – trage dein Passwort ein');
+});
+loginBtn.addEventListener('click', goLogin);
+document.addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter') goLogin();
+  if (e.key === '/') { e.preventDefault(); emailEl.focus(); }
+});
+
+/* If already authed, bounce to app */
+(async function(){
+  const u = await sessionInfo();
+  if (u) location.href = '/materials.html';
+  // prefill last email
+  const last = localStorage.getItem('bf_last_email');
+  if (last) emailEl.value = last;
+  setTimeout(()=> emailEl.focus(), 50);
+})();
 </script>
+
 </body>
 </html>
