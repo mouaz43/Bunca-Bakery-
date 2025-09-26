@@ -1,10 +1,8 @@
-// public/js/app.js — core helpers exported to window (so inline scripts can use them)
+// public/js/app.js — core UI + single-button header with menu
+// ─ helpers ─
+window.$$  = (sel, root=document) => root.querySelector(sel);
+window.$$$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
-// tiny DOM helpers
-window.$$  = (sel, root = document) => root.querySelector(sel);
-window.$$$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
-// toast
 window.toast = (msg) => {
   const t = document.createElement('div');
   t.className = 'toast';
@@ -14,19 +12,17 @@ window.toast = (msg) => {
   setTimeout(() => t.remove(), 2600);
 };
 
-// api + session
 window.api = async (path, opts = {}) => {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const res = await fetch(path, { headers:{'Content-Type':'application/json'}, ...opts });
   let json = {};
   try { json = await res.json(); } catch {}
   if (!res.ok || json.ok === false) throw new Error(json.error || `request_failed_${res.status}`);
   return json;
 };
-window.sessionInfo = async () => { try { return (await window.api('/api/session')).user; } catch { return null; } };
-window.navActive = (id) => { const el = document.querySelector(`[data-tab="${id}"]`); if (el) el.classList.add('active'); };
+window.sessionInfo = async () => { try { return (await api('/api/session')).user; } catch { return null; } };
 
-/* ---------- Theme / Accent / Density ---------- */
-(function initTheme(){
+// ─ theme / accent / density ─
+(function() {
   const savedTheme   = localStorage.getItem('theme')   || 'dark';
   const savedAccent  = localStorage.getItem('accent')  || '#6aa6ff';
   const savedDensity = localStorage.getItem('density') || 'comfy';
@@ -50,7 +46,7 @@ window.navActive = (id) => { const el = document.querySelector(`[data-tab="${id}
   };
 })();
 
-/* ---------- Sortable tables ---------- */
+// ─ sortable tables & filter (unchanged) ─
 window.makeTableSortable = (table) => {
   if (!table) return;
   const ths = table.tHead ? Array.from(table.tHead.querySelectorAll('th')) : [];
@@ -74,20 +70,86 @@ window.makeTableSortable = (table) => {
     });
   });
 };
-
-/* ---------- Client search (simple contains filter) ---------- */
 window.attachClientFilter = (inputEl, table) => {
   if (!inputEl || !table) return;
   inputEl.addEventListener('input', () => {
     const q = inputEl.value.trim().toLowerCase();
-    window.$$$('tbody tr', table).forEach(tr => {
-      const hit = tr.textContent.toLowerCase().includes(q);
-      tr.style.display = hit ? '' : 'none';
-    });
+    $$$('tbody tr', table).forEach(tr => { tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none'; });
   });
 };
 
-/* ---------- Command palette (Ctrl/Cmd+K) ---------- */
+// ─ brand & header renderer ─
+const BRAND = 'Bakeflow'; // <— change this name anytime
+
+window.renderHeader = async function renderHeader() {
+  const wrap = document.getElementById('appHeader');
+  if (!wrap) return;
+  const user = await sessionInfo();
+  const active = document.body.dataset.active || '';
+
+  wrap.innerHTML = `
+    <header class="header">
+      <nav class="nav">
+        <div class="brand">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 12c0-4.418 3.582-8 8-8a8 8 0 1 1-8 8Z" stroke="currentColor" opacity=".8"/>
+            <path d="M12 4v16M4 12h16" stroke="currentColor" opacity=".6"/>
+          </svg>
+          <span>${BRAND}</span>
+        </div>
+
+        <button id="menuBtn" class="btn ghost menu-trigger">
+          ☰ Menu
+        </button>
+
+        <div id="menuPanel" class="menu-panel" hidden>
+          <div class="menu-sec">
+            <a class="menu-item ${active==='dash'?'active':''}" href="/dashboard.html">Übersicht</a>
+            <a class="menu-item ${active==='materials'?'active':''}" href="/materials.html">Rohwaren</a>
+            <a class="menu-item ${active==='items'?'active':''}" href="/items.html">Rezepte</a>
+            <a class="menu-item ${active==='plan'?'active':''}" href="/plan.html">Produktionsplan</a>
+            <a class="menu-item ${active==='tools'?'active':''}" href="/tools.html">Tools</a>
+          </div>
+          <div class="menu-sec row" style="align-items:center">
+            <span style="font-size:12px;color:var(--muted);margin-right:8px">Theme</span>
+            <button class="btn" onclick="toggleTheme()">🌓</button>
+            <button class="btn" onclick="toggleDensity()">↕︎ Dichte</button>
+            <label class="accent" style="margin-left:auto">
+              <div class="dot"></div>
+              <input id="accentPicker" type="color" style="background:transparent;border:none;width:20px;height:20px;padding:0"/>
+            </label>
+          </div>
+          <div class="menu-sec row" style="justify-content:space-between">
+            <div class="muted" style="font-size:12px">${user ? user.email : 'Nicht angemeldet'}</div>
+            ${user ? `<button id="logoutBtn" class="btn">Logout</button>` : `<a class="btn" href="/login.html">Login</a>`}
+          </div>
+        </div>
+      </nav>
+    </header>
+  `;
+
+  // menu interactions
+  const panel = $$('#menuPanel', wrap);
+  const btn   = $$('#menuBtn', wrap);
+  const color = $$('#accentPicker', wrap);
+  btn.addEventListener('click', () => {
+    const open = panel.hasAttribute('hidden');
+    $$$('.menu-panel').forEach(p => p.setAttribute('hidden','')); // close others
+    if (open) panel.removeAttribute('hidden'); else panel.setAttribute('hidden','');
+  });
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) panel.setAttribute('hidden','');
+  });
+  color?.addEventListener('input', (e) => changeAccent(e.target.value));
+
+  // logout
+  $$('#logoutBtn', wrap)?.addEventListener('click', async () => {
+    await api('/api/logout', { method:'POST' });
+    location.href = '/login.html';
+  });
+};
+
+// ─ command palette (kept; opens with ⌘K / Ctrl+K) ─
 (function initKbar(){
   const wrapper = document.createElement('div');
   wrapper.className = 'kbar';
@@ -99,40 +161,42 @@ window.attachClientFilter = (inputEl, table) => {
   document.body.appendChild(wrapper);
 
   const items = [
-    { label: 'Dashboard',        action: () => location.href='/dashboard.html' },
-    { label: 'Rohwaren',         action: () => location.href='/materials.html' },
-    { label: 'Rezepte',          action: () => location.href='/items.html' },
-    { label: 'Produktionsplan',  action: () => location.href='/plan.html' },
-    { label: 'Tools',            action: () => location.href='/tools.html' },
-    { label: 'Logout',           action: async () => { await window.api('/api/logout', { method:'POST' }); location.href='/login.html'; } },
+    { label: 'Übersicht',       action: () => location.href='/dashboard.html' },
+    { label: 'Rohwaren',        action: () => location.href='/materials.html' },
+    { label: 'Rezepte',         action: () => location.href='/items.html' },
+    { label: 'Produktionsplan', action: () => location.href='/plan.html' },
+    { label: 'Tools',           action: () => location.href='/tools.html' },
+    { label: 'Logout',          action: async () => { await api('/api/logout', { method:'POST' }); location.href='/login.html'; } },
   ];
 
-  const list  = document.querySelector('#kbarList') || wrapper.querySelector('#kbarList');
-  const input = document.querySelector('#kbarInput') || wrapper.querySelector('#kbarInput');
-
+  const list  = $$('#kbarList', wrapper);
+  const input = $$('#kbarInput', wrapper);
   function render(q='') {
     const s = q.toLowerCase();
     const filtered = items.filter(i => i.label.toLowerCase().includes(s));
     list.innerHTML = filtered.map((i,idx)=>`<div class="item ${idx===0?'active':''}" data-idx="${idx}">${i.label}</div>`).join('');
-    Array.from(list.querySelectorAll('.item')).forEach((el, i) => el.onclick = () => { filtered[i].action(); close(); });
+    $$$('.item', list).forEach((el, i) => el.onclick = () => { filtered[i].action(); close(); });
   }
-  function open()  { wrapper.style.display='flex'; input.value=''; render(); setTimeout(()=>input.focus(),0); }
-  function close() { wrapper.style.display='none'; }
+  function open() { wrapper.style.display='flex'; input.value=''; render(); setTimeout(()=>input.focus(),0); }
+  function close(){ wrapper.style.display='none'; }
 
   input.addEventListener('input', (e)=>render(e.target.value));
   input.addEventListener('keydown', (e)=>{
-    const itemsEls = Array.from(list.querySelectorAll('.item'));
+    const itemsEls = $$$('.item', list);
     let idx = itemsEls.findIndex(x=>x.classList.contains('active'));
     if (e.key === 'ArrowDown') { e.preventDefault(); itemsEls[idx]?.classList.remove('active'); idx = Math.min(itemsEls.length-1, idx+1); itemsEls[idx]?.classList.add('active'); }
     if (e.key === 'ArrowUp')   { e.preventDefault(); itemsEls[idx]?.classList.remove('active'); idx = Math.max(0, idx-1);  itemsEls[idx]?.classList.add('active'); }
-    if (e.key === 'Enter')     { e.preventDefault(); const active = itemsEls[idx]; if (active) items[Array.from(list.children).indexOf(active)].action(); close(); }
+    if (e.key === 'Enter')     { e.preventDefault(); itemsEls[idx]?.click(); }
     if (e.key === 'Escape')    { e.preventDefault(); close(); }
   });
 
   window.addEventListener('keydown', (e)=>{
     const mac = navigator.platform.toUpperCase().includes('MAC');
-    if ((mac && e.metaKey && e.key.toLowerCase() === 'k') || (!mac && e.ctrlKey && e.key.toLowerCase() === 'k')) {
+    if ((mac && e.metaKey && e.key.toLowerCase()==='k') || (!mac && e.ctrlKey && e.key.toLowerCase()==='k')) {
       e.preventDefault(); open();
     }
   });
 })();
+
+// auto-render header if placeholder exists
+window.addEventListener('DOMContentLoaded', () => { window.renderHeader?.(); });
