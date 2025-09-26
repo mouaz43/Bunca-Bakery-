@@ -19,14 +19,22 @@
       <button id="bulkBtn" class="btn">Bulk Preise</button>
       <button id="reload" class="btn">Neu laden</button>
     </div>
+
     <div style="overflow:auto">
       <table class="table" id="tbl">
         <thead>
           <tr>
-            <th>Code</th><th class="th-sort">Name</th><th>Base Unit</th>
-            <th class="th-sort">Pack Qty</th><th>Pack Unit</th>
-            <th class="th-sort">Pack Price</th><th class="th-sort">€ / base-unit</th>
-            <th>Supplier</th><th>Note</th><th></th><th></th>
+            <th>Code</th>
+            <th class="th-sort">Name</th>
+            <th>Base Unit</th>
+            <th class="th-sort">Pack Qty</th>
+            <th>Pack Unit</th>
+            <th class="th-sort">Pack Price</th>
+            <th class="th-sort">€ / base-unit</th>
+            <th>Supplier</th>
+            <th>Note</th>
+            <th></th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="body"></tbody>
@@ -35,7 +43,7 @@
   </div>
 </div>
 
-<!-- bulk & history modals identical to your previous version -->
+<!-- Bulk prices modal -->
 <div id="modal" class="kbar" style="display:none">
   <div class="panel">
     <h3 style="margin:8px 8px 6px">Bulk Preise einfügen</h3>
@@ -48,62 +56,143 @@
   </div>
 </div>
 
+<!-- Price history modal -->
 <div id="histModal" class="kbar" style="display:none">
   <div class="panel">
     <h3 style="margin:8px">Preisverlauf: <span id="histTitle"></span></h3>
     <div style="max-height:260px;overflow:auto">
-      <table class="table"><thead><tr><th>Preis</th><th>Datum</th></tr></thead><tbody id="histBody"></tbody></table>
+      <table class="table">
+        <thead><tr><th>Preis</th><th>Datum</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
     </div>
-    <div class="row right" style="margin-top:10px"><button id="histClose" class="btn">Schließen</button></div>
+    <div class="row right" style="margin-top:10px">
+      <button id="histClose" class="btn">Schließen</button>
+    </div>
   </div>
 </div>
 
 <script>
-const T = (t, a={}, ...k) => { const el=document.createElement(t); Object.entries(a).forEach(([k,v])=>el.setAttribute(k,v)); k.forEach(x=>el.append(x)); return el; };
-const td=(c)=>{const x=document.createElement('td'); x.append(c); return x;};
-const bodyEl=$$('#body'); const reloadBtn=$$('#reload'); const addRowBtn=$$('#addRow'); const bulkBtn=$$('#bulkBtn'); const filterEl=$$('#filter');
+window.addEventListener('DOMContentLoaded', () => {
+  const bodyEl     = document.getElementById('body');
+  const reloadBtn  = document.getElementById('reload');
+  const addRowBtn  = document.getElementById('addRow');
+  const bulkBtn    = document.getElementById('bulkBtn');
+  const filterEl   = document.getElementById('filter');
 
-function numOrNull(v){ if(v===''||v==null) return null; const n=Number(String(v).replace(',','.')); return Number.isFinite(n)?n:null; }
+  const modal      = document.getElementById('modal');
+  const bulkText   = document.getElementById('bulkText');
+  const bulkSave   = document.getElementById('bulkSave');
+  const bulkCancel = document.getElementById('bulkCancel');
 
-async function load(){ bodyEl.innerHTML='<tr><td colspan="11" class="muted">Lade…</td></tr>';
-  try{ const {data}=await api('/api/materials'); bodyEl.innerHTML=''; data.forEach(r=>addRow(r)); }
-  catch(e){ bodyEl.innerHTML=`<tr><td colspan="11" class="muted">Fehler: ${e.message}</td></tr>`; }
-  makeTableSortable($$('#tbl')); attachClientFilter(filterEl, $$('#tbl'));
-}
-function addRow(r={}){ const tr=document.createElement('tr');
-  const code=T('input',{class:'input w120',value:r.code||''});
-  const name=T('input',{class:'input w150',value:r.name||''});
-  const base_unit=T('input',{class:'input w70',value:r.base_unit||'g'});
-  const pack_qty=T('input',{class:'input w70',value:r.pack_qty??''});
-  const pack_unit=T('input',{class:'input w80',value:r.pack_unit??''});
-  const pack_price=T('input',{class:'input w80',value:r.pack_price??''});
-  const ppu=T('input',{class:'input w80',value:r.price_per_unit??''});
-  const supplier=T('input',{class:'input w120',value:r.supplier_code??''});
-  const note=T('input',{class:'input w150',value:r.note??''});
-  const saveBtn=T('button',{class:'btn primary'},'Speichern'); saveBtn.onclick=async()=>{
-    try{ await api('/api/materials',{method:'POST',body:JSON.stringify({
-      code:code.value.trim(),name:name.value.trim(),base_unit:base_unit.value.trim()||'g',
-      pack_qty:numOrNull(pack_qty.value),pack_unit:pack_unit.value.trim()||null,pack_price:numOrNull(pack_price.value),
-      price_per_unit:numOrNull(ppu.value)??0,supplier_code:supplier.value.trim()||null,note:note.value.trim()
-    })}); toast('Gespeichert'); }catch(e){ toast('Fehler: '+e.message); }
-  };
-  const histBtn=T('button',{class:'btn'},'Verlauf'); histBtn.onclick=()=>openHistory(code.value.trim());
-  tr.append(td(code),td(name),td(base_unit),td(pack_qty),td(pack_unit),td(pack_price),td(ppu),td(supplier),td(note),td(saveBtn),td(histBtn));
-  bodyEl.append(tr);
-}
-reloadBtn.onclick=load; addRowBtn.onclick=()=>addRow({base_unit:'g'});
+  const histModal  = document.getElementById('histModal');
+  const histTitle  = document.getElementById('histTitle');
+  const histBody   = document.getElementById('histBody');
+  const histClose  = document.getElementById('histClose');
 
-const modal=$$('#modal'); const bulkText=$$('#bulkText'); $$('#bulkCancel').onclick=()=>{modal.style.display='none';};
-bulkBtn.onclick=()=>{bulkText.value=''; modal.style.display='flex';};
-$('#bulkSave'); function $(id){return document.getElementById(id.slice(1));}
-$$('#bulkSave').onclick=async()=>{ try{ await api('/api/materials/bulk-prices',{method:'POST',body:JSON.stringify({text:bulkText.value})}); modal.style.display='none'; toast('Preise aktualisiert'); load(); }catch(e){ toast('Fehler: '+e.message);} };
+  const T  = (t, a={}, ...k) => { const el=document.createElement(t); for (const [k2,v] of Object.entries(a)) el.setAttribute(k2,v); k.forEach(x=>el.append(x)); return el; };
+  const td = (c)=>{ const x=document.createElement('td'); x.append(c); return x; };
+  const numOrNull = (v)=>{ if(v===''||v==null) return null; const n=Number(String(v).replace(',','.')); return Number.isFinite(n)?n:null; };
 
-const histModal=$$('#histModal'); const histTitle=$$('#histTitle'); const histBody=$$('#histBody'); $$('#histClose').onclick=()=>{histModal.style.display='none';};
-async function openHistory(code){ if(!code) return; try{ const {data}=await api(`/api/materials/${encodeURIComponent(code)}/history`);
-  histTitle.textContent=code; histBody.innerHTML=data.length?data.map(x=>`<tr><td>${x.price_per_unit}</td><td>${new Date(x.changed_at).toLocaleString()}</td></tr>`).join(''):'<tr><td colspan="2" class="muted">Keine Einträge</td></tr>'; histModal.style.display='flex';
-}catch(e){ toast('Fehler beim Laden des Verlaufs'); } }
+  async function load(){
+    bodyEl.innerHTML = '<tr><td colspan="11" class="muted">Lade…</td></tr>';
+    try {
+      const { data } = await api('/api/materials');
+      bodyEl.innerHTML = '';
+      data.forEach(addRow);
+    } catch (e) {
+      console.error(e);
+      bodyEl.innerHTML = `<tr><td colspan="11" class="muted">Fehler: ${e.message}</td></tr>`;
+    }
+    makeTableSortable(document.getElementById('tbl'));
+    attachClientFilter(filterEl, document.getElementById('tbl'));
+  }
 
-load();
+  function addRow(r={}){
+    const tr = document.createElement('tr');
+
+    const code        = T('input', { class:'input w120', value:r.code||'' });
+    const name        = T('input', { class:'input w150', value:r.name||'' });
+    const base_unit   = T('input', { class:'input w70',  value:r.base_unit||'g' });
+    const pack_qty    = T('input', { class:'input w70',  value:r.pack_qty??'' });
+    const pack_unit   = T('input', { class:'input w80',  value:r.pack_unit??'' });
+    const pack_price  = T('input', { class:'input w80',  value:r.pack_price??'' });
+    const ppu         = T('input', { class:'input w80',  value:r.price_per_unit??'' });
+    const supplier    = T('input', { class:'input w120', value:r.supplier_code??'' });
+    const note        = T('input', { class:'input w150', value:r.note??'' });
+
+    const saveBtn = T('button', { class:'btn primary' }, 'Speichern');
+    saveBtn.onclick = async () => {
+      const payload = {
+        code: code.value.trim(),
+        name: name.value.trim(),
+        base_unit: base_unit.value.trim() || 'g',
+        pack_qty: numOrNull(pack_qty.value),
+        pack_unit: pack_unit.value.trim() || null,
+        pack_price: numOrNull(pack_price.value),
+        price_per_unit: numOrNull(ppu.value) ?? 0,
+        supplier_code: supplier.value.trim() || null,
+        note: note.value.trim()
+      };
+      if (!payload.code || !payload.name) return toast('Code & Name erforderlich');
+      try {
+        await api('/api/materials', { method:'POST', body: JSON.stringify(payload) });
+        toast('Gespeichert');
+      } catch (e) {
+        console.error(e);
+        toast('Fehler: ' + e.message);
+      }
+    };
+
+    const histBtn = T('button', { class:'btn' }, 'Verlauf');
+    histBtn.onclick = () => openHistory(code.value.trim());
+
+    tr.append(
+      td(code), td(name), td(base_unit),
+      td(pack_qty), td(pack_unit), td(pack_price),
+      td(ppu), td(supplier), td(note),
+      td(saveBtn), td(histBtn)
+    );
+    bodyEl.append(tr);
+  }
+
+  async function openHistory(code){
+    if (!code) return toast('Kein Code');
+    histTitle.textContent = code;
+    histBody.innerHTML = '<tr><td colspan="2" class="muted">Lade…</td></tr>';
+    histModal.style.display = 'flex';
+    try {
+      const { data } = await api(`/api/materials/${encodeURIComponent(code)}/history`);
+      histBody.innerHTML = data.length
+        ? data.map(x => `<tr><td>${x.price_per_unit}</td><td>${new Date(x.changed_at).toLocaleString()}</td></tr>`).join('')
+        : '<tr><td colspan="2" class="muted">Keine Einträge</td></tr>';
+    } catch (e) {
+      console.error(e);
+      histBody.innerHTML = '<tr><td colspan="2" class="muted">Fehler beim Laden</td></tr>';
+    }
+  }
+
+  // wire buttons
+  reloadBtn.addEventListener('click', load);
+  addRowBtn.addEventListener('click', () => addRow({ base_unit:'g' }));
+  bulkBtn.addEventListener('click', () => { bulkText.value=''; modal.style.display='flex'; });
+  bulkCancel.addEventListener('click', () => { modal.style.display='none'; });
+  bulkSave.addEventListener('click', async () => {
+    try {
+      await api('/api/materials/bulk-prices', { method:'POST', body: JSON.stringify({ text: bulkText.value }) });
+      modal.style.display='none';
+      toast('Preise aktualisiert');
+      load();
+    } catch (e) {
+      console.error(e);
+      toast('Fehler: ' + e.message);
+    }
+  });
+
+  histClose.addEventListener('click', () => { histModal.style.display='none'; });
+
+  load();
+});
 </script>
 </body>
 </html>
