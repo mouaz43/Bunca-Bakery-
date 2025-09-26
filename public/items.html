@@ -7,179 +7,331 @@
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
 </head>
-<body data-active="items">
-<div id="appHeader"></div>
+<body>
+<header class="header">
+  <nav class="nav">
+    <div class="brand">🍞 Bakeflow</div>
+    <div class="right header-controls">
+      <input id="q" class="input" placeholder="Suchen…"/>
+      <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
+      <button class="btn" onclick="location.href='/plan.html'">Plan</button>
+      <button class="btn danger" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+</header>
 
-<div class="container">
+<main class="container">
   <div class="card">
-    <div class="row">
-      <h2 style="margin-right:auto">Artikel & Rezepte</h2>
-      <input id="filter" class="input w180" placeholder="Suchen…"/>
-      <button id="addRow" class="btn">+ Neuer Artikel</button>
-      <button id="reload" class="btn">Neu laden</button>
+    <div class="card-title-row">
+      <h2>Artikel & Rezepte</h2>
+      <div class="row-gap">
+        <button class="btn primary" id="addItem">+ Neuer Artikel</button>
+        <button class="btn" id="reload">Neu laden</button>
+      </div>
     </div>
 
-    <div style="overflow:auto">
-      <table class="table" id="tbl">
+    <div class="table-wrap">
+      <table id="tbl" class="table">
         <thead>
           <tr>
             <th>Code</th>
-            <th class="th-sort">Name</th>
-            <th class="th-sort">Kategorie</th>
-            <th class="th-sort">Yield Qty</th>
+            <th>Name</th>
+            <th>Kategorie</th>
+            <th>Yield Qty</th>
             <th>Yield Unit</th>
             <th>Notiz</th>
-            <th></th>
-            <th></th>
+            <th style="width:200px">Aktionen</th>
           </tr>
         </thead>
-        <tbody id="body"></tbody>
+        <tbody id="rows"><tr><td colspan="7" class="muted">Lade…</td></tr></tbody>
       </table>
+    </div>
+  </div>
+</main>
+
+<!-- Item Modal -->
+<div id="itemModal" class="modal hidden">
+  <div class="modal-card" style="max-width:620px">
+    <div class="modal-head">
+      <h3 id="itemTitle">Artikel</h3>
+      <button class="btn subtle" onclick="closeItem()">Schließen</button>
+    </div>
+    <div class="grid" style="grid-template-columns: 1fr 1fr; gap:12px">
+      <div><label>Code</label><input id="i_code" class="input"/></div>
+      <div><label>Name</label><input id="i_name" class="input"/></div>
+      <div><label>Kategorie</label><input id="i_cat" class="input"/></div>
+      <div><label>Yield Qty</label><input id="i_yqty" type="number" step="0.01" class="input" value="1"/></div>
+      <div><label>Yield Unit</label><input id="i_yunit" class="input" value="pcs"/></div>
+      <div style="grid-column:1/-1"><label>Notiz</label><input id="i_note" class="input"/></div>
+    </div>
+    <div class="modal-foot">
+      <div class="spacer"></div>
+      <button class="btn primary" id="saveItem">Speichern</button>
     </div>
   </div>
 </div>
 
-<!-- BOM modal -->
-<div id="bomModal" class="kbar" style="display:none">
-  <div class="panel">
-    <h3 style="margin:8px">Rezept: <span id="bomTitle"></span></h3>
-    <div class="row" style="margin:8px">
-      <button id="bomAdd" class="btn">+ Zutat</button>
-      <div class="right" style="display:flex; gap:10px; align-items:center">
-        <input id="scaleQty" class="input w150" placeholder="Zielmenge…"/>
-        <button id="scaleBtn" class="btn">Kosten</button>
-        <button id="bomSave" class="btn primary">Speichern</button>
-        <button id="bomClose" class="btn">Schließen</button>
+<!-- Recipe Modal -->
+<div id="recipeModal" class="modal hidden">
+  <div class="modal-card" style="max-width:900px">
+    <div class="modal-head">
+      <h3 id="recipeTitle">Rezept</h3>
+      <div class="row-gap">
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="muted">Menge</label>
+          <input id="r_qty" class="input" type="number" step="0.01" style="width:120px" value="1"/>
+          <span id="r_yield" class="muted"></span>
+        </div>
+        <button class="btn" id="calcCost">Kosten</button>
+        <button class="btn primary" id="saveRecipe">Speichern</button>
+        <button class="btn subtle" onclick="closeRecipe()">Schließen</button>
       </div>
     </div>
-    <div style="overflow:auto;margin:8px">
-      <table class="table">
-        <thead><tr><th>Material</th><th>Menge</th><th>Einheit</th><th></th></tr></thead>
-        <tbody id="bomBody"></tbody>
+
+    <div class="card" style="padding:12px;margin-bottom:12px">
+      <div class="row-gap" style="align-items:center; gap:10px">
+        <button class="btn" id="addLine">+ Zutat</button>
+        <div class="muted">Schnellsuche Rohwaren:</div>
+        <input id="searchMat" class="input" placeholder="Tippen, z. B. Zucker…" style="min-width:260px"/>
+        <div id="acWrap" class="dropdown hidden"></div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table" id="bomTbl">
+        <thead>
+          <tr>
+            <th style="width:28%">Material</th>
+            <th style="width:18%">Menge</th>
+            <th style="width:14%">Einheit</th>
+            <th style="width:16%">€/base</th>
+            <th style="width:16%">Zeilenkosten</th>
+            <th style="width:8%"></th>
+          </tr>
+        </thead>
+        <tbody id="bomRows">
+          <tr><td colspan="6" class="muted">Noch kein Rezept</td></tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" class="right muted">Summe</td>
+            <td id="sumCost" class="right bold">0.00</td>
+            <td></td>
+          </tr>
+        </tfoot>
       </table>
-    </div>
-    <div id="scaleBox" class="card" style="margin:8px;display:none">
-      <h4>Skalierung & Kosten</h4>
-      <div style="overflow:auto">
-        <table class="table">
-          <thead><tr><th>Material</th><th>Menge (Basis)</th><th>€/Einheit</th><th>Kosten</th></tr></thead>
-          <tbody id="scaleBody"></tbody>
-          <tfoot><tr><th colspan="3" style="text-align:right">Total</th><th id="scaleTotal"></th></tr></tfoot>
-        </table>
-      </div>
     </div>
   </div>
 </div>
 
 <script>
-const bodyEl = document.getElementById('body');
-const reloadBtn = document.getElementById('reload');
-const addRowBtn = document.getElementById('addRow');
-const filterEl = document.getElementById('filter');
+function logout(){ api('/api/logout',{method:'POST'}).then(()=>location.href='/login.html'); }
 
-const T = (tag, attrs={}, ...kids) => { const el = document.createElement(tag); Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k, v)); kids.forEach(k => el.append(k)); return el; };
-const td = (c)=>{ const x=document.createElement('td'); x.append(c); return x; };
-const numOrNull = (v)=>{ if(v===''||v==null) return null; const n=Number(String(v).replace(',','.')); return Number.isFinite(n)?n:null; };
+/* ---------- State ---------- */
+let ITEMS=[], UNITS=[], CURRENT_ITEM=null, BOM=[]; // BOM: {material_code, material_name, qty, unit, ppu, cost}
 
+/* ---------- Load ---------- */
+async function loadUnits(){ const r=await api('/api/units'); UNITS=r.data.units; }
 async function load(){
-  bodyEl.innerHTML = '<tr><td colspan="8" class="muted">Lade…</td></tr>';
-  const { data } = await api('/api/items');
-  bodyEl.innerHTML = '';
-  data.forEach(r => addRow(r));
-  makeTableSortable(document.getElementById('tbl'));
-  attachClientFilter(filterEl, document.getElementById('tbl'));
+  const r = await api('/api/items'); ITEMS = r.data || [];
+  render(ITEMS);
+}
+function render(list){
+  const tbody = $$('#rows');
+  if (!list.length){ tbody.innerHTML = `<tr><td colspan="7" class="muted">Noch keine Artikel</td></tr>`; return; }
+  tbody.innerHTML = list.map(it => `
+    <tr>
+      <td>${it.code}</td>
+      <td>${it.name}</td>
+      <td>${it.category||''}</td>
+      <td>${it.yield_qty}</td>
+      <td>${it.yield_unit}</td>
+      <td>${it.note||''}</td>
+      <td class="row-actions">
+        <button class="btn subtle" data-rez="${it.code}">Rezept</button>
+        <button class="btn subtle" data-edit="${it.code}">Bearb.</button>
+        <button class="btn danger" data-del="${it.code}">Löschen</button>
+      </td>
+    </tr>
+  `).join('');
+  makeTableSortable($$('#tbl'));
+}
+attachClientFilter($$('#q'), $$('#tbl'));
+
+/* ---------- Item modal ---------- */
+function openItem(title){ $$('#itemTitle').textContent=title; $$('#itemModal').classList.remove('hidden'); }
+function closeItem(){ $$('#itemModal').classList.add('hidden'); }
+function fillItem(it){
+  $$('#i_code').value = it?.code||'';
+  $$('#i_name').value = it?.name||'';
+  $$('#i_cat').value  = it?.category||'';
+  $$('#i_yqty').value = it?.yield_qty||1;
+  $$('#i_yunit').value= it?.yield_unit||'pcs';
+  $$('#i_note').value = it?.note||'';
+}
+function readItem(){ return {
+  code: $$('#i_code').value.trim(),
+  name: $$('#i_name').value.trim(),
+  category: $$('#i_cat').value.trim(),
+  yield_qty: Number($$('#i_yqty').value||1),
+  yield_unit: $$('#i_yunit').value.trim()||'pcs',
+  note: $$('#i_note').value.trim()
+};}
+
+$$('#addItem').addEventListener('click', ()=>{
+  CURRENT_ITEM=null; fillItem(null); openItem('Neuer Artikel'); $$('#i_code').focus();
+});
+$$('#saveItem').addEventListener('click', async ()=>{
+  const payload = readItem();
+  if(!payload.code||!payload.name){ toast('Code & Name erforderlich'); return; }
+  try{ await api('/api/items',{method:'POST', body:JSON.stringify(payload)}); closeItem(); await load(); toast('Gespeichert'); }
+  catch(e){ toast(e.message||'Fehler'); }
+});
+
+/* ---------- Recipe modal ---------- */
+function openRecipe(title){ $$('#recipeTitle').textContent=title; $$('#recipeModal').classList.remove('hidden'); }
+function closeRecipe(){ $$('#recipeModal').classList.add('hidden'); BOM=[]; renderBOM(); }
+function renderBOM(){
+  const tb = $$('#bomRows');
+  if (!BOM.length){ tb.innerHTML = `<tr><td colspan="6" class="muted">Noch kein Rezept</td></tr>`; $$('#sumCost').textContent='0.00'; return; }
+  tb.innerHTML = BOM.map((l,idx)=>`
+    <tr>
+      <td>
+        <div class="mono small muted">${l.material_code}</div>
+        <div>${l.material_name||''}</div>
+      </td>
+      <td><input class="input" type="number" step="0.01" value="${l.qty||''}" data-q="${idx}"/></td>
+      <td>
+        <select class="input" data-u="${idx}">
+          ${['g','kg','ml','l','pcs'].map(u=>`<option ${l.unit===u?'selected':''} value="${u}">${u}</option>`).join('')}
+        </select>
+      </td>
+      <td class="right">${(l.ppu??0).toFixed(6)}</td>
+      <td class="right">${(l.cost??0).toFixed(2)}</td>
+      <td class="right"><button class="btn danger" data-x="${idx}">x</button></td>
+    </tr>
+  `).join('');
+  const sum = BOM.reduce((s,x)=>s+Number(x.cost||0),0);
+  $$('#sumCost').textContent = sum.toFixed(2);
+}
+async function loadBOM(code){
+  const r = await api(`/api/items/${encodeURIComponent(code)}/bom`);
+  BOM = (r.data||[]).map(x=>({ material_code:x.material_code, material_name:x.material_name, qty:Number(x.qty), unit:x.unit, ppu:0, cost:0 }));
+  // pre-calc costs for current yield quantity
+  await Promise.all(BOM.map(async (L,idx)=>{ const c = await calcLine(L.material_code, L.qty, L.unit); BOM[idx].ppu=c.price_per_unit; BOM[idx].cost=c.cost; }));
+  renderBOM();
+}
+async function calcLine(material_code, qty, unit){
+  const r = await api('/api/calc/line', { method:'POST', body:JSON.stringify({ material_code, qty:Number(qty||0), unit }) });
+  return r.data; // {unit, qty, price_per_unit, cost, material_name}
 }
 
-function addRow(r={}){
-  const tr = document.createElement('tr');
-  const code = T('input', { class:'input w120', value: r.code || '' });
-  const name = T('input', { class:'input w150', value: r.name || '' });
-  const cat  = T('input', { class:'input w120', value: r.category || '' });
-  const yq   = T('input', { class:'input w80',  value: r.yield_qty ?? 1 });
-  const yu   = T('input', { class:'input w80',  value: r.yield_unit || 'pcs' });
-  const note = T('input', { class:'input w150', value: r.note || '' });
+/* Autocomplete for Rohwaren */
+let acTimer=null;
+$$('#searchMat').addEventListener('input', async (e)=>{
+  clearTimeout(acTimer);
+  const q = e.target.value.trim();
+  if (!q){ $$('#acWrap').classList.add('hidden'); $$('#acWrap').innerHTML=''; return; }
+  acTimer = setTimeout(async ()=>{
+    const r = await api(`/api/materials/search?q=${encodeURIComponent(q)}`);
+    const list = r.data||[];
+    if (!list.length){ $$('#acWrap').classList.add('hidden'); $$('#acWrap').innerHTML=''; return; }
+    $$('#acWrap').classList.remove('hidden');
+    $$('#acWrap').innerHTML = list.map(m=>`
+      <div class="dropdown-item" data-code="${m.code}" data-name="${m.name}" data-base="${m.base_unit}" data-ppu="${m.price_per_unit}">
+        <div class="bold">${m.name}</div>
+        <div class="muted mono small">${m.code} — ${m.base_unit} @ ${(m.price_per_unit||0).toFixed(6)} €/base</div>
+      </div>`).join('');
+  }, 160);
+});
+$$('#acWrap').addEventListener('click', async (e)=>{
+  const el = e.target.closest('.dropdown-item'); if (!el) return;
+  const code = el.dataset.code, name = el.dataset.name;
+  // push blank line with default unit from base family
+  const base = el.dataset.base;
+  const defaultUnit = base==='g' ? 'g' : base==='ml' ? 'ml' : 'pcs';
+  const line = { material_code:code, material_name:name, qty:0, unit:defaultUnit, ppu:Number(el.dataset.ppu||0), cost:0 };
+  BOM.push(line); renderBOM();
+  $$('#acWrap').classList.add('hidden'); $$('#searchMat').value='';
+});
 
-  const saveBtn = T('button', { class:'btn primary' }, 'Speichern');
-  saveBtn.onclick = async () => {
-    try{
-      await api('/api/items', { method:'POST', body: JSON.stringify({
-        code: code.value.trim(), name: name.value.trim(), category: cat.value.trim(),
-        yield_qty: numOrNull(yq.value) ?? 1, yield_unit: yu.value.trim() || 'pcs', note: note.value.trim()
-      })});
-      toast('Artikel gespeichert');
-    }catch(e){ toast('Fehler: '+e.message); }
-  };
+/* events inside bom table */
+$$('#bomRows').addEventListener('input', async (e)=>{
+  const qIdx = e.target?.dataset?.q;
+  const uIdx = e.target?.dataset?.u;
+  if (qIdx!=null){
+    const L = BOM[Number(qIdx)];
+    L.qty = Number(e.target.value||0);
+    const c = await calcLine(L.material_code, L.qty, L.unit);
+    L.ppu = c.price_per_unit; L.cost = c.cost; renderBOM();
+  }
+  if (uIdx!=null){
+    const L = BOM[Number(uIdx)];
+    L.unit = e.target.value;
+    const c = await calcLine(L.material_code, L.qty, L.unit);
+    L.ppu = c.price_per_unit; L.cost = c.cost; renderBOM();
+  }
+});
+$$('#bomRows').addEventListener('click', (e)=>{
+  const idx = e.target?.dataset?.x;
+  if (idx!=null){ BOM.splice(Number(idx),1); renderBOM(); }
+});
 
-  const bomBtn = T('button', { class:'btn' }, 'Rezept');
-  bomBtn.onclick = () => openBOM(code.value.trim(), name.value.trim(), {
-    yield_qty: numOrNull(yq.value) ?? 1, yield_unit: yu.value.trim() || 'pcs'
-  });
+/* buttons top of recipe modal */
+$$('#addLine').addEventListener('click', ()=>{ 
+  BOM.push({ material_code:'', material_name:'', qty:0, unit:'g', ppu:0, cost:0 }); renderBOM();
+  toast('Nutze die Schnellsuche, um Material zu wählen');
+});
+$$('#saveRecipe').addEventListener('click', async ()=>{
+  // validate
+  const cleaned = BOM.filter(l=>l.material_code && Number(l.qty)>0).map(({material_code,qty,unit})=>({material_code,qty:Number(qty),unit}));
+  try{
+    await api(`/api/items/${encodeURIComponent(CURRENT_ITEM.code)}/bom`, { method:'POST', body:JSON.stringify({ lines: cleaned }) });
+    toast('Rezept gespeichert'); closeRecipe();
+  }catch(e){ toast(e.message||'Fehler beim Speichern'); }
+});
+$$('#calcCost').addEventListener('click', async ()=>{
+  const qty = Number($$('#r_qty').value||0);
+  if (!qty) return toast('Menge eingeben');
+  const r = await api(`/api/items/${encodeURIComponent(CURRENT_ITEM.code)}/bom/priced?qty=${qty}`);
+  const priced = r.data.lines;
+  // merge priced back into BOM view for quick feedback
+  let sum=0;
+  BOM = priced.map(p=>({ material_code:p.material_code, material_name:p.material_name, qty:p.qty, unit:p.unit, ppu:p.price_per_unit, cost:p.cost }));
+  renderBOM();
+});
 
-  tr.append(td(code),td(name),td(cat),td(yq),td(yu),td(note),td(saveBtn),td(bomBtn));
-  bodyEl.append(tr);
+/* ---------- table actions ---------- */
+$$('#reload').addEventListener('click', load);
+$$('#rows').addEventListener('click', async (e)=>{
+  const cEdit = e.target?.dataset?.edit;
+  const cDel  = e.target?.dataset?.del;
+  const cRez  = e.target?.dataset?.rez;
+  if (cEdit){
+    const it = ITEMS.find(x=>x.code===cEdit); CURRENT_ITEM=it; fillItem(it); openItem('Artikel bearbeiten');
+  }
+  if (cDel){
+    if (!confirm('Artikel wirklich löschen?')) return;
+    try{ await api(`/api/items/${encodeURIComponent(cDel)}`, { method:'DELETE' }); toast('Gelöscht'); load(); }
+    catch(e){ toast('Fehler beim Löschen'); }
+  }
+  if (cRez){
+    const it = ITEMS.find(x=>x.code===cRez); CURRENT_ITEM=it;
+    $$('#r_yield').textContent = `= ${it.yield_qty} ${it.yield_unit}`;
+    $$('#r_qty').value = it.yield_qty;
+    openRecipe(`Rezept: ${it.code} — ${it.name}`);
+    await loadBOM(it.code);
+  }
+});
+
+/* ---------- boot ---------- */
+async function boot(){
+  const u = await sessionInfo(); if(!u){ location.href='/login.html'; return; }
+  await loadUnits();
+  await load();
 }
-
-/* ----- BOM modal logic ----- */
-const bomModal = document.getElementById('bomModal');
-const bomTitle = document.getElementById('bomTitle');
-const bomBody  = document.getElementById('bomBody');
-const bomAdd   = document.getElementById('bomAdd');
-const bomSave  = document.getElementById('bomSave');
-const bomClose = document.getElementById('bomClose');
-const scaleQty = document.getElementById('scaleQty');
-const scaleBtn = document.getElementById('scaleBtn');
-const scaleBox = document.getElementById('scaleBox');
-const scaleBody= document.getElementById('scaleBody');
-const scaleTotal = document.getElementById('scaleTotal');
-
-let currentCode = null;
-function addBomRow(row={}){ const tr=document.createElement('tr');
-  const mat=T('input',{class:'input w150',value:row.material_code||''});
-  const qty=T('input',{class:'input w80', value:row.qty??''});
-  const unit=T('input',{class:'input w80', value:row.unit||'g'});
-  const del=T('button',{class:'btn'},'X'); del.onclick=()=>tr.remove();
-  tr.append(td(mat),td(qty),td(unit),td(del)); bomBody.append(tr); }
-
-async function openBOM(code, name, itemInfo){
-  if (!code) { toast('Bitte zuerst Code/Name speichern'); return; }
-  currentCode = code;
-  bomTitle.textContent = `${code} — ${name}`;
-  scaleQty.placeholder = `Menge (${itemInfo.yield_qty} ${itemInfo.yield_unit} = 1×)`;
-  bomBody.innerHTML = '<tr><td colspan="4" class="muted">Lade…</td></tr>';
-  bomModal.style.display = 'flex'; scaleBox.style.display = 'none';
-  try{ const { data } = await api(`/api/items/${encodeURIComponent(code)}/bom`);
-    bomBody.innerHTML = ''; data.forEach(addBomRow);
-  }catch{ bomBody.innerHTML = '<tr><td colspan="4" class="muted">Noch kein Rezept</td></tr>'; }
-}
-
-bomAdd.onclick = () => addBomRow({ unit:'g' });
-bomClose.onclick = () => { bomModal.style.display='none'; };
-bomSave.onclick = async () => {
-  try {
-    const lines = Array.from(bomBody.querySelectorAll('tr')).map(tr => {
-      const [mat, qty, unit] = tr.querySelectorAll('input');
-      return { material_code: mat.value.trim(), qty: Number(String(qty.value).replace(',','.')), unit: unit.value.trim() || 'g' };
-    }).filter(x => x.material_code && Number.isFinite(x.qty));
-    await api(`/api/items/${encodeURIComponent(currentCode)}/bom`, { method:'POST', body: JSON.stringify({ lines }) });
-    toast('Rezept gespeichert');
-  } catch(e){ toast('Fehler: '+e.message); }
-};
-scaleBtn.onclick = async () => {
-  const qty = Number(String(scaleQty.value || '').replace(',','.'));
-  if (!Number.isFinite(qty) || qty <= 0) return toast('Bitte Zielmenge eingeben');
-  try {
-    const { data } = await api(`/api/items/${encodeURIComponent(currentCode)}/scale?qty=${encodeURIComponent(qty)}`);
-    scaleBody.innerHTML = data.lines.length
-      ? data.lines.map(l => `<tr><td>${l.material_name} (${l.material_code})</td><td>${l.qty} ${l.unit}</td><td>${l.price_per_unit}</td><td>${l.cost}</td></tr>`).join('')
-      : '<tr><td colspan="4" class="muted">Keine Daten</td></tr>';
-    scaleTotal.textContent = data.total_cost.toFixed(2) + ' €';
-    scaleBox.style.display = 'block';
-  } catch(e){ toast('Berechnung fehlgeschlagen: '+e.message); }
-};
-
-reloadBtn.onclick = load;
-addRowBtn.onclick = () => addRow({ yield_qty:1, yield_unit:'pcs' });
-load();
+boot();
 </script>
+
 </body>
 </html>
