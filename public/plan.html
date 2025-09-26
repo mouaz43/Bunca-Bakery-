@@ -3,32 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>BUNCA — Produktionsplan</title>
+  <title>Bakeflow — Produktionsplan</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
 </head>
-<body>
-<header class="header">
-  <nav class="nav">
-    <div class="brand">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 12c0-4.418 3.582-8 8-8a8 8 0 1 1-8 8Z" stroke="currentColor" opacity=".8"/><path d="M12 4v16M4 12h16" stroke="currentColor" opacity=".6"/></svg>
-      BUNCA Planner
-    </div>
-    <div class="tabs">
-      <a class="tab" data-tab="plan" href="/plan.html">Plan</a>
-      <a class="tab" data-tab="items" href="/items.html">Rezepte</a>
-      <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
-      <a class="tab" data-tab="tools" href="/tools.html">Tools</a>
-      <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
-    </div>
-    <div class="right header-controls">
-      <div class="accent"><div class="dot"></div><input id="accentPicker" type="color" style="background:transparent;border:none;width:20px;height:20px; padding:0"/></div>
-      <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
-      <button class="density-toggle" onclick="toggleDensity()">↕︎</button>
-      <button id="logout" class="btn">Logout</button>
-    </div>
-  </nav>
-</header>
+<body data-active="plan">
+<div id="appHeader"></div>
 
 <div class="container">
   <div class="card">
@@ -60,18 +40,14 @@
 </div>
 
 <script>
-navActive('plan');
-$$('#accentPicker').addEventListener('input', (e)=> changeAccent(e.target.value));
-document.getElementById('logout').onclick = async () => { await api('/api/logout', { method:'POST' }); location.href = '/login.html'; };
-
 const daysRoot = document.getElementById('days');
-const startEl = document.getElementById('weekStart');
-const prevBtn = document.getElementById('prev');
-const nextBtn = document.getElementById('next');
-const saveBtn = document.getElementById('save');
-const calcBtn = document.getElementById('calc');
+const startEl  = document.getElementById('weekStart');
+const prevBtn  = document.getElementById('prev');
+const nextBtn  = document.getElementById('next');
+const saveBtn  = document.getElementById('save');
+const calcBtn  = document.getElementById('calc');
 const calcBody = document.getElementById('calcBody');
-const calcTotal = document.getElementById('calcTotal');
+const calcTotal= document.getElementById('calcTotal');
 
 const T = (tag, attrs={}, ...kids) => { const el=document.createElement(tag); Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v)); kids.forEach(k=>el.append(k)); return el; };
 const td = (c)=>{ const x=document.createElement('td'); x.append(c); return x; };
@@ -98,12 +74,12 @@ function makeDayCard(dateStr, label){
 function addRow(tbody, r={}){
   const tr = document.createElement('tr');
   const shop = T('input', { class:'input w120', value: r.shop || '' });
-  const st = T('input', { class:'input w80', value: r.start_time || '', placeholder:'08:00' });
-  const en = T('input', { class:'input w80', value: r.end_time || '', placeholder:'10:00' });
+  const st   = T('input', { class:'input w80',  value: r.start_time || '', placeholder:'08:00' });
+  const en   = T('input', { class:'input w80',  value: r.end_time || '', placeholder:'10:00' });
   const product = T('input', { class:'input w150', value: r.product_code || '' , placeholder:'ITEM_CODE'});
-  const qty = T('input', { class:'input w80', value: r.qty ?? '' , placeholder:'0'});
+  const qty  = T('input', { class:'input w80',  value: r.qty ?? '' , placeholder:'0'});
   const note = T('input', { class:'input w150', value: r.note || '' });
-  const del = T('button', { class:'btn' }, 'X'); del.onclick = ()=> tr.remove();
+  const del  = T('button', { class:'btn' }, 'X'); del.onclick = ()=> tr.remove();
   tr.append(td(shop), td(st), td(en), td(product), td(qty), td(note), td(del));
   tr.dataset.day = r.day;
   tbody.append(tr);
