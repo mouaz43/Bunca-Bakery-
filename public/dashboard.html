@@ -10,16 +10,19 @@
 <body>
 <header class="header">
   <nav class="nav">
-    <div style="font-weight:800">BUNCA Planner</div>
+    <div class="brand">BUNCA Planner</div>
     <div class="tabs">
       <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
       <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
-      <a class="tab" data-tab="items" href="/items.html">Artikel & Rezepte</a>
-      <a class="tab" data-tab="plan" href="/plan.html">Produktionsplan</a>
+      <a class="tab" data-tab="items" href="/items.html">Rezepte</a>
+      <a class="tab" data-tab="plan" href="/plan.html">Plan</a>
       <a class="tab" data-tab="tools" href="/tools.html">Tools</a>
-      <a class="tab" data-tab="import" href="/import.html">Import</a>
     </div>
-    <div><button id="logout" class="btn">Logout</button></div>
+    <div class="spacer"></div>
+    <div class="header-controls">
+      <button class="theme-toggle btn" onclick="toggleTheme()">🌓 Theme</button>
+      <button id="logout" class="btn">Logout</button>
+    </div>
   </nav>
 </header>
 
@@ -27,10 +30,10 @@
   <div class="grid grid-3">
     <div class="card">
       <h3>Willkommen 👋</h3>
-      <p class="muted">Exportiere Backups, verwalte Nutzer, plane die Woche.</p>
-      <div class="grid">
-        <a class="btn primary" href="/tools.html">Tools öffnen</a>
-        <a class="btn" href="/plan.html">Produktionsplan</a>
+      <p class="muted">Plane die Woche oder bearbeite Rezepte/Rohwaren.</p>
+      <div class="row">
+        <a class="btn primary" href="/plan.html">Produktionsplan</a>
+        <a class="btn" href="/items.html">Rezepte</a>
       </div>
     </div>
     <div class="card">
@@ -39,7 +42,7 @@
     </div>
     <div class="card">
       <h3>Schnellzugriff</h3>
-      <p><a href="/tools.html">Tools</a> • <a href="/import.html">Import</a></p>
+      <p><a href="/tools.html">Tools</a> • <a href="/materials.html">Rohwaren</a></p>
     </div>
   </div>
 </div>
@@ -52,7 +55,7 @@ document.getElementById('logout').onclick = async () => {
 };
 (async () => {
   const user = await sessionInfo();
-  $$('#status').textContent = user ? `Angemeldet als ${user.email}` : 'Nicht angemeldet';
+  $$('#status').textContent = user ? `Angemeldet als ${user.email} (${user.role||'role'})` : 'Nicht angemeldet';
 })();
 </script>
 </body>
