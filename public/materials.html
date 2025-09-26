@@ -7,184 +7,207 @@
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
 </head>
-<body data-active="materials">
-<div id="appHeader"></div>
+<body>
+<header class="header">
+  <nav class="nav">
+    <div class="brand">🍞 Bakeflow</div>
+    <div class="right header-controls">
+      <input id="q" class="input" placeholder="Suchen…"/>
+      <button class="btn" onclick="location.href='/dashboard.html'">Home</button>
+      <div class="menu">
+        <button class="btn subtle" onclick="location.href='/items.html'">Rezepte</button>
+        <button class="btn subtle" onclick="location.href='/plan.html'">Plan</button>
+        <button class="btn subtle" onclick="location.href='/tools.html'">Tools</button>
+        <button class="btn danger" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </nav>
+</header>
 
-<div class="container">
+<main class="container">
   <div class="card">
-    <div class="row">
-      <h2 style="margin-right:auto">Rohwaren</h2>
-      <input id="filter" class="input w180" placeholder="Suchen…"/>
-      <button id="addRow" class="btn">+ Neu</button>
-      <button id="reload" class="btn">Neu laden</button>
+    <div class="card-title-row">
+      <h2>Rohwaren</h2>
+      <div class="row-gap">
+        <button class="btn primary" id="addBtn">+ Neu</button>
+        <button class="btn" id="reloadBtn">Neu laden</button>
+      </div>
     </div>
 
-    <div style="overflow:auto">
-      <table class="table" id="tbl">
+    <div class="table-wrap">
+      <table id="tbl" class="table">
         <thead>
           <tr>
             <th>Code</th>
-            <th class="th-sort">Name</th>
+            <th>Name</th>
             <th>Base</th>
-            <th>Pack (Qty/Unit/€)</th>
-            <th class="th-sort">€/base-unit</th>
+            <th>Pack (Menge/Einheit/€)</th>
+            <th>€/base</th>
             <th>Supplier</th>
-            <th>Note</th>
-            <th></th>
+            <th>Notiz</th>
+            <th style="width:120px">Aktionen</th>
           </tr>
         </thead>
-        <tbody id="body"></tbody>
+        <tbody id="rows"><tr><td colspan="8" class="muted">Lade…</td></tr></tbody>
       </table>
     </div>
   </div>
-</div>
+</main>
 
-<!-- History modal -->
-<div id="histModal" class="kbar" style="display:none">
-  <div class="panel">
-    <h3 style="margin:8px">Preisverlauf: <span id="histTitle"></span></h3>
-    <div style="max-height:260px;overflow:auto">
-      <table class="table"><thead><tr><th>Preis</th><th>Datum</th></tr></thead><tbody id="histBody"></tbody></table>
+<!-- Modal -->
+<div id="modal" class="modal hidden">
+  <div class="modal-card" style="max-width:620px">
+    <div class="modal-head">
+      <h3 id="modalTitle">Rohware</h3>
+      <button class="btn subtle" onclick="closeModal()">Schließen</button>
     </div>
-    <div class="row right" style="margin-top:10px"><button id="histClose" class="btn">Schließen</button></div>
+    <div class="grid" style="grid-template-columns: 1fr 1fr; gap:12px">
+      <div><label>Code</label><input id="m_code" class="input" placeholder="Z. B. ZUCKER_FEIN"/></div>
+      <div><label>Name</label><input id="m_name" class="input" placeholder="Zucker fein"/></div>
+
+      <div><label>Base Unit</label>
+        <select id="m_base" class="input">
+          <option value="g">g</option>
+          <option value="ml">ml</option>
+          <option value="pcs">pcs</option>
+        </select>
+      </div>
+      <div><label>Supplier</label><input id="m_supplier" class="input" placeholder="optional"/></div>
+
+      <div><label>Pack Qty</label><input id="m_pqty" class="input" type="number" step="0.01" placeholder="z. B. 1000"/></div>
+      <div><label>Pack Unit</label>
+        <select id="m_punit" class="input">
+          <option value="">—</option>
+          <option value="g">g</option>
+          <option value="kg">kg</option>
+          <option value="ml">ml</option>
+          <option value="l">l</option>
+          <option value="pcs">pcs</option>
+        </select>
+      </div>
+
+      <div><label>Pack Price (€)</label><input id="m_pprice" class="input" type="number" step="0.01" placeholder="z. B. 2.49"/></div>
+      <div><label>€/base (auto)</label><input id="m_ppu" class="input" type="number" step="0.000001" placeholder="wird berechnet"/></div>
+
+      <div style="grid-column: 1 / -1"><label>Notiz</label>
+        <input id="m_note" class="input" placeholder="optional…"/>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="calcPPU()">€ / base berechnen</button>
+      <div class="spacer"></div>
+      <button class="btn primary" id="saveBtn">Speichern</button>
+    </div>
   </div>
 </div>
 
 <script>
-window.addEventListener('DOMContentLoaded', () => {
-  const bodyEl = document.getElementById('body');
-  const reloadBtn = document.getElementById('reload');
-  const addRowBtn = document.getElementById('addRow');
-  const filterEl = document.getElementById('filter');
+/* ---------- page helpers ---------- */
+function logout(){ api('/api/logout',{method:'POST'}).then(()=>location.href='/login.html'); }
+function openModal(title='Rohware'){ $$('#modalTitle').textContent=title; $$('#modal').classList.remove('hidden'); }
+function closeModal(){ $$('#modal').classList.add('hidden'); }
+function fillModal(m){
+  $$('#m_code').value = m?.code||'';
+  $$('#m_name').value = m?.name||'';
+  $$('#m_base').value = m?.base_unit||'g';
+  $$('#m_supplier').value = m?.supplier_code||'';
+  $$('#m_pqty').value = m?.pack_qty ?? '';
+  $$('#m_punit').value = m?.pack_unit||'';
+  $$('#m_pprice').value = m?.pack_price ?? '';
+  $$('#m_ppu').value = (m?.price_per_unit ?? '') || '';
+  $$('#m_note').value = m?.note||'';
+}
+function readModal(){
+  return {
+    code: $$('#m_code').value.trim(),
+    name: $$('#m_name').value.trim(),
+    base_unit: $$('#m_base').value,
+    supplier_code: $$('#m_supplier').value.trim() || null,
+    pack_qty: $$('#m_pqty').value ? Number($$('#m_pqty').value) : null,
+    pack_unit: $$('#m_punit').value || null,
+    pack_price: $$('#m_pprice').value ? Number($$('#m_pprice').value) : null,
+    price_per_unit: $$('#m_ppu').value === '' ? null : Number($$('#m_ppu').value),
+    note: $$('#m_note').value.trim(),
+  };
+}
+async function calcPPU(){
+  const m = readModal();
+  // let server derive too, but we try client-side preview using same rules:
+  if (!m.pack_price || !m.pack_qty || !m.pack_unit) { toast('Packdaten fehlen'); return; }
+  const unitMap = { kg:1000, g:1, l:1000, ml:1, pcs:1 }; // only for preview
+  const family = { kg:'g', g:'g', l:'ml', ml:'ml', pcs:'pcs' };
+  const bu = family[m.base_unit] || m.base_unit;
+  if (family[m.pack_unit] !== bu){ toast('Pack unit passt nicht zur Base Unit'); return; }
+  const baseQty = Number(m.pack_qty) * unitMap[m.pack_unit];
+  if (!baseQty || baseQty<=0) return;
+  $$('#m_ppu').value = (Number(m.pack_price)/baseQty).toFixed(6);
+}
 
-  const histModal = document.getElementById('histModal');
-  const histTitle = document.getElementById('histTitle');
-  const histBody  = document.getElementById('histBody');
-  const histClose = document.getElementById('histClose');
+/* ---------- load ---------- */
+let DATA = [];
+async function load(){
+  const r = await api('/api/materials');
+  DATA = r.data || [];
+  render(DATA);
+}
+function render(list){
+  const tbody = $$('#rows');
+  if (!list.length){ tbody.innerHTML = `<tr><td colspan="8" class="muted">Noch keine Rohwaren</td></tr>`; return; }
+  tbody.innerHTML = list.map(m => `
+    <tr>
+      <td>${m.code}</td>
+      <td>${m.name}</td>
+      <td>${m.base_unit}</td>
+      <td>${m.pack_qty??''} ${m.pack_unit??''} / ${m.pack_price??''}</td>
+      <td>${(m.price_per_unit??0).toFixed(6)}</td>
+      <td>${m.supplier_code??''}</td>
+      <td>${m.note??''}</td>
+      <td class="row-actions">
+        <button class="btn subtle" data-edit="${m.code}">Bearb.</button>
+        <button class="btn danger" data-del="${m.code}">Löschen</button>
+      </td>
+    </tr>
+  `).join('');
+  makeTableSortable($$('#tbl'));
+}
+attachClientFilter($$('#q'), $$('#tbl'));
 
-  const T = (t,a={},...k)=>{const el=document.createElement(t);Object.entries(a).forEach(([k2,v])=>el.setAttribute(k2,v));k.forEach(x=>el.append(x));return el;};
-  const td=(c)=>{const x=document.createElement('td');x.append(c);return x;};
-  const num=(v)=>{const n=Number(String(v??'').replace(',','.'));return Number.isFinite(n)?n:null;};
-
-  function computePPU(baseUnit, packQty, packUnit, packPrice){
-    baseUnit = String(baseUnit||'g').toLowerCase();
-    packUnit = String(packUnit||'').toLowerCase();
-    const fam = { g:'g', kg:'g', ml:'ml', l:'ml', pcs:'pcs', piece:'pcs', pieces:'pcs', stk:'pcs', 'stück':'pcs' };
-    const toBase = { g:1, kg:1000, ml:1, l:1000, pcs:1, piece:1, pieces:1, stk:1, 'stück':1 };
-    if (packQty==null || packPrice==null || !fam[packUnit]) return null;
-    if (fam[packUnit] !== fam[baseUnit]) return null;
-    const baseQty = num(packQty) * toBase[packUnit];
-    if (!baseQty || baseQty <= 0) return null;
-    return num(packPrice) / baseQty;
-  }
-
-  async function load(){
-    bodyEl.innerHTML = '<tr><td colspan="8" class="muted">Lade…</td></tr>';
-    try {
-      const { data } = await api('/api/materials');
-      bodyEl.innerHTML = '';
-      data.forEach(addRow);
-    } catch (e) {
-      console.error(e);
-      bodyEl.innerHTML = `<tr><td colspan="8" class="muted">Fehler: ${e.message}</td></tr>`;
-    }
-    makeTableSortable(document.getElementById('tbl'));
-    attachClientFilter(filterEl, document.getElementById('tbl'));
-  }
-
-  function addRow(r={}){
-    const tr = document.createElement('tr');
-
-    const code = T('input',{class:'input w120', value:r.code||''});
-    const name = T('input',{class:'input w150', value:r.name||''});
-
-    const base = T('select',{class:'input w80'},
-      T('option',{},'g'), T('option',{},'kg'), T('option',{},'ml'), T('option',{},'l'), T('option',{},'pcs')
-    );
-    base.value = (r.base_unit||'g');
-
-    // Pack group: qty / unit / price
-    const packWrap = document.createElement('div');
-    packWrap.className = 'row';
-    const pQty   = T('input',{class:'input w70',  placeholder:'Qty',   value: r.pack_qty??''});
-    const pUnit  = T('select',{class:'input w80'},
-      T('option',{},'g'), T('option',{},'kg'), T('option',{},'ml'), T('option',{},'l'), T('option',{},'pcs')
-    );
-    pUnit.value = (r.pack_unit||'g');
-    const pPrice = T('input',{class:'input w80',  placeholder:'€', value: r.pack_price??''});
-    packWrap.append(pQty, pUnit, pPrice);
-
-    // Read-only PPU
-    const ppu = T('input',{class:'input w80', value:r.price_per_unit??'', readOnly:true});
-
-    const supplier = T('input',{class:'input w120', value:r.supplier_code??''});
-    const note     = T('input',{class:'input w150', value:r.note??''});
-
-    function refreshPPU(){
-      const v = computePPU(base.value, num(pQty.value), pUnit.value, num(pPrice.value));
-      ppu.value = (v==null || !isFinite(v)) ? '' : String(v);
-    }
-    [base,pQty,pUnit,pPrice].forEach(el => el.addEventListener('input', refreshPPU));
-    refreshPPU();
-
-    const saveBtn = T('button',{class:'btn primary'},'Speichern');
-    saveBtn.onclick = async () => {
-      const payload = {
-        code: code.value.trim(),
-        name: name.value.trim(),
-        base_unit: base.value,
-        pack_qty: num(pQty.value),
-        pack_unit: pUnit.value,
-        pack_price: num(pPrice.value),
-        // price_per_unit omitted → backend derives and tracks history
-        supplier_code: supplier.value.trim() || null,
-        note: note.value.trim()
-      };
-      if (!payload.code || !payload.name) return toast('Code & Name erforderlich');
-      try { await api('/api/materials',{method:'POST', body: JSON.stringify(payload)}); toast('Gespeichert'); }
-      catch(e){ console.error(e); toast('Fehler: '+e.message); }
-    };
-
-    const delBtn = T('button',{class:'btn'},'Löschen');
-    delBtn.onclick = async () => {
-      const c = code.value.trim();
-      if (!c) return;
-      if (!confirm(`Rohware “${c}” wirklich löschen?`)) return;
-      try { await api('/api/materials/' + encodeURIComponent(c), { method:'DELETE' }); tr.remove(); toast('Gelöscht'); }
-      catch(e){ toast(e.message.includes('in_use_in_bom') ? 'In Rezepten benutzt — erst dort entfernen' : 'Löschen fehlgeschlagen'); }
-    };
-
-    const histBtn = T('button',{class:'btn'},'Verlauf');
-    histBtn.onclick = () => openHistory(code.value.trim());
-
-    const actions = document.createElement('div');
-    actions.className = 'row';
-    actions.append(saveBtn, delBtn, histBtn);
-
-    tr.append(td(code), td(name), td(base), td(packWrap), td(ppu), td(supplier), td(note), td(actions));
-    bodyEl.append(tr);
-  }
-
-  async function openHistory(code){
-    if (!code) return toast('Kein Code');
-    histTitle.textContent = code;
-    histBody.innerHTML = '<tr><td colspan="2" class="muted">Lade…</td></tr>';
-    histModal.style.display = 'flex';
-    try {
-      const { data } = await api(`/api/materials/${encodeURIComponent(code)}/history`);
-      histBody.innerHTML = data.length
-        ? data.map(x => `<tr><td>${x.price_per_unit}</td><td>${new Date(x.changed_at).toLocaleString()}</td></tr>`).join('')
-        : '<tr><td colspan="2" class="muted">Keine Einträge</td></tr>';
-    } catch (e) {
-      histBody.innerHTML = '<tr><td colspan="2" class="muted">Fehler beim Laden</td></tr>';
-    }
-  }
-  histClose.addEventListener('click', () => histModal.style.display='none');
-
-  reloadBtn.addEventListener('click', load);
-  addRowBtn.addEventListener('click', () => addRow({ base_unit:'g', pack_unit:'g' }));
-  load();
+/* ---------- actions ---------- */
+$$('#addBtn').addEventListener('click', ()=>{
+  fillModal(null); openModal('Neue Rohware');
+  $$('#m_code').focus();
 });
+$$('#reloadBtn').addEventListener('click', load);
+$$('#saveBtn').addEventListener('click', async ()=>{
+  const payload = readModal();
+  if (!payload.code || !payload.name){ toast('Code & Name erforderlich'); return; }
+  try {
+    await api('/api/materials',{ method:'POST', body: JSON.stringify(payload) });
+    closeModal(); toast('Gespeichert');
+    await load();
+  } catch(e){ toast(e.message||'Fehler'); }
+});
+$$('#rows').addEventListener('click', async (e)=>{
+  const editCode = e.target?.dataset?.edit;
+  const delCode  = e.target?.dataset?.del;
+  if (editCode){
+    const r = await api(`/api/materials/${encodeURIComponent(editCode)}`);
+    fillModal(r.data); openModal(`Rohware bearbeiten — ${editCode}`);
+  }
+  if (delCode){
+    if (!confirm('Wirklich löschen?')) return;
+    try { 
+      const r = await api(`/api/materials/${encodeURIComponent(delCode)}`, { method:'DELETE' });
+      if (r.ok){ toast('Gelöscht'); load(); }
+    } catch(err){
+      if (String(err.message).includes('in_use_in_bom')) toast('Kann nicht löschen: wird in Rezepten verwendet');
+      else toast('Fehler beim Löschen');
+    }
+  }
+});
+
+/* ---------- boot ---------- */
+sessionInfo().then(u=>{ if(!u) location.href='/login.html'; else load(); });
 </script>
 </body>
 </html>
