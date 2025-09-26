@@ -3,32 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>BUNCA — Dashboard</title>
+  <title>Bakeflow — Dashboard</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
 </head>
-<body>
-<header class="header">
-  <nav class="nav">
-    <div class="brand">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 12c0-4.418 3.582-8 8-8a8 8 0 1 1-8 8Z" stroke="currentColor" opacity=".8"/><path d="M12 4v16M4 12h16" stroke="currentColor" opacity=".6"/></svg>
-      BUNCA Planner
-    </div>
-    <div class="tabs">
-      <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
-      <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
-      <a class="tab" data-tab="items" href="/items.html">Rezepte</a>
-      <a class="tab" data-tab="plan" href="/plan.html">Plan</a>
-      <a class="tab" data-tab="tools" href="/tools.html">Tools</a>
-    </div>
-    <div class="right header-controls">
-      <div class="accent"><div class="dot"></div><input id="accentPicker" type="color" style="background:transparent;border:none;width:20px;height:20px; padding:0"/></div>
-      <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
-      <button class="density-toggle" onclick="toggleDensity()">↕︎</button>
-      <button id="logout" class="btn">Logout</button>
-    </div>
-  </nav>
-</header>
+<body data-active="dash">
+<div id="appHeader"></div>
 
 <div class="container">
   <div class="grid grid-3">
@@ -40,22 +20,16 @@
         <a class="btn" href="/items.html">Rezepte</a>
       </div>
     </div>
-    <div class="card">
-      <h3>Status</h3>
-      <div id="status" class="muted">lädt…</div>
-    </div>
+    <div class="card"><h3>Status</h3><div id="status" class="muted">lädt…</div></div>
     <div class="card">
       <h3>Schnellzugriff</h3>
       <p><a href="/tools.html">Tools</a> • <a href="/materials.html">Rohwaren</a></p>
-      <p class="muted">Tipp: Öffne die <b>Befehlsleiste</b> mit <code>⌘K</code> oder <code>Ctrl+K</code>.</p>
+      <p class="muted">Tipp: <b>⌘K / Ctrl+K</b> → Befehlsleiste.</p>
     </div>
   </div>
 </div>
 
 <script>
-navActive('dash');
-$$('#accentPicker').addEventListener('input', (e)=> changeAccent(e.target.value));
-document.getElementById('logout').onclick = async () => { await api('/api/logout', { method:'POST' }); location.href = '/login.html'; };
 (async () => {
   const user = await sessionInfo();
   $$('#status').textContent = user ? `Angemeldet als ${user.email} (${user.role||'role'})` : 'Nicht angemeldet';
