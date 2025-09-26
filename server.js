@@ -1,10 +1,11 @@
-// BUNCA Planner — Phase 6: Tools (Export, Backup/Restore, Users)
+// BUNCA Planner — Phase 6+ : XLSX Export + Role-Based Access (admin/planner/viewer)
 
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const XLSX = require('xlsx');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,6 +51,21 @@ const requireAuth = (req, res, next) => authed(req)
   ? next()
   : res.status(401).json({ ok: false, error: 'unauthorized' });
 const eqi = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+
+function requireRoleAny(...roles) {
+  return (req, res, next) => {
+    const user = req.session.user || {};
+    const role = user.role || (eqi(user.email, ADMIN_EMAIL) ? 'admin' : 'viewer');
+    if (role === 'admin') return next();
+    if (roles.includes(role)) return next();
+    return res.status(403).json({ ok:false, error:'forbidden' });
+  };
+}
+// Shorthands
+const requirePlanner = [requireAuth, requireRoleAny('planner')];
+const requireAdmin   = [requireAuth, requireRoleAny('admin')];
+
+/* ---------- Units ---------- */
 const U = {
   g: { base: 'g', factor: 1 }, kg: { base: 'g', factor: 1000 },
   ml: { base: 'ml', factor: 1 }, l: { base: 'ml', factor: 1000 },
@@ -74,7 +90,7 @@ async function ensureSchema() {
     await q(`
       CREATE TABLE IF NOT EXISTS users (
         email TEXT PRIMARY KEY,
-        role  TEXT NOT NULL DEFAULT 'user',
+        role  TEXT NOT NULL DEFAULT 'viewer',
         pass_hash TEXT
       );
     `);
@@ -135,12 +151,14 @@ async function ensureSchema() {
       );
     `);
 
-    // Ensure an admin user exists matching env admin (optional)
+    // Seed/ensure env admin exists in users with role=admin (idempotent)
     if (ADMIN_EMAIL && ADMIN_PASSWORD) {
       const exists = await q(`SELECT 1 FROM users WHERE email=$1`, [ADMIN_EMAIL]);
+      const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
       if (!exists.rowCount) {
-        const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
         await q(`INSERT INTO users(email, role, pass_hash) VALUES($1,$2,$3)`, [ADMIN_EMAIL, 'admin', hash]);
+      } else {
+        await q(`UPDATE users SET role='admin', pass_hash=$2 WHERE email=$1`, [ADMIN_EMAIL, hash]);
       }
     }
 
@@ -160,7 +178,7 @@ app.get('/api/session', (req, res) =>
 app.post('/api/login', async (req, res) => {
   const email = String(req.body?.email || '').trim();
   const pass  = String(req.body?.password || '').trim();
-  // 1) env admin override
+  // 1) env override
   if (ADMIN_EMAIL && ADMIN_PASSWORD && eqi(email, ADMIN_EMAIL) && pass === ADMIN_PASSWORD) {
     req.session.user = { email: ADMIN_EMAIL, role: 'admin' };
     return res.json({ ok: true });
@@ -168,7 +186,7 @@ app.post('/api/login', async (req, res) => {
   // 2) DB users
   const u = await q(`SELECT email, role, pass_hash FROM users WHERE lower(email)=lower($1)`, [email]);
   if (u.rowCount && u.rows[0].pass_hash && await bcrypt.compare(pass, u.rows[0].pass_hash)) {
-    req.session.user = { email: u.rows[0].email, role: u.rows[0].role || 'user' };
+    req.session.user = { email: u.rows[0].email, role: u.rows[0].role || 'viewer' };
     return res.json({ ok: true });
   }
   return res.status(401).json({ ok: false, error: 'bad_credentials' });
@@ -180,12 +198,10 @@ app.post('/api/logout', (req, res) => {
 
 /* ---------- MATERIALS ---------- */
 app.get('/api/materials', requireAuth, async (_req, res) => {
-  const { rows } = await q(`
-    SELECT code, name, base_unit, price_per_unit, pack_qty, pack_unit, pack_price, supplier_code, note
-    FROM materials ORDER BY name`);
+  const { rows } = await q(`SELECT code, name, base_unit, price_per_unit, pack_qty, pack_unit, pack_price, supplier_code, note FROM materials ORDER BY name`);
   res.json({ ok: true, data: rows });
 });
-app.post('/api/materials', requireAuth, async (req, res) => {
+app.post('/api/materials', ...requirePlanner, async (req, res) => {
   const { code, name, base_unit='g', price_per_unit=0, pack_qty=null, pack_unit=null, pack_price=null, supplier_code=null, note='' } = req.body || {};
   if (!code || !name) return res.status(400).json({ ok:false, error:'code_and_name_required' });
   const prev = await q(`SELECT price_per_unit FROM materials WHERE code=$1`, [code]);
@@ -203,7 +219,7 @@ app.post('/api/materials', requireAuth, async (req, res) => {
   );
   res.json({ ok: true });
 });
-app.post('/api/materials/bulk-prices', requireAuth, async (req, res) => {
+app.post('/api/materials/bulk-prices', ...requirePlanner, async (req, res) => {
   const text = String(req.body?.text || '');
   const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   let updated = 0;
@@ -233,7 +249,7 @@ app.get('/api/items', requireAuth, async (_req, res) => {
   const { rows } = await q(`SELECT code, name, category, yield_qty, yield_unit, note FROM items ORDER BY name`);
   res.json({ ok: true, data: rows });
 });
-app.post('/api/items', requireAuth, async (req, res) => {
+app.post('/api/items', ...requirePlanner, async (req, res) => {
   const { code, name, category='', yield_qty=1, yield_unit='pcs', note='' } = req.body || {};
   if (!code || !name) return res.status(400).json({ ok:false, error:'code_and_name_required' });
   await q(
@@ -253,7 +269,7 @@ app.get('/api/items/:code/bom', requireAuth, async (req, res) => {
      WHERE b.product_code=$1 ORDER BY b.id`, [req.params.code]);
   res.json({ ok: true, data: rows });
 });
-app.post('/api/items/:code/bom', requireAuth, async (req, res) => {
+app.post('/api/items/:code/bom', ...requirePlanner, async (req, res) => {
   const { code } = req.params;
   const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
   await q(`DELETE FROM bom WHERE product_code=$1`, [code]);
@@ -264,7 +280,7 @@ app.post('/api/items/:code/bom', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 async function scaleRecipe(productCode, targetQty) {
-  const it = await q(`SELECT yield_qty, yield_unit FROM items WHERE code=$1`, [productCode]);
+  const it = await q(`SELECT yield_qty FROM items WHERE code=$1`, [productCode]);
   if (it.rowCount === 0) throw new Error('item_not_found');
   const yieldQty = Number(it.rows[0].yield_qty) || 1;
   const bom = await q(
@@ -272,19 +288,17 @@ async function scaleRecipe(productCode, targetQty) {
      FROM bom b JOIN materials m ON m.code=b.material_code
      WHERE b.product_code=$1 ORDER BY b.id`, [productCode]);
   const factor = Number(targetQty) / yieldQty;
-  const lines = [];
-  for (const r of bom.rows) {
+  const lines = bom.rows.map(r => {
     const base = toBase(r.qty, r.unit);
     const scaled = base.qty * factor;
-    lines.push({
-      material_code: r.material_code,
-      material_name: r.material_name,
-      unit: base.unit,
-      qty: Number(scaled.toFixed(2)),
-      price_per_unit: Number((r.price_per_unit || 0).toFixed(6)),
-      cost: Number((scaled * Number(r.price_per_unit || 0)).toFixed(2))
-    });
-  }
+    const ppu = Number(r.price_per_unit || 0);
+    return {
+      material_code: r.material_code, material_name: r.material_name,
+      unit: base.unit, qty: Number(scaled.toFixed(2)),
+      price_per_unit: Number(ppu.toFixed(6)),
+      cost: Number((scaled * ppu).toFixed(2))
+    };
+  });
   const total = lines.reduce((s,x)=>s+x.cost,0);
   return { lines, total_cost: Number(total.toFixed(2)) };
 }
@@ -308,7 +322,7 @@ app.get('/api/plan/week', requireAuth, async (req, res) => {
      ORDER BY day, start_time NULLS FIRST, id`, [start]);
   res.json({ ok:true, data: rows });
 });
-app.post('/api/plan/week/save', requireAuth, async (req, res) => {
+app.post('/api/plan/week/save', ...requirePlanner, async (req, res) => {
   const start = String(req.body?.start || '').slice(0,10);
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
   if (!start) return res.status(400).json({ ok:false, error:'start_required' });
@@ -355,7 +369,7 @@ app.post('/api/plan/calc', requireAuth, async (req, res) => {
   res.json({ ok:true, data:{ lines: arr, total_cost: Number(totalCost.toFixed(2)) }});
 });
 
-/* ---------- TOOLS: EXPORT / BACKUP / USERS ---------- */
+/* ---------- TOOLS: EXPORT (JSON/CSV/XLSX) / BACKUP / USERS ---------- */
 
 // CSV helper
 function toCSV(rows) {
@@ -368,36 +382,52 @@ function toCSV(rows) {
   return [cols.join(','), ...rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
 }
 
-// Export dataset (CSV or JSON)
-app.get('/api/tools/export/:dataset', requireAuth, async (req, res) => {
-  const ds = req.params.dataset;
-  const fmt = String(req.query.format || 'json').toLowerCase();
-  let rows = [];
+async function fetchDataset(ds, start) {
   if (ds === 'materials')
-    rows = (await q(`SELECT * FROM materials ORDER BY code`)).rows;
-  else if (ds === 'items')
-    rows = (await q(`SELECT * FROM items ORDER BY code`)).rows;
-  else if (ds === 'bom')
-    rows = (await q(`SELECT product_code, material_code, qty, unit FROM bom ORDER BY product_code,id`)).rows;
-  else if (ds === 'plan') {
-    const start = req.query.start ? String(req.query.start).slice(0,10) : null;
-    if (start) rows = (await q(
-      `SELECT * FROM production_plan WHERE day BETWEEN $1::date AND ($1::date + INTERVAL '6 day') ORDER BY day, id`, [start]
-    )).rows;
-    else rows = (await q(`SELECT * FROM production_plan ORDER BY day,id`)).rows;
-  } else return res.status(400).json({ ok:false, error:'unknown_dataset' });
+    return (await q(`SELECT * FROM materials ORDER BY code`)).rows;
+  if (ds === 'items')
+    return (await q(`SELECT * FROM items ORDER BY code`)).rows;
+  if (ds === 'bom')
+    return (await q(`SELECT product_code, material_code, qty, unit FROM bom ORDER BY product_code,id`)).rows;
+  if (ds === 'plan') {
+    if (start)
+      return (await q(`SELECT * FROM production_plan WHERE day BETWEEN $1::date AND ($1::date + INTERVAL '6 day') ORDER BY day,id`, [start])).rows;
+    return (await q(`SELECT * FROM production_plan ORDER BY day,id`)).rows;
+  }
+  return null;
+}
+
+// Export dataset in chosen format
+app.get('/api/tools/export/:dataset', requireAuth, async (req, res) => {
+  const ds = String(req.params.dataset);
+  const fmt = String(req.query.format || 'json').toLowerCase();
+  const start = req.query.start ? String(req.query.start).slice(0,10) : null;
+
+  const rows = await fetchDataset(ds, start);
+  if (!rows) return res.status(400).json({ ok:false, error:'unknown_dataset' });
 
   if (fmt === 'csv') {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${ds}.csv"`);
     return res.send(toCSV(rows));
   }
+
+  if (fmt === 'xlsx') {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, ds);
+    const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${ds}.xlsx"`);
+    return res.send(buf);
+  }
+
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', `attachment; filename="${ds}.json"`);
   res.send(JSON.stringify(rows, null, 2));
 });
 
-// Full backup (all tables, JSON)
+// Full backup (JSON)
 app.get('/api/tools/backup', requireAuth, async (_req, res) => {
   const backup = {
     created_at: new Date().toISOString(),
@@ -405,22 +435,21 @@ app.get('/api/tools/backup', requireAuth, async (_req, res) => {
     items:     (await q(`SELECT * FROM items ORDER BY code`)).rows,
     bom:       (await q(`SELECT product_code, material_code, qty, unit FROM bom ORDER BY product_code,id`)).rows,
     plan:      (await q(`SELECT * FROM production_plan ORDER BY day,id`)).rows,
-    users:     (await q(`SELECT email, role FROM users ORDER BY email`)).rows // no password hashes in export
+    users:     (await q(`SELECT email, role FROM users ORDER BY email`)).rows
   };
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', `attachment; filename="bunca-backup.json"`);
   res.send(JSON.stringify(backup, null, 2));
 });
 
-// Restore backup (replaces data)
-app.post('/api/tools/backup/restore', requireAuth, async (req, res) => {
+// Restore (planner+admin only? → admin-only for safety)
+app.post('/api/tools/backup/restore', ...requireAdmin, async (req, res) => {
   const b = req.body || {};
   if (!b || typeof b !== 'object') return res.status(400).json({ ok:false, error:'bad_backup' });
   await q('BEGIN');
   try {
     await q('DELETE FROM bom'); await q('DELETE FROM production_plan');
     await q('DELETE FROM items'); await q('DELETE FROM materials');
-    // users not touched here for safety
     for (const m of (b.materials||[])) {
       await q(`INSERT INTO materials(code,name,base_unit,pack_qty,pack_unit,pack_price,price_per_unit,supplier_code,note)
                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
@@ -448,18 +477,13 @@ app.post('/api/tools/backup/restore', requireAuth, async (req, res) => {
   }
 });
 
-/* Users (create/list/delete). Admin only */
-function requireAdmin(req, res, next) {
-  return (req.session.user?.role === 'admin' || eqi(req.session.user?.email, ADMIN_EMAIL))
-    ? next()
-    : res.status(403).json({ ok:false, error:'admin_only' });
-}
-app.get('/api/users', requireAuth, requireAdmin, async (_req, res) => {
+/* Users (admin only) */
+app.get('/api/users', ...requireAdmin, async (_req, res) => {
   const { rows } = await q(`SELECT email, role FROM users ORDER BY email`);
   res.json({ ok:true, data: rows });
 });
-app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
-  const { email, role='user', password } = req.body || {};
+app.post('/api/users', ...requireAdmin, async (req, res) => {
+  const { email, role='viewer', password } = req.body || {};
   if (!email || !password) return res.status(400).json({ ok:false, error:'email_and_password_required' });
   const hash = await bcrypt.hash(String(password), 10);
   await q(`INSERT INTO users(email,role,pass_hash)
@@ -468,7 +492,7 @@ app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
            [String(email).trim(), role, hash]);
   res.json({ ok:true });
 });
-app.delete('/api/users/:email', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/users/:email', ...requireAdmin, async (req, res) => {
   const email = String(req.params.email||'').trim();
   if (eqi(email, ADMIN_EMAIL)) return res.status(400).json({ ok:false, error:'cannot_delete_env_admin' });
   await q(`DELETE FROM users WHERE lower(email)=lower($1)`, [email]);
@@ -484,12 +508,5 @@ app.get('/', (req, res) => {
 /* ---------- Boot ---------- */
 (async () => {
   await ensureSchema();
-  console.log('ENV check:', {
-    NODE_ENV,
-    hasDB: !!DATABASE_URL,
-    hasAdminEmail: !!ADMIN_EMAIL,
-    hasAdminPass: !!ADMIN_PASSWORD,
-    hasSessionSecret: !!SESSION_SECRET
-  });
   app.listen(PORT, () => console.log(`BUNCA running on :${PORT}`));
 })();
