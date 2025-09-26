@@ -6,26 +6,23 @@
   <title>BUNCA — Produktionsplan</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
-  <style>
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .w80{width:80px} .w100{width:100%} .w120{width:120px} .w150{width:150px}
-    .day{margin-top:14px}
-    .day h3{margin-bottom:6px}
-    .small{font-size:12px}
-    .right{margin-left:auto}
-  </style>
 </head>
 <body>
 <header class="header">
   <nav class="nav">
-    <div style="font-weight:800">BUNCA Planner</div>
+    <div class="brand">BUNCA Planner</div>
     <div class="tabs">
-      <a class="tab" data-tab="plan" href="/plan.html">Produktionsplan</a>
+      <a class="tab" data-tab="plan" href="/plan.html">Plan</a>
       <a class="tab" data-tab="items" href="/items.html">Rezepte</a>
       <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
+      <a class="tab" data-tab="tools" href="/tools.html">Tools</a>
       <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
     </div>
-    <div><button id="logout" class="btn">Logout</button></div>
+    <div class="spacer"></div>
+    <div class="header-controls">
+      <button class="theme-toggle btn" onclick="toggleTheme()">🌓 Theme</button>
+      <button id="logout" class="btn">Logout</button>
+    </div>
   </nav>
 </header>
 
@@ -38,7 +35,7 @@
       <button id="next" class="btn">Nächste ▶︎</button>
       <button id="save" class="btn primary right">Woche speichern</button>
     </div>
-    <p class="muted small">Tipp: Codes können über die Items-Seite eingesehen werden. Zeiten optional.</p>
+    <p class="muted"><small>Codes über „Rezepte“ einsehen. Zeiten optional.</small></p>
   </div>
 
   <div id="days"></div>
@@ -60,10 +57,7 @@
 
 <script>
 navActive('plan');
-document.getElementById('logout').onclick = async () => {
-  await api('/api/logout', { method:'POST' });
-  location.href = '/login.html';
-};
+document.getElementById('logout').onclick = async () => { await api('/api/logout', { method:'POST' }); location.href = '/login.html'; };
 
 const daysRoot = document.getElementById('days');
 const startEl = document.getElementById('weekStart');
@@ -74,8 +68,7 @@ const calcBtn = document.getElementById('calc');
 const calcBody = document.getElementById('calcBody');
 const calcTotal = document.getElementById('calcTotal');
 
-const T = (tag, attrs={}, ...kids) => { const el=document.createElement(tag);
-  Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v)); kids.forEach(k=>el.append(k)); return el; };
+const T = (tag, attrs={}, ...kids) => { const el=document.createElement(tag); Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v)); kids.forEach(k=>el.append(k)); return el; };
 const td = (c)=>{ const x=document.createElement('td'); x.append(c); return x; };
 
 const dayNames = ['Mo','Di','Mi','Do','Fr','Sa','So'];
@@ -105,7 +98,7 @@ function addRow(tbody, r={}){
   const en = T('input', { class:'input w80', value: r.end_time || '', placeholder:'10:00' });
   const product = T('input', { class:'input w150', value: r.product_code || '' , placeholder:'ITEM_CODE'});
   const qty = T('input', { class:'input w80', value: r.qty ?? '' , placeholder:'0'});
-  const note = T('input', { class:'input w100', value: r.note || '' });
+  const note = T('input', { class:'input w150', value: r.note || '' });
   const del = T('button', { class:'btn' }, 'X'); del.onclick = ()=> tr.remove();
   tr.append(td(shop), td(st), td(en), td(product), td(qty), td(note), td(del));
   tr.dataset.day = r.day;
@@ -133,10 +126,8 @@ async function loadWeek(startStr){
     const d = fmtDate(plusDays(new Date(startStr), i));
     const { card, body } = makeDayCard(d, dayNames[i]);
     daysRoot.append(card);
-    // fill later after fetch
   }
   const { data } = await api(`/api/plan/week?start=${encodeURIComponent(startStr)}`);
-  // map rows to bodies
   for (const r of data){
     const body = daysRoot.querySelectorAll('tbody')[ (new Date(r.day).getDay()+6)%7 ];
     addRow(body, r);
