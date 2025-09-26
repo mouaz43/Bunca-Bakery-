@@ -8,32 +8,37 @@
   <script defer src="/js/app.js"></script>
 </head>
 <body>
+
 <header class="header">
   <nav class="nav">
-    <div class="brand">🍞 Bakeflow</div>
-    <div class="right header-controls">
-      <input id="q" class="input" placeholder="Suchen…"/>
-      <button class="btn" onclick="location.href='/dashboard.html'">Home</button>
-      <div class="menu">
-        <button class="btn subtle" onclick="location.href='/items.html'">Rezepte</button>
-        <button class="btn subtle" onclick="location.href='/plan.html'">Plan</button>
-        <button class="btn subtle" onclick="location.href='/tools.html'">Tools</button>
-        <button class="btn danger" onclick="logout()">Logout</button>
-      </div>
+    <div class="brand">🍞 Bakeflow — Rohwaren</div>
+    <div class="menu-wrap">
+      <input id="q" class="input" placeholder="Suchen …  ( / )" style="min-width:260px"/>
+      <button class="btn" onclick="location.href='/items.html'">Rezepte</button>
+      <button class="btn" onclick="location.href='/plan.html'">Plan</button>
+      <button class="btn danger" onclick="logout()">Logout</button>
     </div>
   </nav>
 </header>
 
 <main class="container">
-  <div class="card">
+  <!-- Cards layout (responsive) -->
+  <div id="cards" class="grid">
+    <!-- filled by JS -->
+  </div>
+
+  <!-- Table fallback (desktop power view) -->
+  <div class="card" style="margin-top:18px">
     <div class="card-title-row">
-      <h2>Rohwaren</h2>
       <div class="row-gap">
-        <button class="btn primary" id="addBtn">+ Neu</button>
-        <button class="btn" id="reloadBtn">Neu laden</button>
+        <h2 style="margin:0">Alle Rohwaren</h2>
+        <span class="muted small">Desktop-Ansicht • sortierbar</span>
+      </div>
+      <div class="row-gap">
+        <button class="btn" id="exportCsv">Export CSV</button>
+        <button class="btn" id="reload">Neu laden</button>
       </div>
     </div>
-
     <div class="table-wrap">
       <table id="tbl" class="table">
         <thead>
@@ -41,83 +46,174 @@
             <th>Code</th>
             <th>Name</th>
             <th>Base</th>
-            <th>Pack (Menge/Einheit/€)</th>
             <th>€/base</th>
             <th>Supplier</th>
             <th>Notiz</th>
-            <th style="width:120px">Aktionen</th>
+            <th style="width:140px">Aktionen</th>
           </tr>
         </thead>
-        <tbody id="rows"><tr><td colspan="8" class="muted">Lade…</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="7" class="muted">Lade…</td></tr></tbody>
       </table>
     </div>
   </div>
 </main>
 
-<!-- Modal -->
-<div id="modal" class="modal hidden">
-  <div class="modal-card" style="max-width:620px">
-    <div class="modal-head">
-      <h3 id="modalTitle">Rohware</h3>
-      <button class="btn subtle" onclick="closeModal()">Schließen</button>
-    </div>
-    <div class="grid" style="grid-template-columns: 1fr 1fr; gap:12px">
-      <div><label>Code</label><input id="m_code" class="input" placeholder="Z. B. ZUCKER_FEIN"/></div>
-      <div><label>Name</label><input id="m_name" class="input" placeholder="Zucker fein"/></div>
+<!-- Floating + button -->
+<button class="fab" id="fab">+ Neue Rohware</button>
 
-      <div><label>Base Unit</label>
+<!-- Drawer Editor -->
+<aside id="drawer" class="drawer">
+  <div class="drawer-head">
+    <h3 id="dTitle" style="margin:0">Rohware</h3>
+    <div class="row-gap">
+      <button class="btn subtle" onclick="Drawer.close()">Schließen (Esc)</button>
+    </div>
+  </div>
+  <div class="drawer-body">
+    <div class="grid">
+      <div class="col-6">
+        <label>Code</label>
+        <input id="m_code" class="input" placeholder="Z.B. ZUCKER_FEIN"/>
+      </div>
+      <div class="col-6">
+        <label>Name</label>
+        <input id="m_name" class="input" placeholder="Zucker fein"/>
+      </div>
+      <div class="col-6">
+        <label>Base Unit</label>
         <select id="m_base" class="input">
           <option value="g">g</option>
           <option value="ml">ml</option>
           <option value="pcs">pcs</option>
         </select>
       </div>
-      <div><label>Supplier</label><input id="m_supplier" class="input" placeholder="optional"/></div>
-
-      <div><label>Pack Qty</label><input id="m_pqty" class="input" type="number" step="0.01" placeholder="z. B. 1000"/></div>
-      <div><label>Pack Unit</label>
+      <div class="col-6">
+        <label>Supplier</label>
+        <input id="m_supplier" class="input" placeholder="optional"/>
+      </div>
+      <div class="col-6">
+        <label>Pack Qty</label>
+        <input id="m_pqty" class="input" type="number" step="0.01" placeholder="1000"/>
+      </div>
+      <div class="col-6">
+        <label>Pack Unit</label>
         <select id="m_punit" class="input">
           <option value="">—</option>
-          <option value="g">g</option>
-          <option value="kg">kg</option>
-          <option value="ml">ml</option>
-          <option value="l">l</option>
+          <option value="g">g</option><option value="kg">kg</option>
+          <option value="ml">ml</option><option value="l">l</option>
           <option value="pcs">pcs</option>
         </select>
       </div>
-
-      <div><label>Pack Price (€)</label><input id="m_pprice" class="input" type="number" step="0.01" placeholder="z. B. 2.49"/></div>
-      <div><label>€/base (auto)</label><input id="m_ppu" class="input" type="number" step="0.000001" placeholder="wird berechnet"/></div>
-
-      <div style="grid-column: 1 / -1"><label>Notiz</label>
+      <div class="col-6">
+        <label>Pack Price (€)</label>
+        <input id="m_pprice" class="input" type="number" step="0.01" placeholder="2.49"/>
+      </div>
+      <div class="col-6">
+        <label>€/base (auto)</label>
+        <input id="m_ppu" class="input" type="number" step="0.000001" placeholder="wird berechnet"/>
+      </div>
+      <div class="col-12">
+        <label>Notiz</label>
         <input id="m_note" class="input" placeholder="optional…"/>
       </div>
     </div>
-    <div class="modal-foot">
-      <button class="btn" onclick="calcPPU()">€ / base berechnen</button>
+
+    <hr class="sep"/>
+
+    <div class="row-gap">
+      <div class="muted small">Preisverlauf</div>
+      <div id="history" class="muted small">—</div>
       <div class="spacer"></div>
-      <button class="btn primary" id="saveBtn">Speichern</button>
+      <button class="btn" id="calcPPU">€/base berechnen</button>
     </div>
   </div>
-</div>
+  <div class="drawer-foot">
+    <button class="btn danger" id="delBtn" title="Löschen">Löschen</button>
+    <div class="spacer"></div>
+    <button class="btn" onclick="Drawer.close()">Abbrechen</button>
+    <button class="btn primary" id="saveBtn">Speichern</button>
+  </div>
+</aside>
 
 <script>
-/* ---------- page helpers ---------- */
+/* ====== Page logic ====== */
 function logout(){ api('/api/logout',{method:'POST'}).then(()=>location.href='/login.html'); }
-function openModal(title='Rohware'){ $$('#modalTitle').textContent=title; $$('#modal').classList.remove('hidden'); }
-function closeModal(){ $$('#modal').classList.add('hidden'); }
-function fillModal(m){
+let DATA=[], CURRENT=null;
+
+/* Load & render */
+async function load(){
+  const r = await api('/api/materials');
+  DATA = r.data||[];
+  renderCards(DATA);
+  renderTable(DATA);
+}
+function renderCards(list){
+  const host = $$('#cards');
+  host.innerHTML = '';
+  if (!list.length){
+    host.innerHTML = `<div class="col-12 card card-pad center muted">Noch keine Rohwaren — klicke unten <b class="bold" style="margin-left:6px">“+ Neue Rohware”</b></div>`;
+    return;
+  }
+  list.forEach(m=>{
+    const wrap = document.createElement('div');
+    wrap.className = 'col-12 col-6 col-4';
+    wrap.innerHTML = `
+      <div class="m-card">
+        <div class="m-title">${m.name}</div>
+        <div class="m-sub">
+          <span class="mono small badge">${m.code}</span>
+          <span class="badge">${m.base_unit}</span>
+          <span class="price-pill">€ ${(m.price_per_unit||0).toFixed(6)} / ${m.base_unit}</span>
+        </div>
+        <div class="m-sub"><span class="muted small">${m.supplier_code||'—'}</span></div>
+        <div class="row-actions" style="margin-top:6px">
+          <button class="btn subtle" data-edit="${m.code}">Bearbeiten</button>
+          <button class="btn danger right-ghost" data-del="${m.code}">Löschen</button>
+        </div>
+      </div>`;
+    host.appendChild(wrap);
+  });
+}
+function renderTable(list){
+  const tbody = $$('#rows');
+  if (!list.length){ tbody.innerHTML = `<tr><td colspan="7" class="muted">Leer</td></tr>`; return;}
+  tbody.innerHTML = list.map(m=>`
+    <tr>
+      <td>${m.code}</td>
+      <td>${m.name}</td>
+      <td>${m.base_unit}</td>
+      <td>${(m.price_per_unit||0).toFixed(6)}</td>
+      <td>${m.supplier_code||''}</td>
+      <td>${m.note||''}</td>
+      <td class="row-actions">
+        <button class="btn subtle" data-edit="${m.code}">Bearb.</button>
+        <button class="btn danger" data-del="${m.code}">Löschen</button>
+      </td>
+    </tr>
+  `).join('');
+  makeTableSortable($$('#tbl'));
+}
+
+/* Filter */
+attachClientFilter($$('#q'), $$('#tbl'));
+document.addEventListener('keydown', (e)=>{ if(e.key==='/'){ e.preventDefault(); $$('#q').focus(); } });
+
+/* Drawer helpers */
+function openDrawer(title){ $$('#dTitle').textContent=title; Drawer.open('#drawer'); }
+function fillForm(m){
   $$('#m_code').value = m?.code||'';
   $$('#m_name').value = m?.name||'';
   $$('#m_base').value = m?.base_unit||'g';
   $$('#m_supplier').value = m?.supplier_code||'';
   $$('#m_pqty').value = m?.pack_qty ?? '';
-  $$('#m_punit').value = m?.pack_unit||'';
+  $$('#m_punit').value = m?.pack_unit || '';
   $$('#m_pprice').value = m?.pack_price ?? '';
-  $$('#m_ppu').value = (m?.price_per_unit ?? '') || '';
+  $$('#m_ppu').value = m?.price_per_unit ?? '';
   $$('#m_note').value = m?.note||'';
+  $$('#history').textContent = '—';
+  if (m?.code) loadHistory(m.code);
 }
-function readModal(){
+function readForm(){
   return {
     code: $$('#m_code').value.trim(),
     name: $$('#m_name').value.trim(),
@@ -130,84 +226,99 @@ function readModal(){
     note: $$('#m_note').value.trim(),
   };
 }
-async function calcPPU(){
-  const m = readModal();
-  // let server derive too, but we try client-side preview using same rules:
-  if (!m.pack_price || !m.pack_qty || !m.pack_unit) { toast('Packdaten fehlen'); return; }
-  const unitMap = { kg:1000, g:1, l:1000, ml:1, pcs:1 }; // only for preview
+
+/* PPU helper (client preview; server also derives) */
+function derivePPU(){
+  const base = $$('#m_base').value;
+  const pq = Number($$('#m_pqty').value||0);
+  const pu = $$('#m_punit').value;
+  const pp = Number($$('#m_pprice').value||0);
+  if (!pq || !pu || !pp) return;
   const family = { kg:'g', g:'g', l:'ml', ml:'ml', pcs:'pcs' };
-  const bu = family[m.base_unit] || m.base_unit;
-  if (family[m.pack_unit] !== bu){ toast('Pack unit passt nicht zur Base Unit'); return; }
-  const baseQty = Number(m.pack_qty) * unitMap[m.pack_unit];
-  if (!baseQty || baseQty<=0) return;
-  $$('#m_ppu').value = (Number(m.pack_price)/baseQty).toFixed(6);
+  const factor = { g:1, kg:1000, ml:1, l:1000, pcs:1 };
+  if (family[pu] !== base) { toast('Pack unit passt nicht zur Base Unit'); return; }
+  const baseQty = pq * factor[pu];
+  if (baseQty>0) $$('#m_ppu').value = (pp/baseQty).toFixed(6);
 }
 
-/* ---------- load ---------- */
-let DATA = [];
-async function load(){
-  const r = await api('/api/materials');
-  DATA = r.data || [];
-  render(DATA);
+/* History */
+async function loadHistory(code){
+  try{
+    const r = await api(`/api/materials/${encodeURIComponent(code)}/history`);
+    const h = r.data||[];
+    if (!h.length){ $$('#history').textContent = 'Keine Änderungen'; return; }
+    const latest = h.slice(0,5).map(x=>`${(x.price_per_unit||0).toFixed(6)}€`).join('  ·  ');
+    $$('#history').textContent = latest;
+  }catch{ $$('#history').textContent = '—'; }
 }
-function render(list){
-  const tbody = $$('#rows');
-  if (!list.length){ tbody.innerHTML = `<tr><td colspan="8" class="muted">Noch keine Rohwaren</td></tr>`; return; }
-  tbody.innerHTML = list.map(m => `
-    <tr>
-      <td>${m.code}</td>
-      <td>${m.name}</td>
-      <td>${m.base_unit}</td>
-      <td>${m.pack_qty??''} ${m.pack_unit??''} / ${m.pack_price??''}</td>
-      <td>${(m.price_per_unit??0).toFixed(6)}</td>
-      <td>${m.supplier_code??''}</td>
-      <td>${m.note??''}</td>
-      <td class="row-actions">
-        <button class="btn subtle" data-edit="${m.code}">Bearb.</button>
-        <button class="btn danger" data-del="${m.code}">Löschen</button>
-      </td>
-    </tr>
-  `).join('');
-  makeTableSortable($$('#tbl'));
-}
-attachClientFilter($$('#q'), $$('#tbl'));
 
-/* ---------- actions ---------- */
-$$('#addBtn').addEventListener('click', ()=>{
-  fillModal(null); openModal('Neue Rohware');
-  $$('#m_code').focus();
+/* Events */
+$$('#fab').addEventListener('click', ()=>{
+  CURRENT = null; fillForm(null); openDrawer('Neue Rohware'); $$('#m_code').focus();
 });
-$$('#reloadBtn').addEventListener('click', load);
-$$('#saveBtn').addEventListener('click', async ()=>{
-  const payload = readModal();
-  if (!payload.code || !payload.name){ toast('Code & Name erforderlich'); return; }
-  try {
-    await api('/api/materials',{ method:'POST', body: JSON.stringify(payload) });
-    closeModal(); toast('Gespeichert');
-    await load();
-  } catch(e){ toast(e.message||'Fehler'); }
-});
-$$('#rows').addEventListener('click', async (e)=>{
-  const editCode = e.target?.dataset?.edit;
-  const delCode  = e.target?.dataset?.del;
-  if (editCode){
-    const r = await api(`/api/materials/${encodeURIComponent(editCode)}`);
-    fillModal(r.data); openModal(`Rohware bearbeiten — ${editCode}`);
-  }
-  if (delCode){
+$$('#cards').addEventListener('click', async (e)=>{
+  const edit = e.target?.dataset?.edit; const del = e.target?.dataset?.del;
+  if (edit){
+    const r = await api(`/api/materials/${encodeURIComponent(edit)}`); CURRENT = r.data; fillForm(CURRENT); openDrawer(`Bearbeiten — ${CURRENT.code}`);
+  } else if (del){
     if (!confirm('Wirklich löschen?')) return;
-    try { 
-      const r = await api(`/api/materials/${encodeURIComponent(delCode)}`, { method:'DELETE' });
-      if (r.ok){ toast('Gelöscht'); load(); }
-    } catch(err){
+    try{
+      await api(`/api/materials/${encodeURIComponent(del)}`, { method:'DELETE' });
+      toast('Gelöscht'); load();
+    }catch(err){
       if (String(err.message).includes('in_use_in_bom')) toast('Kann nicht löschen: wird in Rezepten verwendet');
       else toast('Fehler beim Löschen');
     }
   }
 });
+$$('#rows').addEventListener('click', async (e)=>{
+  const edit = e.target?.dataset?.edit; const del = e.target?.dataset?.del;
+  if (edit){
+    const r = await api(`/api/materials/${encodeURIComponent(edit)}`); CURRENT = r.data; fillForm(CURRENT); openDrawer(`Bearbeiten — ${CURRENT.code}`);
+  } else if (del){
+    if (!confirm('Wirklich löschen?')) return;
+    try{
+      await api(`/api/materials/${encodeURIComponent(del)}`, { method:'DELETE' });
+      toast('Gelöscht'); load();
+    }catch(err){
+      if (String(err.message).includes('in_use_in_bom')) toast('Kann nicht löschen: wird in Rezepten verwendet');
+      else toast('Fehler beim Löschen');
+    }
+  }
+});
+$$('#calcPPU').addEventListener('click', derivePPU);
 
-/* ---------- boot ---------- */
-sessionInfo().then(u=>{ if(!u) location.href='/login.html'; else load(); });
+$$('#saveBtn').addEventListener('click', async ()=>{
+  const payload = readForm();
+  if (!payload.code || !payload.name) return toast('Code & Name erforderlich');
+  try{
+    await api('/api/materials', { method:'POST', body: JSON.stringify(payload) });
+    toast('Gespeichert'); Drawer.close(); load();
+  }catch(e){ toast(e.message||'Fehler'); }
+});
+$$('#delBtn').addEventListener('click', async ()=>{
+  const code = $$('#m_code').value.trim(); if (!code) return;
+  if (!confirm(`Rohware ${code} löschen?`)) return;
+  try{
+    await api(`/api/materials/${encodeURIComponent(code)}`, { method:'DELETE' });
+    toast('Gelöscht'); Drawer.close(); load();
+  }catch(err){
+    if (String(err.message).includes('in_use_in_bom')) toast('Kann nicht löschen: wird in Rezepten verwendet');
+    else toast('Fehler beim Löschen');
+  }
+});
+
+$$('#reload').addEventListener('click', load);
+$$('#exportCsv').addEventListener('click', ()=>{ location.href='/api/tools/export/materials?format=csv'; });
+
+/* esc closes drawer */
+window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') Drawer.close(); });
+
+/* boot */
+(async function(){
+  const u = await sessionInfo(); if(!u){ location.href='/login.html'; return; }
+  await load();
+})();
 </script>
 </body>
 </html>
