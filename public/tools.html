@@ -3,97 +3,515 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Bakeflow — Tools</title>
+  <title>Bakeflow — Data Studio</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
+  <style>
+    /* Page-local sparkle */
+    .studio-hero{
+      display:grid; gap:14px; grid-template-columns:1.2fr .8fr;
+    }
+    @media (max-width: 980px){ .studio-hero{ grid-template-columns:1fr } }
+    .holo{
+      border:1px solid var(--border); border-radius:var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.05));
+      box-shadow: var(--shadow);
+    }
+    .holo-pad{ padding:16px }
+    .drop{
+      display:flex; align-items:center; justify-content:center; text-align:center;
+      border:1.5px dashed rgba(255,255,255,.28); border-radius:16px; min-height:170px; padding:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04));
+    }
+    .drop.drag{ background: rgba(122,162,255,.10); border-color: var(--accent) }
+    .chip{ padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid var(--border) }
+    .grid-2{ display:grid; gap:12px; grid-template-columns: repeat(2,1fr); }
+    .grid-3{ display:grid; gap:12px; grid-template-columns: repeat(3,1fr); }
+    .map-grid{ display:grid; gap:8px; grid-template-columns: 1fr 1fr; }
+    .map-row{ display:grid; gap:8px; grid-template-columns: 1fr 1fr; align-items:center }
+    .pill-btn{ padding:8px 12px; border-radius:999px }
+    .mini-table{ width:100%; border-collapse:separate; border-spacing:0 }
+    .mini-table th,.mini-table td{ padding:8px 10px; border-bottom:1px solid var(--border); font-size:14px; }
+    .mini-table thead th{ position:sticky; top:0; background:rgba(18,20,28,.8); }
+    .hint{ font-size:12px; color:var(--text-muted) }
+    .ok{ color:#6fe3a6 } .warn{ color:#ffb24f } .bad{ color:#ff8a8a }
+    .kicker{ font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-muted) }
+    .success-banner{ padding:10px 12px; border:1px solid rgba(110,220,160,.4); background:rgba(110,220,160,.08); border-radius:10px; }
+  </style>
 </head>
-<body data-active="tools">
-<div id="appHeader"></div>
+<body>
 
-<div class="container">
-  <div class="grid">
-    <div class="card">
-      <h3>Export</h3>
-      <p class="muted"><small>CSV, JSON oder Excel (XLSX).</small></p>
-      <div class="row">
-        <select id="ds" class="input w150">
-          <option>materials</option><option>items</option><option>bom</option><option>plan</option>
-        </select>
-        <select id="fmt" class="input w120">
-          <option>json</option><option>csv</option><option>xlsx</option>
-        </select>
-        <input id="week" class="input w150" type="date" placeholder="Woche (nur für plan)">
-        <button id="exportBtn" class="btn primary">Download</button>
-      </div>
+<header class="header">
+  <nav class="nav">
+    <div class="brand">🍞 Bakeflow — Data Studio</div>
+    <div class="menu-wrap">
+      <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
+      <button class="btn" onclick="location.href='/items.html'">Rezepte</button>
+      <button class="btn" onclick="location.href='/plan.html'">Plan</button>
+      <button class="btn danger" onclick="logout()">Logout</button>
     </div>
+  </nav>
+</header>
 
-    <div class="card">
-      <h3>Backup & Restore</h3>
-      <div class="row">
-        <button id="backupBtn" class="btn">Backup herunterladen</button>
-        <input id="restoreFile" class="input" type="file" accept=".json">
-        <button id="restoreBtn" class="btn primary adminOnly">Backup einspielen</button>
-      </div>
-      <p class="muted"><small>Restore ersetzt Materialien, Items, BOM, Plan. Nur Admin.</small></p>
-    </div>
+<main class="container">
 
-    <div class="card adminOnly">
-      <h3>Nutzer verwalten (Admin)</h3>
-      <div class="row">
-        <input id="uEmail" class="input w150" placeholder="email@example.com">
-        <input id="uPass"  class="input w150" type="password" placeholder="Passwort">
-        <select id="uRole" class="input w120"><option>viewer</option><option>planner</option><option>admin</option></select>
-        <button id="uSave" class="btn primary">Speichern</button>
+  <!-- HERO: Import on left, Quick Export on right -->
+  <div class="studio-hero">
+    <!-- Importer -->
+    <section class="holo">
+      <div class="card-title-row">
+        <div>
+          <div class="kicker">Import</div>
+          <h2 style="margin:4px 0 0 0">CSV / JSON / Sheets</h2>
+        </div>
+        <div class="row-gap">
+          <select id="dataset" class="input" style="width:210px">
+            <option value="materials">Rohwaren</option>
+            <option value="items">Artikel</option>
+            <option value="bom">Rezepte (BOM)</option>
+            <option value="plan">Produktion (Plan)</option>
+          </select>
+          <button class="btn" id="clearAll">Zurücksetzen</button>
+        </div>
       </div>
-      <div id="uList" class="muted" style="margin-top:8px">lädt…</div>
-    </div>
+
+      <div class="holo-pad">
+        <!-- Drop / paste -->
+        <div id="drop" class="drop">
+          <div>
+            <div style="font-weight:700; font-size:18px">Datei hierher ziehen</div>
+            <div class="hint" style="margin-top:4px">oder klicken, um eine Datei auszuwählen</div>
+            <div class="row-gap" style="justify-content:center; margin-top:10px">
+              <span class="chip">CSV</span><span class="chip">JSON</span><span class="chip">Google Sheets (Copy/Paste)</span>
+            </div>
+            <input id="file" type="file" accept=".csv,.json,text/csv,application/json" style="display:none"/>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="muted small">Oder direkt einfügen (CSV / Tabelle aus Sheets)</label>
+          <textarea id="paste" class="input" rows="4" placeholder="Spalten aus Google Sheets hier einfügen…"></textarea>
+        </div>
+
+        <!-- Column mapping -->
+        <div id="mappingBox" class="card" style="margin-top:12px; display:none">
+          <div class="card-title-row">
+            <div class="row-gap"><h3 style="margin:0">Spaltenzuordnung</h3><span id="mapInfo" class="hint">—</span></div>
+            <div class="row-gap">
+              <button class="btn subtle" id="autoMap">Auto-Mapping</button>
+              <button class="btn" id="swapOrientation">Zeilen↔Spalten</button>
+            </div>
+          </div>
+          <div class="holo-pad">
+            <div id="mapGrid" class="map-grid"></div>
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div id="previewBox" class="card" style="margin-top:12px; display:none">
+          <div class="card-title-row">
+            <div class="row-gap">
+              <h3 style="margin:0">Vorschau</h3>
+              <span id="previewCount" class="hint">—</span>
+            </div>
+            <div class="row-gap">
+              <button class="btn" id="cleanBtn">Dubletten & Leerzeilen bereinigen</button>
+              <button class="btn primary" id="importBtn">Importieren</button>
+            </div>
+          </div>
+          <div class="holo-pad" style="max-height:300px; overflow:auto">
+            <table class="mini-table">
+              <thead><tr id="prevHead"></tr></thead>
+              <tbody id="prevRows"></tbody>
+            </table>
+          </div>
+          <div id="importResult" class="holo-pad" style="display:none"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick export / backup -->
+    <aside class="holo">
+      <div class="card-title-row">
+        <div>
+          <div class="kicker">Export</div>
+          <h2 style="margin:4px 0 0 0">Schnell-Export & Backup</h2>
+        </div>
+        <div class="row-gap">
+          <button class="btn" id="refreshCounts">Aktualisieren</button>
+        </div>
+      </div>
+
+      <div class="holo-pad">
+        <div class="grid-3" style="margin-bottom:10px">
+          <button class="btn" id="exMaterials">Rohwaren CSV</button>
+          <button class="btn" id="exItems">Artikel CSV</button>
+          <button class="btn" id="exBOM">Rezepte CSV</button>
+        </div>
+        <div class="grid-2">
+          <button class="btn" id="exJSON">Backup (JSON)</button>
+          <button class="btn" id="dlJSON" disabled>Download</button>
+        </div>
+        <div id="counts" class="hint" style="margin-top:10px">—</div>
+
+        <hr class="sep" />
+        <div class="kicker" style="margin-bottom:6px">Restore</div>
+        <div class="hint">Wähle eine zuvor exportierte JSON-Backup-Datei.</div>
+        <div class="row-gap" style="margin-top:8px">
+          <input id="restoreFile" type="file" accept="application/json" />
+          <button class="btn" id="restoreGo">Wiederherstellen</button>
+        </div>
+        <div id="restoreStatus" class="hint" style="margin-top:8px">—</div>
+      </div>
+    </aside>
   </div>
-</div>
+
+</main>
 
 <script>
-let ROLE = 'viewer';
-(async () => {
-  const u = await sessionInfo();
-  if (u) ROLE = u.role || 'viewer';
-  if (ROLE !== 'admin') document.querySelectorAll('.adminOnly').forEach(el => el.style.display='none');
-})();
+/* ============ utilities ============ */
+function logout(){ api('/api/logout',{method:'POST'}).then(()=>location.href='/login.html'); }
+const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
 
-document.getElementById('exportBtn').onclick = () => {
-  const ds = $$('#ds').value, fmt = $$('#fmt').value, wk = $$('#week').value;
-  window.location = `/api/tools/export/${encodeURIComponent(ds)}?format=${encodeURIComponent(fmt)}${wk?`&start=${encodeURIComponent(wk)}`:''}`;
-};
-document.getElementById('backupBtn').onclick = () => { window.location = '/api/tools/backup'; };
-document.getElementById('restoreBtn').onclick = async () => {
-  if (ROLE !== 'admin') return toast('Nur Admin darf Restore ausführen');
-  const file = $$('#restoreFile').files?.[0]; if (!file) return toast('Bitte Backup-Datei wählen');
-  try { const obj = JSON.parse(await file.text());
-    await api('/api/tools/backup/restore', { method:'POST', body: JSON.stringify(obj) }); toast('Backup eingespielt');
-  } catch(e){ toast('Restore fehlgeschlagen: '+e.message); }
-};
-
-async function loadUsers(){
-  if (ROLE !== 'admin') { $$('#uList').textContent = 'Keine Admin-Rechte.'; return; }
-  try {
-    const { data } = await api('/api/users');
-    $$('#uList').innerHTML = data.length
-      ? data.map(u => `<div class="row"><div style="min-width:220px">${u.email}</div><div>${u.role}</div>
-        <button data-email="${u.email}" class="btn">Löschen</button></div>`).join('')
-      : '<div>Keine Nutzer</div>';
-    document.querySelectorAll('#uList [data-email]').forEach(b => b.onclick = async () => {
-      if (!confirm('Nutzer wirklich löschen?')) return;
-      try { await api('/api/users/' + encodeURIComponent(b.dataset.email), { method:'DELETE' }); loadUsers(); toast('Gelöscht'); } catch(e){ toast('Fehler: '+e.message); }
-    });
-  } catch(e){ $$('#uList').textContent = 'Fehler: '+e.message; }
+/* Tiny CSV parser (handles quotes, separators) */
+function parseCSV(text){
+  const rows=[]; let i=0, cur='', row=[], inQuotes=false;
+  const push = ()=>{ row.push(cur); cur=''; };
+  const endRow = ()=>{ rows.push(row); row=[]; };
+  while(i<text.length){
+    const ch = text[i];
+    if (inQuotes){
+      if (ch === '"'){
+        if (text[i+1] === '"'){ cur+='"'; i++; } else { inQuotes=false; }
+      } else { cur += ch; }
+    } else {
+      if (ch === '"'){ inQuotes=true; }
+      else if (ch === ','){ push(); }
+      else if (ch === '\n'){ push(); endRow(); }
+      else if (ch === '\r'){ /* ignore */ }
+      else { cur += ch; }
+    }
+    i++;
+  }
+  if (cur.length || row.length){ push(); endRow(); }
+  // trim whitespace & empty trailing rows
+  return rows.filter(r => r.some(c => String(c).trim() !== ''));
 }
-document.getElementById('uSave').onclick = async () => {
-  if (ROLE !== 'admin') return toast('Nur Admin darf Nutzer speichern');
-  try {
-    await api('/api/users', { method:'POST', body: JSON.stringify({
-      email: $$('#uEmail').value.trim(), password: $$('#uPass').value, role: $$('#uRole').value
-    })}); toast('Nutzer gespeichert'); loadUsers();
-  } catch(e){ toast('Fehler: '+e.message); }
+
+/* ============ state ============ */
+let RAW=[], HEAD=[], ORIENTATION='rows'; // 'rows' = first row is header
+let MAPPING={}, PREVIEW=[], BACKUP_BLOB=null;
+
+/* ============ helpers for mapping per dataset ============ */
+const REQUIRED = {
+  materials: ['code','name','base_unit','pack_qty','pack_unit','pack_price','price_per_unit','supplier_code','note'],
+  items: ['code','name','category','yield_qty','yield_unit','note'],
+  bom: ['product_code','material_code','qty','unit'], // also accepts grouped form downstream
+  plan: ['date','start_time','end_time','product_code','qty','note','shop']
 };
-loadUsers();
+const FRIENDLY = {
+  code:'Code', name:'Name', base_unit:'Base', pack_qty:'Pack-Menge', pack_unit:'Pack-Einheit', pack_price:'Pack-Preis',
+  price_per_unit:'€/base', supplier_code:'Lieferant', note:'Notiz',
+  category:'Kategorie', yield_qty:'Yield Menge', yield_unit:'Yield Einheit',
+  product_code:'Artikel', material_code:'Material', qty:'Menge', unit:'Einheit',
+  date:'Datum (YYYY-MM-DD)', start_time:'Start', end_time:'Ende', shop:'Shop'
+};
+
+/* ============ DOM references ============ */
+const dsEl = $$('#dataset');
+const drop = $$('#drop'); const file = $$('#file'); const paste = $$('#paste');
+const mapBox = $$('#mappingBox'); const mapGrid = $$('#mapGrid'); const mapInfo=$$('#mapInfo');
+const prevBox = $$('#previewBox'); const prevHead=$$('#prevHead'); const prevRows=$$('#prevRows'); const prevCount=$$('#previewCount');
+const importBtn = $$('#importBtn'); const autoMapBtn = $$('#autoMap'); const swapBtn=$$('#swapOrientation');
+const cleanBtn = $$('#cleanBtn'); const clearAllBtn=$$('#clearAll'); const resultBox=$$('#importResult');
+
+/* ============ Input events ============ */
+drop.addEventListener('click', ()=>file.click());
+drop.addEventListener('dragover', (e)=>{ e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', ()=>drop.classList.remove('drag'));
+drop.addEventListener('drop', async (e)=>{
+  e.preventDefault(); drop.classList.remove('drag');
+  const f = e.dataTransfer.files[0]; if(!f) return;
+  await handleFile(f);
+});
+file.addEventListener('change', async (e)=>{ const f=e.target.files[0]; if (f) await handleFile(f); });
+paste.addEventListener('input', ()=>{ if (paste.value.trim()) { handlePaste(paste.value.trim()); } });
+
+clearAllBtn.addEventListener('click', ()=>{
+  RAW=[]; HEAD=[]; MAPPING={}; PREVIEW=[];
+  paste.value=''; file.value=''; BACKUP_BLOB=null;
+  mapBox.style.display='none'; prevBox.style.display='none'; resultBox.style.display='none';
+  toast('Zurückgesetzt');
+});
+
+/* ============ File/paste handling ============ */
+async function handleFile(f){
+  const text = await f.text();
+  if (/json$/i.test(f.name) || text.trim().startsWith('{') || text.trim().startsWith('[')){
+    const data = JSON.parse(text);
+    if (Array.isArray(data)) {
+      RAW = data; ORIENTATION='json';
+      HEAD = Object.keys(data[0]||{});
+      buildMapping();
+      buildPreview();
+    } else {
+      toast('JSON muss ein Array von Objekten sein'); return;
+    }
+  } else {
+    const rows = parseCSV(text);
+    if (!rows.length){ toast('Leere CSV'); return; }
+    RAW = rows; ORIENTATION='rows'; HEAD = rows[0].map(h=>String(h).trim());
+    buildMapping();
+    buildPreview();
+  }
+  toast('Daten geladen');
+}
+function handlePaste(text){
+  const rows = parseCSV(text);
+  if (!rows.length){ toast('Leere Tabelle'); return; }
+  RAW = rows; ORIENTATION='rows'; HEAD = rows[0].map(h=>String(h).trim());
+  buildMapping(); buildPreview();
+  toast('Eingefügt');
+}
+
+/* ============ Mapping UI ============ */
+function buildMapping(){
+  mapBox.style.display='block';
+  const ds = dsEl.value;
+  const required = REQUIRED[ds];
+  const headers = HEAD.length ? HEAD : (ORIENTATION==='json' ? Object.keys(RAW[0]||{}) : []);
+  mapInfo.textContent = headers.length ? `${headers.length} Spalten erkannt` : 'Keine Kopfzeile erkannt';
+  mapGrid.innerHTML = '';
+  required.forEach(key=>{
+    const row = document.createElement('div'); row.className='map-row';
+    row.innerHTML = `
+      <div class="muted">${FRIENDLY[key]||key}</div>
+      <select class="input map" data-key="${key}">
+        <option value="">—</option>
+        ${headers.map(h=>`<option value="${h}">${h}</option>`).join('')}
+      </select>
+    `;
+    mapGrid.appendChild(row);
+  });
+  // naive automap on build
+  autoMap();
+}
+autoMapBtn.addEventListener('click', autoMap);
+function autoMap(){
+  $$$('.map', mapGrid).forEach(sel=>{
+    const key = sel.dataset.key;
+    const guess = HEAD.find(h => h.toLowerCase().replace(/\s+/g,'_') === key) || HEAD.find(h => h.toLowerCase().includes(key.replace('_',' ')));
+    if (guess) sel.value = guess;
+    MAPPING[key] = sel.value || '';
+    sel.onchange = ()=>{ MAPPING[key] = sel.value || ''; buildPreview(); };
+  });
+}
+
+/* Orientation toggle (if data is rotated) */
+swapBtn.addEventListener('click', ()=>{
+  if (ORIENTATION==='rows' && Array.isArray(RAW) && RAW.length){
+    RAW = transpose(RAW); HEAD = RAW[0].map(h=>String(h).trim());
+    buildMapping(); buildPreview(); toast('Transponiert');
+  } else { toast('Nur für CSV/Sheet-Daten verfügbar'); }
+});
+function transpose(m){ return m[0].map((_, c) => m.map(row => row[c])); }
+
+/* ============ Preview build ============ */
+function buildPreview(){
+  resultBox.style.display='none';
+  const ds = dsEl.value;
+  let rows = [];
+  if (ORIENTATION==='json'){
+    rows = RAW.map(obj => mapObj(obj, MAPPING));
+  } else {
+    const body = RAW.slice(1); // skip header row
+    rows = body.map(arr => {
+      const obj={}; for (const key in MAPPING){ const col=MAPPING[key]; if (!col) continue;
+        const idx = HEAD.indexOf(col); obj[key] = idx>=0 ? arr[idx] : '';
+      } return obj;
+    });
+  }
+  // cleanse trivial empties:
+  rows = rows.filter(r => Object.values(r).some(v => String(v||'').trim()!==''));
+  PREVIEW = rows.slice(0, 500); // cap preview rows
+  const keys = Object.keys(MAPPING).filter(k=>MAPPING[k]);
+  // head
+  prevHead.innerHTML = keys.map(k=>`<th>${FRIENDLY[k]||k}</th>`).join('');
+  // rows
+  prevRows.innerHTML = PREVIEW.map(r=>`<tr>${keys.map(k=>`<td>${escapeHtml(r[k])}</td>`).join('')}</tr>`).join('');
+  prevCount.textContent = `${rows.length} Zeilen zu importieren (Vorschau zeigt ${PREVIEW.length})`;
+  prevBox.style.display='block';
+}
+function mapObj(obj, mapping){
+  const out={}; for (const key in mapping){ const col=mapping[key]; if (!col) continue; out[key] = obj[col]; } return out;
+}
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;" }[m])); }
+
+/* ============ Cleaning helpers ============ */
+cleanBtn.addEventListener('click', ()=>{
+  const ds = dsEl.value;
+  const uniqKey = ds==='materials' || ds==='items' ? 'code' : null;
+  if (uniqKey && PREVIEW.length){
+    const seen = new Set(); PREVIEW = PREVIEW.filter(r=>{
+      const k = String(r[uniqKey]||'').trim(); if (!k) return false;
+      if (seen.has(k)) return false; seen.add(k); return true;
+    });
+    // rebuild rendered preview table
+    const keys = Object.keys(MAPPING).filter(k=>MAPPING[k]);
+    prevRows.innerHTML = PREVIEW.map(r=>`<tr>${keys.map(k=>`<td>${escapeHtml(r[k])}</td>`).join('')}</tr>`).join('');
+    prevCount.textContent = `${PREVIEW.length} Zeilen zu importieren (bereinigt)`;
+    toast('Bereinigt');
+  } else {
+    toast('Nichts zu bereinigen');
+  }
+});
+
+/* ============ Import ============ */
+importBtn.addEventListener('click', async ()=>{
+  const ds = dsEl.value;
+  let payload = PREVIEW;
+
+  // Convert numeric fields
+  if (ds==='materials'){
+    payload = payload.map(m => ({
+      code: s(m.code), name: s(m.name),
+      base_unit: s(m.base_unit||'g'),
+      pack_qty: n(m.pack_qty), pack_unit: s(m.pack_unit||null),
+      pack_price: n(m.pack_price), price_per_unit: n(m.price_per_unit),
+      supplier_code: s(m.supplier_code||null), note: s(m.note||'')
+    }));
+  } else if (ds==='items'){
+    payload = payload.map(it => ({
+      code: s(it.code), name: s(it.name), category: s(it.category||''),
+      yield_qty: it.yield_qty===''?null:Number(it.yield_qty||1),
+      yield_unit: s(it.yield_unit||'pcs'), note: s(it.note||'')
+    }));
+  } else if (ds==='bom'){
+    // accept both long-form and grouped; here we just send long-form
+    payload = payload.map(b => ({
+      product_code: s(b.product_code), material_code: s(b.material_code),
+      qty: Number(b.qty||0), unit: s(b.unit||'g')
+    }));
+  } else if (ds==='plan'){
+    payload = payload.map(p => ({
+      date: s(p.date),
+      start_time: s(p.start_time||null), end_time: s(p.end_time||null),
+      product_code: s(p.product_code), qty: Number(p.qty||0),
+      note: s(p.note||''), shop: s(p.shop||null)
+    }));
+  }
+
+  try{
+    resultBox.style.display='block';
+    resultBox.innerHTML = `<div class="hint">Sende an Server…</div>`;
+    const res = await api(`/api/import/${ds}`, { method:'POST', body: JSON.stringify(payload) });
+    resultBox.innerHTML = `<div class="success-banner">Erfolg: ${res.inserted} Zeilen importiert.</div>`;
+    toast('Import abgeschlossen');
+  }catch(e){
+    resultBox.style.display='block';
+    resultBox.innerHTML = `<div class="bad">Fehler: ${escapeHtml(e.message||'request_failed')}</div>`;
+    toast('Import fehlgeschlagen');
+  }
+});
+function n(v){ if (v===''||v==null) return null; const x=Number(String(v).replace(',','.')); return Number.isFinite(x)?x:null; }
+function s(v){ const t=String(v==null?'':v).trim(); return t===''?null:t; }
+
+/* ============ Quick export (client-side fallback) ============ */
+$$('#exMaterials').addEventListener('click', async ()=>{
+  try{
+    const r = await api('/api/materials'); const rows = r.data||[];
+    downloadCSV('materials.csv', rows, ['code','name','base_unit','pack_qty','pack_unit','pack_price','price_per_unit','supplier_code','note']);
+  }catch{ toast('Export fehlgeschlagen'); }
+});
+$$('#exItems').addEventListener('click', async ()=>{
+  try{
+    const r = await api('/api/items'); const rows = r.data||[];
+    downloadCSV('items.csv', rows, ['code','name','category','yield_qty','yield_unit','note']);
+  }catch{ toast('Export fehlgeschlagen'); }
+});
+$$('#exBOM').addEventListener('click', async ()=>{
+  try{
+    const r = await api('/api/items'); const items = r.data||[];
+    const all=[];
+    for (const it of items){
+      try{
+        const b = await api(`/api/items/${encodeURIComponent(it.code)}/bom`);
+        (b.data||[]).forEach(row=> all.push({
+          product_code: it.code, material_code: row.material_code, qty: row.qty, unit: row.unit
+        }));
+      }catch{}
+    }
+    downloadCSV('bom.csv', all, ['product_code','material_code','qty','unit']);
+  }catch{ toast('Export fehlgeschlagen'); }
+});
+function downloadCSV(name, rows, cols){
+  const esc = (v)=> {
+    const s = v==null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  const lines = [ cols.join(',') , ...rows.map(r => cols.map(c=>esc(r[c])).join(',')) ];
+  const blob = new Blob([lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ============ Backup (JSON) & Restore ============ */
+$$('#exJSON').addEventListener('click', async ()=>{
+  try{
+    const materials = (await api('/api/materials')).data || [];
+    const items = (await api('/api/items')).data || [];
+    const boms = [];
+    for (const it of items){
+      try{ const r = await api(`/api/items/${encodeURIComponent(it.code)}/bom`); (r.data||[]).forEach(x=>boms.push({ product_code: it.code, material_code: x.material_code, qty:x.qty, unit:x.unit })); }
+      catch{}
+    }
+    const backup = { version:1, created_at:new Date().toISOString(), materials, items, bom:boms };
+    BACKUP_BLOB = new Blob([JSON.stringify(backup,null,2)], { type:'application/json' });
+    $$('#dlJSON').disabled = false;
+    $$('#dlJSON').onclick = ()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(BACKUP_BLOB); a.download=`bakeflow-backup-${Date.now()}.json`; a.click(); URL.revokeObjectURL(a.href); };
+    toast('Backup bereit');
+  }catch(e){ toast('Backup fehlgeschlagen'); }
+});
+
+$$('#restoreGo').addEventListener('click', async ()=>{
+  const f = $$('#restoreFile').files[0]; if (!f) return toast('Backup-Datei wählen');
+  const text = await f.text();
+  try{
+    const data = JSON.parse(text);
+    $$('#restoreStatus').textContent = 'Stelle wieder her…';
+    if (Array.isArray(data.materials) && data.materials.length){
+      await api('/api/import/materials', { method:'POST', body: JSON.stringify(data.materials) });
+    }
+    if (Array.isArray(data.items) && data.items.length){
+      await api('/api/import/items', { method:'POST', body: JSON.stringify(data.items) });
+    }
+    if (Array.isArray(data.bom) && data.bom.length){
+      await api('/api/import/bom', { method:'POST', body: JSON.stringify(data.bom) });
+    }
+    $$('#restoreStatus').innerHTML = '<span class="ok">Wiederherstellung abgeschlossen</span>';
+    toast('Wiederherstellung OK');
+  }catch(e){
+    $$('#restoreStatus').innerHTML = `<span class="bad">Fehler: ${escapeHtml(e.message)}</span>`;
+  }
+});
+
+/* ============ Counts ============ */
+$$('#refreshCounts').addEventListener('click', refreshCounts);
+async function refreshCounts(){
+  try{
+    const m = (await api('/api/materials')).data||[];
+    const i = (await api('/api/items')).data||[];
+    let bomCount = 0;
+    for (const it of i){ try{ const r=await api(`/api/items/${encodeURIComponent(it.code)}/bom`); bomCount += (r.data||[]).length; }catch{} }
+    $$('#counts').innerHTML = `Rohwaren: <b>${m.length}</b> • Artikel: <b>${i.length}</b> • BOM-Zeilen: <b>${bomCount}</b>`;
+  }catch{ $$('#counts').textContent = '—'; }
+}
+
+/* ============ Boot ============ */
+(async function(){
+  const u = await sessionInfo(); if(!u){ location.href='/login.html'; return; }
+  refreshCounts();
+})();
 </script>
+
 </body>
 </html>
