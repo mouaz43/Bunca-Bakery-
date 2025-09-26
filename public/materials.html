@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>BUNCA — Rohwaren</title>
+  <title>BUNCA — Artikel & Rezepte</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
 </head>
@@ -12,8 +12,8 @@
   <nav class="nav">
     <div class="brand">BUNCA Planner</div>
     <div class="tabs">
-      <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
       <a class="tab" data-tab="items" href="/items.html">Rezepte</a>
+      <a class="tab" data-tab="materials" href="/materials.html">Rohwaren</a>
       <a class="tab" data-tab="plan" href="/plan.html">Plan</a>
       <a class="tab" data-tab="tools" href="/tools.html">Tools</a>
       <a class="tab" data-tab="dash" href="/dashboard.html">Übersicht</a>
@@ -29,19 +29,17 @@
 <div class="container">
   <div class="card">
     <div class="row">
-      <h2 style="margin-right:auto">Rohwaren</h2>
-      <button id="addRow" class="btn">+ Neu</button>
-      <button id="bulkBtn" class="btn">Bulk Preise</button>
+      <h2 style="margin-right:auto">Artikel & Rezepte</h2>
+      <button id="addRow" class="btn">+ Neuer Artikel</button>
       <button id="reload" class="btn">Neu laden</button>
     </div>
-    <p class="muted"><small>Bearbeite Felder direkt in der Tabelle und klicke „Speichern“.</small></p>
     <div style="overflow:auto">
       <table class="table" id="tbl">
         <thead>
           <tr>
-            <th>Code</th><th>Name</th><th>Base Unit</th>
-            <th>Pack Qty</th><th>Pack Unit</th><th>Pack Price</th>
-            <th>€ / base-unit</th><th>Supplier</th><th>Note</th><th></th><th></th>
+            <th>Code</th><th>Name</th><th>Kategorie</th>
+            <th>Yield Qty</th><th>Yield Unit</th><th>Notiz</th>
+            <th></th><th></th>
           </tr>
         </thead>
         <tbody id="body"></tbody>
@@ -50,127 +48,167 @@
   </div>
 </div>
 
-<!-- Bulk modal -->
-<div id="modal" class="modal">
+<!-- BOM editor modal -->
+<div id="bomModal" class="modal">
   <div class="box">
-    <h3>Bulk Preise einfügen</h3>
-    <p class="muted"><small>Format: <code>CODE | 0.00123</code> pro Zeile</small></p>
-    <textarea id="bulkText" class="input w100" placeholder="FARINA00 | 0.00128"></textarea>
-    <div class="row right" style="margin-top:10px">
-      <button id="bulkCancel" class="btn">Abbrechen</button>
-      <button id="bulkSave" class="btn primary">Speichern</button>
+    <h3>Rezept: <span id="bomTitle"></span></h3>
+    <div class="row">
+      <button id="bomAdd" class="btn">+ Zutat</button>
+      <div class="right" style="gap:10px;display:flex;align-items:center">
+        <input id="scaleQty" class="input w150" placeholder="Zielmenge…" />
+        <button id="scaleBtn" class="btn">Kosten rechnen</button>
+        <button id="bomSave" class="btn primary">Rezept speichern</button>
+        <button id="bomClose" class="btn">Schließen</button>
+      </div>
     </div>
-  </div>
-</div>
-
-<!-- History modal -->
-<div id="histModal" class="modal">
-  <div class="box">
-    <h3>Preisverlauf: <span id="histTitle"></span></h3>
-    <div style="max-height:260px;overflow:auto">
+    <div style="overflow:auto;margin-top:10px">
       <table class="table">
-        <thead><tr><th>Preis</th><th>Datum</th></tr></thead>
-        <tbody id="histBody"></tbody>
+        <thead>
+          <tr><th>Material</th><th>Menge</th><th>Einheit</th><th></th></tr>
+        </thead>
+        <tbody id="bomBody"></tbody>
       </table>
     </div>
-    <div class="row right" style="margin-top:10px">
-      <button id="histClose" class="btn">Schließen</button>
+    <div id="scaleBox" class="card" style="margin-top:12px;display:none">
+      <h4>Skalierung & Kosten</h4>
+      <div style="overflow:auto">
+        <table class="table">
+          <thead><tr><th>Material</th><th>Menge (Basis)</th><th>€/Einheit</th><th>Kosten</th></tr></thead>
+          <tbody id="scaleBody"></tbody>
+          <tfoot><tr><th colspan="3" style="text-align:right">Total</th><th id="scaleTotal"></th></tr></tfoot>
+        </table>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
-navActive('materials');
+navActive('items');
 document.getElementById('logout').onclick = async () => { await api('/api/logout', { method:'POST' }); location.href = '/login.html'; };
 
-const T = (tag, attrs={}, ...kids) => { const el=document.createElement(tag); Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v)); kids.forEach(k=>el.append(k)); return el; };
-const td = (c)=>{ const x=document.createElement('td'); x.append(c); return x; };
 const bodyEl = document.getElementById('body');
 const reloadBtn = document.getElementById('reload');
 const addRowBtn = document.getElementById('addRow');
-const bulkBtn = document.getElementById('bulkBtn');
 
-function numOrNull(v){ if (v===''||v==null) return null; const n=Number(String(v).replace(',','.')); return Number.isFinite(n)?n:null; }
+const T = (tag, attrs={}, ...kids) => { const el = document.createElement(tag); Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k, v)); kids.forEach(k => el.append(k)); return el; };
+const td = (c)=>{ const x=document.createElement('td'); x.append(c); return x; };
+const numOrNull = (v)=>{ if(v===''||v==null) return null; const n=Number(String(v).replace(',','.')); return Number.isFinite(n)?n:null; };
 
-async function load() {
-  bodyEl.innerHTML = '<tr><td colspan="11" class="muted">Lade…</td></tr>';
-  try { const { data } = await api('/api/materials'); bodyEl.innerHTML = ''; data.forEach(r => addRow(r)); }
-  catch (e) { bodyEl.innerHTML = `<tr><td colspan="11" class="muted">Fehler: ${e.message}</td></tr>`; }
+async function load(){
+  bodyEl.innerHTML = '<tr><td colspan="8" class="muted">Lade…</td></tr>';
+  const { data } = await api('/api/items');
+  bodyEl.innerHTML = '';
+  data.forEach(r => addRow(r));
 }
 
-function addRow(r = {}) {
+function addRow(r={}){
   const tr = document.createElement('tr');
+
   const code = T('input', { class:'input w120', value: r.code || '' });
   const name = T('input', { class:'input w150', value: r.name || '' });
-  const base_unit = T('input', { class:'input w80', value: r.base_unit || 'g' });
-  const pack_qty = T('input', { class:'input w80', value: r.pack_qty ?? '' });
-  const pack_unit = T('input', { class:'input w80', value: r.pack_unit ?? '' });
-  const pack_price = T('input', { class:'input w80', value: r.pack_price ?? '' });
-  const ppu = T('input', { class:'input w100', value: r.price_per_unit ?? '' });
-  const supplier = T('input', { class:'input w120', value: r.supplier_code ?? '' });
-  const note = T('input', { class:'input w150', value: r.note ?? '' });
+  const cat = T('input', { class:'input w120', value: r.category || '' });
+  const yq = T('input', { class:'input w80', value: r.yield_qty ?? 1 });
+  const yu = T('input', { class:'input w80', value: r.yield_unit || 'pcs' });
+  const note = T('input', { class:'input w150', value: r.note || '' });
 
   const saveBtn = T('button', { class:'btn primary' }, 'Speichern');
   saveBtn.onclick = async () => {
-    try {
-      await api('/api/materials', {
-        method:'POST',
-        body: JSON.stringify({
-          code: code.value.trim(),
-          name: name.value.trim(),
-          base_unit: base_unit.value.trim() || 'g',
-          pack_qty: numOrNull(pack_qty.value),
-          pack_unit: pack_unit.value.trim() || null,
-          pack_price: numOrNull(pack_price.value),
-          price_per_unit: numOrNull(ppu.value) ?? 0,
-          supplier_code: supplier.value.trim() || null,
-          note: note.value.trim()
-        })
-      });
-      toast('Gespeichert');
-    } catch (e) { toast('Fehler: ' + e.message, false); }
+    try{
+      await api('/api/items', { method:'POST', body: JSON.stringify({
+        code: code.value.trim(),
+        name: name.value.trim(),
+        category: cat.value.trim(),
+        yield_qty: numOrNull(yq.value) ?? 1,
+        yield_unit: yu.value.trim() || 'pcs',
+        note: note.value.trim()
+      })});
+      toast('Artikel gespeichert');
+    }catch(e){ toast('Fehler: '+e.message, false); }
   };
 
-  const histBtn = T('button', { class:'btn' }, 'Verlauf');
-  histBtn.onclick = () => openHistory(code.value.trim());
+  const bomBtn = T('button', { class:'btn' }, 'Rezept');
+  bomBtn.onclick = () => openBOM(code.value.trim(), name.value.trim(), {
+    yield_qty: numOrNull(yq.value) ?? 1, yield_unit: yu.value.trim() || 'pcs'
+  });
 
-  tr.append(td(code), td(name), td(base_unit), td(pack_qty), td(pack_unit), td(pack_price),
-           td(ppu), td(supplier), td(note), td(saveBtn), td(histBtn));
+  tr.append(td(code),td(name),td(cat),td(yq),td(yu),td(note),td(saveBtn),td(bomBtn));
   bodyEl.append(tr);
 }
 
 reloadBtn.onclick = load;
-addRowBtn.onclick = () => addRow({ base_unit:'g' });
+addRowBtn.onclick = () => addRow({ yield_qty:1, yield_unit:'pcs' });
 
-/* bulk modal */
-const modal = document.getElementById('modal');
-const bulkText = document.getElementById('bulkText');
-document.getElementById('bulkCancel').onclick = () => { modal.style.display='none'; };
-bulkBtn.onclick = () => { bulkText.value=''; modal.style.display='flex'; };
-document.getElementById('bulkSave').onclick = async () => {
+/* -------- BOM modal -------- */
+const bomModal = document.getElementById('bomModal');
+const bomTitle = document.getElementById('bomTitle');
+const bomBody = document.getElementById('bomBody');
+const bomAdd = document.getElementById('bomAdd');
+const bomSave = document.getElementById('bomSave');
+const bomClose = document.getElementById('bomClose');
+const scaleQty = document.getElementById('scaleQty');
+const scaleBtn = document.getElementById('scaleBtn');
+const scaleBox = document.getElementById('scaleBox');
+const scaleBody = document.getElementById('scaleBody');
+const scaleTotal = document.getElementById('scaleTotal');
+
+let currentCode = null;
+
+function addBomRow(row={}){
+  const tr = document.createElement('tr');
+  const mat = T('input', { class:'input w150', value: row.material_code || '' });
+  const qty = T('input', { class:'input w80', value: row.qty ?? '' });
+  const unit= T('input', { class:'input w80', value: row.unit || 'g' });
+  const del = T('button', { class:'btn' }, 'X');
+  del.onclick = () => tr.remove();
+  tr.append(td(mat), td(qty), td(unit), td(del));
+  bomBody.append(tr);
+}
+
+async function openBOM(code, name, itemInfo){
+  if (!code) { toast('Bitte zuerst Code/Name speichern', false); return; }
+  currentCode = code;
+  bomTitle.textContent = `${code} — ${name}`;
+  scaleQty.placeholder = `Menge (${itemInfo.yield_qty} ${itemInfo.yield_unit} = 1×)`;
+
+  bomBody.innerHTML = '<tr><td colspan="4" class="muted">Lade…</td></tr>';
+  bomModal.style.display = 'flex';
+  scaleBox.style.display = 'none';
+
+  try{
+    const { data } = await api(`/api/items/${encodeURIComponent(code)}/bom`);
+    bomBody.innerHTML = '';
+    data.forEach(addBomRow);
+  }catch(e){
+    bomBody.innerHTML = '<tr><td colspan="4" class="muted">Noch kein Rezept vorhanden</td></tr>';
+  }
+}
+
+bomAdd.onclick = () => addBomRow({ unit:'g' });
+bomClose.onclick = () => { bomModal.style.display = 'none'; };
+
+bomSave.onclick = async () => {
   try {
-    await api('/api/materials/bulk-prices', { method:'POST', body: JSON.stringify({ text: bulkText.value }) });
-    modal.style.display='none'; toast('Preise aktualisiert'); load();
+    const lines = Array.from(bomBody.querySelectorAll('tr')).map(tr => {
+      const [mat, qty, unit] = tr.querySelectorAll('input');
+      return { material_code: mat.value.trim(), qty: Number(String(qty.value).replace(',','.')), unit: unit.value.trim() || 'g' };
+    }).filter(x => x.material_code && Number.isFinite(x.qty));
+    await api(`/api/items/${encodeURIComponent(currentCode)}/bom`, { method:'POST', body: JSON.stringify({ lines }) });
+    toast('Rezept gespeichert');
   } catch(e){ toast('Fehler: '+e.message, false); }
 };
 
-/* history modal */
-const histModal = document.getElementById('histModal');
-const histTitle = document.getElementById('histTitle');
-const histBody = document.getElementById('histBody');
-document.getElementById('histClose').onclick = () => { histModal.style.display='none'; };
-
-async function openHistory(code){
-  if (!code) return;
+scaleBtn.onclick = async () => {
+  const qty = Number(String(scaleQty.value || '').replace(',','.'));
+  if (!Number.isFinite(qty) || qty <= 0) return toast('Bitte Zielmenge eingeben', false);
   try {
-    const { data } = await api(`/api/materials/${encodeURIComponent(code)}/history`);
-    histTitle.textContent = code;
-    histBody.innerHTML = data.length
-      ? data.map(x=>`<tr><td>${x.price_per_unit}</td><td>${new Date(x.changed_at).toLocaleString()}</td></tr>`).join('')
-      : '<tr><td colspan="2" class="muted">Keine Einträge</td></tr>';
-    histModal.style.display='flex';
-  } catch(e){ toast('Fehler beim Laden des Verlaufs', false); }
-}
+    const { data } = await api(`/api/items/${encodeURIComponent(currentCode)}/scale?qty=${encodeURIComponent(qty)}`);
+    scaleBody.innerHTML = data.lines.length
+      ? data.lines.map(l => `<tr><td>${l.material_name} (${l.material_code})</td><td>${l.qty} ${l.unit}</td><td>${l.price_per_unit}</td><td>${l.cost}</td></tr>`).join('')
+      : '<tr><td colspan="4" class="muted">Keine Daten</td></tr>';
+    scaleTotal.textContent = data.total_cost.toFixed(2) + ' €';
+    scaleBox.style.display = 'block';
+  } catch(e){ toast('Berechnung fehlgeschlagen: '+e.message, false); }
+};
 
 load();
 </script>
