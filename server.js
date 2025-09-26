@@ -1,4 +1,4 @@
-// BUNCA Planner — Phase 4: Items & Recipes (BOM + Scale)
+// BUNCA Planner — Phase 5: Weekly Production Plan + Materials Calculator
 
 const express = require('express');
 const session = require('express-session');
@@ -177,7 +177,7 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
-/* ---------- Import (kept from Phase 2 for materials) ---------- */
+/* ---------- Import (materials only, from Phase 2) ---------- */
 app.post('/api/import/:dataset', requireAuth, async (req, res) => {
   const ds = req.params.dataset;
   const rows = Array.isArray(req.body) ? req.body : [];
@@ -188,7 +188,7 @@ app.post('/api/import/:dataset', requireAuth, async (req, res) => {
       for (const m of rows) {
         const code = m.code?.trim();
         if (!code) continue;
-        const prev = await q(`SELECT price_per_unit FROM materials WHERE code=$1`, [code]);
+      const prev = await q(`SELECT price_per_unit FROM materials WHERE code=$1`, [code]);
         const nextPPU = Number(m.price_per_unit ?? 0);
         if (prev.rowCount && Number(prev.rows[0].price_per_unit) !== nextPPU) {
           await q(
@@ -295,7 +295,6 @@ app.get('/api/materials/:code/history', requireAuth, async (req, res) => {
 });
 
 /* ---------- ITEMS & BOM ---------- */
-// Items list
 app.get('/api/items', requireAuth, async (_req, res) => {
   const { rows } = await q(
     `SELECT code, name, category, yield_qty, yield_unit, note FROM items ORDER BY name`
@@ -303,7 +302,6 @@ app.get('/api/items', requireAuth, async (_req, res) => {
   res.json({ ok: true, data: rows });
 });
 
-// Upsert item
 app.post('/api/items', requireAuth, async (req, res) => {
   const { code, name, category = '', yield_qty = 1, yield_unit = 'pcs', note = '' } =
     req.body || {};
@@ -319,21 +317,17 @@ app.post('/api/items', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Get BOM for item
 app.get('/api/items/:code/bom', requireAuth, async (req, res) => {
   const { code } = req.params;
   const { rows } = await q(
-    `
-    SELECT b.id, b.material_code, m.name AS material_name, b.qty, b.unit
-    FROM bom b
-    JOIN materials m ON m.code=b.material_code
-    WHERE b.product_code=$1
-    ORDER BY b.id
-  `, [code]);
+    `SELECT b.id, b.material_code, m.name AS material_name, b.qty, b.unit
+     FROM bom b JOIN materials m ON m.code=b.material_code
+     WHERE b.product_code=$1 ORDER BY b.id`,
+    [code]
+  );
   res.json({ ok: true, data: rows });
 });
 
-// Save BOM for item
 app.post('/api/items/:code/bom', requireAuth, async (req, res) => {
   const { code } = req.params;
   const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
@@ -348,30 +342,26 @@ app.post('/api/items/:code/bom', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Scale & cost preview
-app.get('/api/items/:code/scale', requireAuth, async (req, res) => {
-  const code = req.params.code;
-  const qty = Number(req.query.qty || 0);
-  if (!qty) return res.status(400).json({ ok: false, error: 'qty_required' });
-
-  // get item yield
-  const it = await q(`SELECT yield_qty, yield_unit FROM items WHERE code=$1`, [code]);
-  if (it.rowCount === 0) return res.status(404).json({ ok:false, error:'item_not_found' });
+/* ---------- Scaling helpers ---------- */
+async function scaleRecipe(productCode, targetQty) {
+  const it = await q(`SELECT yield_qty, yield_unit FROM items WHERE code=$1`, [productCode]);
+  if (it.rowCount === 0) throw new Error('item_not_found');
   const yieldQty = Number(it.rows[0].yield_qty) || 1;
 
-  // get BOM
-  const bom = await q(
+  const lines = await q(
     `SELECT b.material_code, b.qty, b.unit, m.price_per_unit, m.name AS material_name
      FROM bom b JOIN materials m ON m.code=b.material_code
-     WHERE b.product_code=$1 ORDER BY b.id`, [code]);
+     WHERE b.product_code=$1 ORDER BY b.id`,
+    [productCode]
+  );
 
-  const factor = qty / yieldQty;
-  const lines = [];
-  for (const r of bom.rows) {
+  const factor = Number(targetQty) / yieldQty;
+  const out = [];
+  for (const r of lines.rows) {
     const base0 = toBase(r.qty, r.unit);
-    const scaledQty = base0.qty * factor; // in base unit
+    const scaledQty = base0.qty * factor;
     const cost = scaledQty * Number(r.price_per_unit || 0);
-    lines.push({
+    out.push({
       material_code: r.material_code,
       material_name: r.material_name,
       unit: base0.unit,
@@ -380,8 +370,98 @@ app.get('/api/items/:code/scale', requireAuth, async (req, res) => {
       cost: Number(cost.toFixed(2))
     });
   }
-  const total = lines.reduce((s,x)=>s+x.cost,0);
-  res.json({ ok:true, data:{ lines, total_cost: Number(total.toFixed(2)) } });
+  const total = out.reduce((s,x)=>s+x.cost,0);
+  return { lines: out, total_cost: Number(total.toFixed(2)) };
+}
+
+app.get('/api/items/:code/scale', requireAuth, async (req, res) => {
+  const code = req.params.code;
+  const qty = Number(req.query.qty || 0);
+  if (!qty) return res.status(400).json({ ok: false, error: 'qty_required' });
+  try {
+    const r = await scaleRecipe(code, qty);
+    res.json({ ok: true, data: r });
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+/* ---------- PLAN (weekly) ---------- */
+// GET week: ?start=YYYY-MM-DD (start of week, any day accepted)
+app.get('/api/plan/week', requireAuth, async (req, res) => {
+  const start = String(req.query.start || '').slice(0,10);
+  if (!start) return res.json({ ok:true, data: [] });
+  const { rows } = await q(
+    `SELECT id, day, shop, start_time, end_time, product_code, qty, note,
+            (SELECT name FROM items i WHERE i.code=pp.product_code) AS product_name
+     FROM production_plan pp
+     WHERE day BETWEEN $1::date AND ($1::date + INTERVAL '6 day')
+     ORDER BY day, start_time NULLS FIRST, id`, [start]);
+  res.json({ ok:true, data: rows });
+});
+
+// Save whole week: replace rows for that week
+app.post('/api/plan/week/save', requireAuth, async (req, res) => {
+  const start = String(req.body?.start || '').slice(0,10);
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!start) return res.status(400).json({ ok:false, error:'start_required' });
+
+  await q('BEGIN');
+  await q(`DELETE FROM production_plan WHERE day BETWEEN $1::date AND ($1::date + INTERVAL '6 day')`, [start]);
+  for (const r of rows) {
+    await q(
+      `INSERT INTO production_plan(day,shop,start_time,end_time,product_code,qty,note)
+       VALUES($1,$2,$3,$4,$5,$6,$7)`,
+      [r.day, r.shop || null, r.start_time || null, r.end_time || null, r.product_code, Number(r.qty||0), r.note || '']
+    );
+  }
+  await q('COMMIT');
+  res.json({ ok:true, inserted: rows.length });
+});
+
+// Calculator: aggregate week or provided rows
+app.post('/api/plan/calc', requireAuth, async (req, res) => {
+  let list = req.body?.rows;
+  if ((!list || !Array.isArray(list)) && req.body?.start) {
+    const { rows } = await q(
+      `SELECT product_code, qty FROM production_plan
+       WHERE day BETWEEN $1::date AND ($1::date + INTERVAL '6 day')`,
+      [req.body.start]
+    );
+    list = rows.map(r => ({ product_code: r.product_code, qty: Number(r.qty) }));
+  }
+  if (!Array.isArray(list) || list.length === 0)
+    return res.json({ ok:true, data:{ lines:[], total_cost:0 } });
+
+  // aggregate materials
+  const need = new Map(); // key=material_code|unit
+  let totalCost = 0;
+  for (const r of list) {
+    const one = await scaleRecipe(r.product_code, r.qty);
+    for (const l of one.lines) {
+      const key = `${l.material_code}|${l.unit}`;
+      const cur = need.get(key) || {
+        material_code: l.material_code,
+        material_name: l.material_name,
+        unit: l.unit, qty: 0, price_per_unit: l.price_per_unit, cost: 0
+      };
+      cur.qty += l.qty;
+      cur.cost += l.cost;
+      need.set(key, cur);
+    }
+    totalCost += one.total_cost;
+  }
+  const arr = Array.from(need.values())
+    .map(x => ({
+      material_code: x.material_code,
+      material_name: x.material_name,
+      unit: x.unit,
+      qty: Number(x.qty.toFixed(2)),
+      price_per_unit: Number(x.price_per_unit.toFixed(6)),
+      cost: Number(x.cost.toFixed(2))
+    }))
+    .sort((a,b)=>a.material_name.localeCompare(b.material_name));
+  res.json({ ok:true, data:{ lines: arr, total_cost: Number(totalCost.toFixed(2)) }});
 });
 
 /* ---------- Pages ---------- */
