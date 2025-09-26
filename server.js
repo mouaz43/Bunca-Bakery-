@@ -1,9 +1,10 @@
-// BUNCA Planner — Phase 5: Weekly Production Plan + Materials Calculator
+// BUNCA Planner — Phase 6: Tools (Export, Backup/Restore, Users)
 
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,8 +50,6 @@ const requireAuth = (req, res, next) => authed(req)
   ? next()
   : res.status(401).json({ ok: false, error: 'unauthorized' });
 const eqi = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
-
-/* ---------- Units ---------- */
 const U = {
   g: { base: 'g', factor: 1 }, kg: { base: 'g', factor: 1000 },
   ml: { base: 'ml', factor: 1 }, l: { base: 'ml', factor: 1000 },
@@ -58,15 +57,8 @@ const U = {
   pieces: { base: 'pcs', factor: 1 }, stk: { base: 'pcs', factor: 1 },
   'stück': { base: 'pcs', factor: 1 }
 };
-function normalizeUnit(u) {
-  const k = String(u || '').trim().toLowerCase();
-  return U[k]?.base || (k || null);
-}
-function toBase(qty, unit) {
-  const u = String(unit || '').toLowerCase();
-  const m = U[u];
-  return m ? { qty: Number(qty) * m.factor, unit: m.base } : { qty: Number(qty), unit };
-}
+function normalizeUnit(u) { const k=String(u||'').trim().toLowerCase(); return U[k]?.base || (k||null); }
+function toBase(qty, unit) { const m = U[String(unit||'').toLowerCase()]; return m ? { qty:Number(qty)*m.factor, unit:m.base } : { qty:Number(qty), unit }; }
 
 /* ---------- Health ---------- */
 app.get('/healthz', async (_req, res) => {
@@ -82,7 +74,8 @@ async function ensureSchema() {
     await q(`
       CREATE TABLE IF NOT EXISTS users (
         email TEXT PRIMARY KEY,
-        role  TEXT NOT NULL DEFAULT 'admin'
+        role  TEXT NOT NULL DEFAULT 'user',
+        pass_hash TEXT
       );
     `);
 
@@ -142,6 +135,15 @@ async function ensureSchema() {
       );
     `);
 
+    // Ensure an admin user exists matching env admin (optional)
+    if (ADMIN_EMAIL && ADMIN_PASSWORD) {
+      const exists = await q(`SELECT 1 FROM users WHERE email=$1`, [ADMIN_EMAIL]);
+      if (!exists.rowCount) {
+        const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+        await q(`INSERT INTO users(email, role, pass_hash) VALUES($1,$2,$3)`, [ADMIN_EMAIL, 'admin', hash]);
+      }
+    }
+
     await q('COMMIT');
     console.log('[schema] ensured');
   } catch (e) {
@@ -155,111 +157,52 @@ app.get('/api/session', (req, res) =>
   res.json({ ok: true, user: authed(req) ? req.session.user : null })
 );
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const email = String(req.body?.email || '').trim();
   const pass  = String(req.body?.password || '').trim();
-  console.log('[login attempt]', {
-    providedEmail: email,
-    expectedEmail: ADMIN_EMAIL,
-    envEmailSet: !!ADMIN_EMAIL,
-    envPassSet: !!ADMIN_PASSWORD
-  });
+  // 1) env admin override
   if (ADMIN_EMAIL && ADMIN_PASSWORD && eqi(email, ADMIN_EMAIL) && pass === ADMIN_PASSWORD) {
     req.session.user = { email: ADMIN_EMAIL, role: 'admin' };
+    return res.json({ ok: true });
+  }
+  // 2) DB users
+  const u = await q(`SELECT email, role, pass_hash FROM users WHERE lower(email)=lower($1)`, [email]);
+  if (u.rowCount && u.rows[0].pass_hash && await bcrypt.compare(pass, u.rows[0].pass_hash)) {
+    req.session.user = { email: u.rows[0].email, role: u.rows[0].role || 'user' };
     return res.json({ ok: true });
   }
   return res.status(401).json({ ok: false, error: 'bad_credentials' });
 });
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie('sid'); res.json({ ok: true });
-  });
-});
-
-/* ---------- Import (materials only, from Phase 2) ---------- */
-app.post('/api/import/:dataset', requireAuth, async (req, res) => {
-  const ds = req.params.dataset;
-  const rows = Array.isArray(req.body) ? req.body : [];
-  try {
-    await q('BEGIN');
-
-    if (ds === 'materials') {
-      for (const m of rows) {
-        const code = m.code?.trim();
-        if (!code) continue;
-      const prev = await q(`SELECT price_per_unit FROM materials WHERE code=$1`, [code]);
-        const nextPPU = Number(m.price_per_unit ?? 0);
-        if (prev.rowCount && Number(prev.rows[0].price_per_unit) !== nextPPU) {
-          await q(
-            `INSERT INTO material_price_history(material_code, price_per_unit) VALUES($1,$2)`,
-            [code, nextPPU]
-          );
-        }
-        await q(
-          `INSERT INTO materials(code,name,base_unit,pack_qty,pack_unit,pack_price,price_per_unit,supplier_code,note)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-           ON CONFLICT (code) DO UPDATE SET
-             name=EXCLUDED.name, base_unit=EXCLUDED.base_unit, pack_qty=EXCLUDED.pack_qty,
-             pack_unit=EXCLUDED.pack_unit, pack_price=EXCLUDED.pack_price,
-             price_per_unit=EXCLUDED.price_per_unit, supplier_code=EXCLUDED.supplier_code,
-             note=EXCLUDED.note`,
-          [
-            code, m.name, normalizeUnit(m.base_unit || 'g'),
-            m.pack_qty ?? null, m.pack_unit ?? null, m.pack_price ?? null,
-            nextPPU, m.supplier_code ?? null, m.note ?? ''
-          ]
-        );
-      }
-    }
-
-    await q('COMMIT');
-    res.json({ ok: true, inserted: rows.length });
-  } catch (e) {
-    await q('ROLLBACK');
-    res.status(400).json({ ok: false, error: e.message });
-  }
+  req.session.destroy(() => { res.clearCookie('sid'); res.json({ ok: true }); });
 });
 
 /* ---------- MATERIALS ---------- */
 app.get('/api/materials', requireAuth, async (_req, res) => {
   const { rows } = await q(`
     SELECT code, name, base_unit, price_per_unit, pack_qty, pack_unit, pack_price, supplier_code, note
-    FROM materials
-    ORDER BY name
-  `);
+    FROM materials ORDER BY name`);
   res.json({ ok: true, data: rows });
 });
-
 app.post('/api/materials', requireAuth, async (req, res) => {
-  const {
-    code, name, base_unit = 'g', price_per_unit = 0,
-    pack_qty = null, pack_unit = null, pack_price = null,
-    supplier_code = null, note = ''
-  } = req.body || {};
+  const { code, name, base_unit='g', price_per_unit=0, pack_qty=null, pack_unit=null, pack_price=null, supplier_code=null, note='' } = req.body || {};
   if (!code || !name) return res.status(400).json({ ok:false, error:'code_and_name_required' });
-
   const prev = await q(`SELECT price_per_unit FROM materials WHERE code=$1`, [code]);
   if (prev.rowCount && Number(prev.rows[0].price_per_unit) !== Number(price_per_unit)) {
-    await q(
-      `INSERT INTO material_price_history(material_code, price_per_unit) VALUES($1,$2)`,
-      [code, Number(price_per_unit)]
-    );
+    await q(`INSERT INTO material_price_history(material_code, price_per_unit) VALUES($1,$2)`, [code, Number(price_per_unit)]);
   }
-
   await q(
     `INSERT INTO materials(code,name,base_unit,pack_qty,pack_unit,pack_price,price_per_unit,supplier_code,note)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
      ON CONFLICT (code) DO UPDATE SET
        name=EXCLUDED.name, base_unit=EXCLUDED.base_unit, pack_qty=EXCLUDED.pack_qty,
        pack_unit=EXCLUDED.pack_unit, pack_price=EXCLUDED.pack_price,
-       price_per_unit=EXCLUDED.price_per_unit, supplier_code=EXCLUDED.supplier_code,
-       note=EXCLUDED.note`,
+       price_per_unit=EXCLUDED.price_per_unit, supplier_code=EXCLUDED.supplier_code, note=EXCLUDED.note`,
     [code, name, normalizeUnit(base_unit), pack_qty, pack_unit, pack_price, Number(price_per_unit), supplier_code, note]
   );
   res.json({ ok: true });
 });
-
 app.post('/api/materials/bulk-prices', requireAuth, async (req, res) => {
   const text = String(req.body?.text || '');
   const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -271,123 +214,89 @@ app.post('/api/materials/bulk-prices', requireAuth, async (req, res) => {
     const val = Number(m[2].replace(',', '.'));
     const prev = await q(`SELECT price_per_unit FROM materials WHERE code=$1`, [code]);
     if (prev.rowCount && Number(prev.rows[0].price_per_unit) !== val) {
-      await q(
-        `INSERT INTO material_price_history(material_code, price_per_unit) VALUES($1,$2)`,
-        [code, val]
-      );
+      await q(`INSERT INTO material_price_history(material_code, price_per_unit) VALUES($1,$2)`, [code, val]);
     }
     const r = await q(`UPDATE materials SET price_per_unit=$1 WHERE code=$2`, [val, code]);
     updated += r.rowCount;
   }
   res.json({ ok: true, updated });
 });
-
 app.get('/api/materials/:code/history', requireAuth, async (req, res) => {
   const { rows } = await q(
-    `SELECT price_per_unit, changed_at
-     FROM material_price_history
-     WHERE material_code=$1
-     ORDER BY changed_at DESC
-     LIMIT 50`,
-    [req.params.code]
-  );
+    `SELECT price_per_unit, changed_at FROM material_price_history
+     WHERE material_code=$1 ORDER BY changed_at DESC LIMIT 50`, [req.params.code]);
   res.json({ ok: true, data: rows });
 });
 
 /* ---------- ITEMS & BOM ---------- */
 app.get('/api/items', requireAuth, async (_req, res) => {
-  const { rows } = await q(
-    `SELECT code, name, category, yield_qty, yield_unit, note FROM items ORDER BY name`
-  );
+  const { rows } = await q(`SELECT code, name, category, yield_qty, yield_unit, note FROM items ORDER BY name`);
   res.json({ ok: true, data: rows });
 });
-
 app.post('/api/items', requireAuth, async (req, res) => {
-  const { code, name, category = '', yield_qty = 1, yield_unit = 'pcs', note = '' } =
-    req.body || {};
+  const { code, name, category='', yield_qty=1, yield_unit='pcs', note='' } = req.body || {};
   if (!code || !name) return res.status(400).json({ ok:false, error:'code_and_name_required' });
   await q(
     `INSERT INTO items(code,name,category,yield_qty,yield_unit,note)
      VALUES($1,$2,$3,$4,$5,$6)
      ON CONFLICT (code) DO UPDATE SET
-       name=EXCLUDED.name, category=EXCLUDED.category,
-       yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit, note=EXCLUDED.note`,
-    [code, name, category, Number(yield_qty || 1), yield_unit, note]
+       name=EXCLUDED.name, category=EXCLUDED.category, yield_qty=EXCLUDED.yield_qty,
+       yield_unit=EXCLUDED.yield_unit, note=EXCLUDED.note`,
+    [code, name, category, Number(yield_qty||1), yield_unit, note]
   );
   res.json({ ok: true });
 });
-
 app.get('/api/items/:code/bom', requireAuth, async (req, res) => {
-  const { code } = req.params;
   const { rows } = await q(
     `SELECT b.id, b.material_code, m.name AS material_name, b.qty, b.unit
      FROM bom b JOIN materials m ON m.code=b.material_code
-     WHERE b.product_code=$1 ORDER BY b.id`,
-    [code]
-  );
+     WHERE b.product_code=$1 ORDER BY b.id`, [req.params.code]);
   res.json({ ok: true, data: rows });
 });
-
 app.post('/api/items/:code/bom', requireAuth, async (req, res) => {
   const { code } = req.params;
   const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
   await q(`DELETE FROM bom WHERE product_code=$1`, [code]);
   for (const L of lines) {
-    await q(
-      `INSERT INTO bom(product_code,material_code,qty,unit)
-       VALUES($1,$2,$3,$4)`,
-      [code, L.material_code, Number(L.qty), normalizeUnit(L.unit || 'g')]
-    );
+    await q(`INSERT INTO bom(product_code,material_code,qty,unit) VALUES($1,$2,$3,$4)`,
+      [code, L.material_code, Number(L.qty), normalizeUnit(L.unit || 'g')]);
   }
   res.json({ ok: true });
 });
-
-/* ---------- Scaling helpers ---------- */
 async function scaleRecipe(productCode, targetQty) {
   const it = await q(`SELECT yield_qty, yield_unit FROM items WHERE code=$1`, [productCode]);
   if (it.rowCount === 0) throw new Error('item_not_found');
   const yieldQty = Number(it.rows[0].yield_qty) || 1;
-
-  const lines = await q(
+  const bom = await q(
     `SELECT b.material_code, b.qty, b.unit, m.price_per_unit, m.name AS material_name
      FROM bom b JOIN materials m ON m.code=b.material_code
-     WHERE b.product_code=$1 ORDER BY b.id`,
-    [productCode]
-  );
-
+     WHERE b.product_code=$1 ORDER BY b.id`, [productCode]);
   const factor = Number(targetQty) / yieldQty;
-  const out = [];
-  for (const r of lines.rows) {
-    const base0 = toBase(r.qty, r.unit);
-    const scaledQty = base0.qty * factor;
-    const cost = scaledQty * Number(r.price_per_unit || 0);
-    out.push({
+  const lines = [];
+  for (const r of bom.rows) {
+    const base = toBase(r.qty, r.unit);
+    const scaled = base.qty * factor;
+    lines.push({
       material_code: r.material_code,
       material_name: r.material_name,
-      unit: base0.unit,
-      qty: Number(scaledQty.toFixed(2)),
+      unit: base.unit,
+      qty: Number(scaled.toFixed(2)),
       price_per_unit: Number((r.price_per_unit || 0).toFixed(6)),
-      cost: Number(cost.toFixed(2))
+      cost: Number((scaled * Number(r.price_per_unit || 0)).toFixed(2))
     });
   }
-  const total = out.reduce((s,x)=>s+x.cost,0);
-  return { lines: out, total_cost: Number(total.toFixed(2)) };
+  const total = lines.reduce((s,x)=>s+x.cost,0);
+  return { lines, total_cost: Number(total.toFixed(2)) };
 }
-
 app.get('/api/items/:code/scale', requireAuth, async (req, res) => {
   const code = req.params.code;
   const qty = Number(req.query.qty || 0);
   if (!qty) return res.status(400).json({ ok: false, error: 'qty_required' });
-  try {
-    const r = await scaleRecipe(code, qty);
-    res.json({ ok: true, data: r });
-  } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
-  }
+  try { res.json({ ok:true, data: await scaleRecipe(code, qty) }); }
+  catch (e) { res.status(400).json({ ok:false, error:e.message }); }
 });
 
 /* ---------- PLAN (weekly) ---------- */
-// GET week: ?start=YYYY-MM-DD (start of week, any day accepted)
 app.get('/api/plan/week', requireAuth, async (req, res) => {
   const start = String(req.query.start || '').slice(0,10);
   if (!start) return res.json({ ok:true, data: [] });
@@ -399,13 +308,10 @@ app.get('/api/plan/week', requireAuth, async (req, res) => {
      ORDER BY day, start_time NULLS FIRST, id`, [start]);
   res.json({ ok:true, data: rows });
 });
-
-// Save whole week: replace rows for that week
 app.post('/api/plan/week/save', requireAuth, async (req, res) => {
   const start = String(req.body?.start || '').slice(0,10);
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
   if (!start) return res.status(400).json({ ok:false, error:'start_required' });
-
   await q('BEGIN');
   await q(`DELETE FROM production_plan WHERE day BETWEEN $1::date AND ($1::date + INTERVAL '6 day')`, [start]);
   for (const r of rows) {
@@ -418,8 +324,6 @@ app.post('/api/plan/week/save', requireAuth, async (req, res) => {
   await q('COMMIT');
   res.json({ ok:true, inserted: rows.length });
 });
-
-// Calculator: aggregate week or provided rows
 app.post('/api/plan/calc', requireAuth, async (req, res) => {
   let list = req.body?.rows;
   if ((!list || !Array.isArray(list)) && req.body?.start) {
@@ -432,36 +336,143 @@ app.post('/api/plan/calc', requireAuth, async (req, res) => {
   }
   if (!Array.isArray(list) || list.length === 0)
     return res.json({ ok:true, data:{ lines:[], total_cost:0 } });
-
-  // aggregate materials
-  const need = new Map(); // key=material_code|unit
-  let totalCost = 0;
+  const need = new Map(); let totalCost=0;
   for (const r of list) {
     const one = await scaleRecipe(r.product_code, r.qty);
     for (const l of one.lines) {
       const key = `${l.material_code}|${l.unit}`;
-      const cur = need.get(key) || {
-        material_code: l.material_code,
-        material_name: l.material_name,
-        unit: l.unit, qty: 0, price_per_unit: l.price_per_unit, cost: 0
-      };
-      cur.qty += l.qty;
-      cur.cost += l.cost;
-      need.set(key, cur);
+      const cur = need.get(key) || { material_code:l.material_code, material_name:l.material_name, unit:l.unit, qty:0, price_per_unit:l.price_per_unit, cost:0 };
+      cur.qty += l.qty; cur.cost += l.cost; need.set(key, cur);
     }
     totalCost += one.total_cost;
   }
-  const arr = Array.from(need.values())
-    .map(x => ({
-      material_code: x.material_code,
-      material_name: x.material_name,
-      unit: x.unit,
-      qty: Number(x.qty.toFixed(2)),
-      price_per_unit: Number(x.price_per_unit.toFixed(6)),
-      cost: Number(x.cost.toFixed(2))
-    }))
-    .sort((a,b)=>a.material_name.localeCompare(b.material_name));
+  const arr = Array.from(need.values()).map(x => ({
+    material_code: x.material_code, material_name: x.material_name,
+    unit: x.unit, qty: Number(x.qty.toFixed(2)),
+    price_per_unit: Number(x.price_per_unit.toFixed(6)),
+    cost: Number(x.cost.toFixed(2))
+  })).sort((a,b)=>a.material_name.localeCompare(b.material_name));
   res.json({ ok:true, data:{ lines: arr, total_cost: Number(totalCost.toFixed(2)) }});
+});
+
+/* ---------- TOOLS: EXPORT / BACKUP / USERS ---------- */
+
+// CSV helper
+function toCSV(rows) {
+  if (!rows || !rows.length) return '';
+  const cols = Object.keys(rows[0]);
+  const esc = (v)=> {
+    const s = v==null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  return [cols.join(','), ...rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
+}
+
+// Export dataset (CSV or JSON)
+app.get('/api/tools/export/:dataset', requireAuth, async (req, res) => {
+  const ds = req.params.dataset;
+  const fmt = String(req.query.format || 'json').toLowerCase();
+  let rows = [];
+  if (ds === 'materials')
+    rows = (await q(`SELECT * FROM materials ORDER BY code`)).rows;
+  else if (ds === 'items')
+    rows = (await q(`SELECT * FROM items ORDER BY code`)).rows;
+  else if (ds === 'bom')
+    rows = (await q(`SELECT product_code, material_code, qty, unit FROM bom ORDER BY product_code,id`)).rows;
+  else if (ds === 'plan') {
+    const start = req.query.start ? String(req.query.start).slice(0,10) : null;
+    if (start) rows = (await q(
+      `SELECT * FROM production_plan WHERE day BETWEEN $1::date AND ($1::date + INTERVAL '6 day') ORDER BY day, id`, [start]
+    )).rows;
+    else rows = (await q(`SELECT * FROM production_plan ORDER BY day,id`)).rows;
+  } else return res.status(400).json({ ok:false, error:'unknown_dataset' });
+
+  if (fmt === 'csv') {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${ds}.csv"`);
+    return res.send(toCSV(rows));
+  }
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="${ds}.json"`);
+  res.send(JSON.stringify(rows, null, 2));
+});
+
+// Full backup (all tables, JSON)
+app.get('/api/tools/backup', requireAuth, async (_req, res) => {
+  const backup = {
+    created_at: new Date().toISOString(),
+    materials: (await q(`SELECT * FROM materials ORDER BY code`)).rows,
+    items:     (await q(`SELECT * FROM items ORDER BY code`)).rows,
+    bom:       (await q(`SELECT product_code, material_code, qty, unit FROM bom ORDER BY product_code,id`)).rows,
+    plan:      (await q(`SELECT * FROM production_plan ORDER BY day,id`)).rows,
+    users:     (await q(`SELECT email, role FROM users ORDER BY email`)).rows // no password hashes in export
+  };
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="bunca-backup.json"`);
+  res.send(JSON.stringify(backup, null, 2));
+});
+
+// Restore backup (replaces data)
+app.post('/api/tools/backup/restore', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  if (!b || typeof b !== 'object') return res.status(400).json({ ok:false, error:'bad_backup' });
+  await q('BEGIN');
+  try {
+    await q('DELETE FROM bom'); await q('DELETE FROM production_plan');
+    await q('DELETE FROM items'); await q('DELETE FROM materials');
+    // users not touched here for safety
+    for (const m of (b.materials||[])) {
+      await q(`INSERT INTO materials(code,name,base_unit,pack_qty,pack_unit,pack_price,price_per_unit,supplier_code,note)
+               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [m.code,m.name,normalizeUnit(m.base_unit||'g'),m.pack_qty,m.pack_unit,m.pack_price,Number(m.price_per_unit||0),m.supplier_code||null,m.note||'']);
+    }
+    for (const it of (b.items||[])) {
+      await q(`INSERT INTO items(code,name,category,yield_qty,yield_unit,note)
+               VALUES($1,$2,$3,$4,$5,$6)`,
+        [it.code,it.name,it.category||'',Number(it.yield_qty||1),it.yield_unit||'pcs',it.note||'']);
+    }
+    for (const r of (b.bom||[])) {
+      await q(`INSERT INTO bom(product_code,material_code,qty,unit) VALUES($1,$2,$3,$4)`,
+        [r.product_code,r.material_code,Number(r.qty||0),normalizeUnit(r.unit||'g')]);
+    }
+    for (const p of (b.plan||[])) {
+      await q(`INSERT INTO production_plan(day,shop,start_time,end_time,product_code,qty,note)
+               VALUES($1,$2,$3,$4,$5,$6,$7)`,
+        [p.day||p.date, p.shop||null, p.start_time||null, p.end_time||null, p.product_code, Number(p.qty||0), p.note||'']);
+    }
+    await q('COMMIT');
+    res.json({ ok:true });
+  } catch (e) {
+    await q('ROLLBACK');
+    res.status(400).json({ ok:false, error:e.message });
+  }
+});
+
+/* Users (create/list/delete). Admin only */
+function requireAdmin(req, res, next) {
+  return (req.session.user?.role === 'admin' || eqi(req.session.user?.email, ADMIN_EMAIL))
+    ? next()
+    : res.status(403).json({ ok:false, error:'admin_only' });
+}
+app.get('/api/users', requireAuth, requireAdmin, async (_req, res) => {
+  const { rows } = await q(`SELECT email, role FROM users ORDER BY email`);
+  res.json({ ok:true, data: rows });
+});
+app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
+  const { email, role='user', password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ ok:false, error:'email_and_password_required' });
+  const hash = await bcrypt.hash(String(password), 10);
+  await q(`INSERT INTO users(email,role,pass_hash)
+           VALUES($1,$2,$3)
+           ON CONFLICT(email) DO UPDATE SET role=EXCLUDED.role, pass_hash=EXCLUDED.pass_hash`,
+           [String(email).trim(), role, hash]);
+  res.json({ ok:true });
+});
+app.delete('/api/users/:email', requireAuth, requireAdmin, async (req, res) => {
+  const email = String(req.params.email||'').trim();
+  if (eqi(email, ADMIN_EMAIL)) return res.status(400).json({ ok:false, error:'cannot_delete_env_admin' });
+  await q(`DELETE FROM users WHERE lower(email)=lower($1)`, [email]);
+  res.json({ ok:true });
 });
 
 /* ---------- Pages ---------- */
