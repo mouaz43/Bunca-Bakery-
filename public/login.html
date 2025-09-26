@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>BUNCA — Login</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <script defer src="/js/app.js"></script>
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <div style="font-weight:800">BUNCA Planner</div>
+    </nav>
+  </header>
+
+  <div class="container center">
+    <div class="card" style="width:420px">
+      <h2 style="margin-bottom:4px">Anmelden</h2>
+      <p class="muted" style="margin-bottom:12px">Bitte Admin-Zugang eingeben</p>
+      <div class="grid">
+        <div>
+          <label>Email</label>
+          <input id="email" class="input" placeholder="you@bunca.de"/>
+        </div>
+        <div>
+          <label>Passwort</label>
+          <input id="password" class="input" type="password" placeholder="••••••••"/>
+        </div>
+        <button id="loginBtn" class="btn primary">Login</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  try {
+    await api('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: $$('#email').value, password: $$('#password').value })
+    });
+    location.href = '/dashboard.html';
+  } catch (e) {
+    toast('Login fehlgeschlagen', false);
+  }
+});
+</script>
+</body>
+</html>
