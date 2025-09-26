@@ -1,16 +1,15 @@
 // public/js/app.js
-// Minimal helpers for all pages
+// Shared helpers + theme toggle
 
 const $$ = (sel, root = document) => root.querySelector(sel);
 
 const toast = (msg, ok = true) => {
   const t = document.createElement('div');
-  t.className = 'toast show';
-  t.style.borderColor = ok ? '#285a3a' : '#6b1f22';
-  t.style.background = ok ? '#102018' : '#1e1112';
+  t.className = 'toast';
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2500);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(6px)'; }, 2200);
+  setTimeout(() => t.remove(), 2600);
 };
 
 async function api(path, opts = {}) {
@@ -35,3 +34,13 @@ function navActive(id) {
   const el = document.querySelector(`[data-tab="${id}"]`);
   if (el) el.classList.add('active');
 }
+
+/* ---------- Theme ---------- */
+(function themeInit(){
+  const saved = localStorage.getItem('theme') || 'dark';
+  if (saved === 'light') document.documentElement.classList.add('light');
+  window.toggleTheme = () => {
+    const isLight = document.documentElement.classList.toggle('light');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  };
+})();
