@@ -113,25 +113,49 @@ async function ensureSchema() {
       created_at TIMESTAMP DEFAULT NOW()
     )`);
 
-    // Users table for authentication
+    // Users table for authentication - create basic table first
     await q(`CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      name TEXT NOT NULL,
-      role TEXT DEFAULT 'user',
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMP DEFAULT NOW()
+      password_hash TEXT NOT NULL
     )`);
 
+    // Safely add additional columns to users table
+    try {
+      await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT DEFAULT 'User';`);
+      await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';`);
+      await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;`);
+      await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+      console.log('Users table enhanced successfully');
+    } catch (error) {
+      console.log('Users table migration skipped (columns may already exist)');
+    }
+
     // Create default admin user if not exists
-    const adminExists = await q(`SELECT id FROM users WHERE email = 'admin@bunca.bakery'`);
-    if (adminExists.rows.length === 0) {
-      const hashedPassword = await bcrypt.hash('demo123', 10);
-      await q(`INSERT INTO users (email, password_hash, name, role) 
-               VALUES ('admin@bunca.bakery', $1, 'Admin User', 'admin')`, 
-               [hashedPassword]);
-      console.log('Default admin user created');
+    try {
+      const adminExists = await q(`SELECT id FROM users WHERE email = 'admin@bunca.bakery'`);
+      if (adminExists.rows.length === 0) {
+        const hashedPassword = await bcrypt.hash('demo123', 10);
+        
+        // Check if name column exists before using it
+        const hasNameColumn = await q(`
+          SELECT column_name FROM information_schema.columns 
+          WHERE table_name = 'users' AND column_name = 'name'
+        `);
+        
+        if (hasNameColumn.rows.length > 0) {
+          await q(`INSERT INTO users (email, password_hash, name, role) 
+                   VALUES ('admin@bunca.bakery', $1, 'Admin User', 'admin')`, 
+                   [hashedPassword]);
+        } else {
+          await q(`INSERT INTO users (email, password_hash) 
+                   VALUES ('admin@bunca.bakery', $1)`, 
+                   [hashedPassword]);
+        }
+        console.log('Default admin user created');
+      }
+    } catch (error) {
+      console.log('Admin user creation skipped:', error.message);
     }
 
     console.log('Database schema ready');
