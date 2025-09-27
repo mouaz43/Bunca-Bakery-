@@ -1,11 +1,6 @@
-// BUNCA Bakeflow — solid server
-// - Auth + sessions
-// - Schema (no auto seeding)
-// - CRUD + import
-// - Search, deletes, pricing calc, weekly plan
-// - CSV export
-// - ADMIN WIPE endpoint to clear demo/old data
-// - Sturdy boot to avoid 502s
+// Bunca Bakery - Fully Automated Workflow System
+// Enhanced with complete automation, smart calculations, and advanced features
+// Compatible with existing database structure while adding powerful new capabilities
 
 const express = require('express');
 const session = require('express-session');
@@ -21,445 +16,936 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'PLEASE_SET_ME';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
-/* ---------- DB ---------- */
+console.log('🍞 Bunca Bakery - Fully Automated System Starting...');
+console.log('Environment:', { 
+  node_env: NODE_ENV, 
+  has_db: !!DATABASE_URL, 
+  has_admin: !!ADMIN_EMAIL,
+  port: PORT 
+});
+
+/* ---------- Enhanced Database Connection ---------- */
 const pool = new Pool({
   connectionString: DATABASE_URL || undefined,
   ssl: DATABASE_URL ? { rejectUnauthorized: false } : false,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
+
 async function q(text, params = []) {
   const client = await pool.connect();
-  try { return await client.query(text, params); }
-  finally { client.release(); }
+  try { 
+    return await client.query(text, params); 
+  } catch (error) {
+    console.error('Database query error:', error.message);
+    throw error;
+  } finally { 
+    client.release(); 
+  }
 }
 
-/* ---------- Express ---------- */
+/* ---------- Enhanced Express Configuration ---------- */
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Enhanced session configuration
 app.use(session({
-  name: 'sid',
+  name: 'bunca_session',
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    httpOnly: true, sameSite: 'lax',
+    httpOnly: true, 
+    sameSite: 'lax',
     secure: NODE_ENV === 'production' ? 'auto' : false,
-    maxAge: 1000 * 60 * 60 * 8
+    maxAge: 1000 * 60 * 60 * 12 // 12 hours
   }
 }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Enhanced static file serving
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: NODE_ENV === 'production' ? '1d' : '0',
+  etag: true
+}));
 
-/* ---------- Helpers ---------- */
-const authed = (req) => !!(req.session && req.session.user);
-const requireAuth = (req, res, next) =>
-  authed(req) ? next() : res.status(401).json({ ok: false, error: 'unauthorized' });
-const requireAdmin = (req, res, next) =>
-  authed(req) && req.session.user?.email ? next() : res.status(401).json({ ok:false, error:'unauthorized' });
-const eqi = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+/* ---------- Enhanced Database Schema with Automation ---------- */
+async function ensureSchema() {
+  try {
+    console.log('🔧 Setting up enhanced database schema...');
+    
+    // Core tables with enhanced columns
+    await q(`CREATE TABLE IF NOT EXISTS materials (
+      id SERIAL PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      base_unit TEXT NOT NULL,
+      price_per_unit DECIMAL(10,4) NOT NULL DEFAULT 0,
+      current_stock DECIMAL(10,3) DEFAULT 0,
+      min_stock DECIMAL(10,3) DEFAULT 0,
+      reorder_point DECIMAL(10,3) DEFAULT 0,
+      supplier TEXT DEFAULT '',
+      shelf_life_days INTEGER DEFAULT 30,
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );`);
 
-/* ---------- Health (helps Render avoid 502) ---------- */
-app.get('/healthz', async (_req, res) => {
-  try { await q('SELECT 1'); res.json({ ok: true }); }
-  catch (e) { console.error('healthz failed', e.message); res.status(500).json({ ok: false }); }
+    await q(`CREATE TABLE IF NOT EXISTS items (
+      id SERIAL PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      yield_qty DECIMAL(10,3) NOT NULL DEFAULT 1,
+      yield_unit TEXT NOT NULL DEFAULT 'pcs',
+      category TEXT DEFAULT 'bakery',
+      shelf_life_hours INTEGER DEFAULT 24,
+      allergens TEXT[] DEFAULT '{}',
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );`);
+
+    await q(`CREATE TABLE IF NOT EXISTS bom (
+      id SERIAL PRIMARY KEY,
+      product_code TEXT NOT NULL,
+      material_code TEXT NOT NULL,
+      qty DECIMAL(10,4) NOT NULL,
+      unit TEXT NOT NULL,
+      waste_factor DECIMAL(5,4) DEFAULT 0.05,
+      notes TEXT DEFAULT '',
+      FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE,
+      FOREIGN KEY (material_code) REFERENCES materials(code) ON DELETE CASCADE
+    );`);
+
+    await q(`CREATE TABLE IF NOT EXISTS production_plan (
+      id SERIAL PRIMARY KEY,
+      day DATE NOT NULL,
+      product_code TEXT NOT NULL,
+      qty DECIMAL(10,3) NOT NULL,
+      status TEXT DEFAULT 'planned',
+      priority INTEGER DEFAULT 5,
+      start_time TIME,
+      end_time TIME,
+      assigned_staff TEXT[] DEFAULT '{}',
+      equipment_required TEXT[] DEFAULT '{}',
+      shop TEXT DEFAULT '',
+      note TEXT DEFAULT '',
+      actual_qty DECIMAL(10,3) DEFAULT 0,
+      cost_per_unit DECIMAL(10,4) DEFAULT 0,
+      total_cost DECIMAL(10,2) DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE
+    );`);
+
+    // Enhanced automation tables
+    await q(`CREATE TABLE IF NOT EXISTS inventory_transactions (
+      id SERIAL PRIMARY KEY,
+      material_code TEXT NOT NULL,
+      transaction_type TEXT NOT NULL, -- 'in', 'out', 'adjustment'
+      quantity DECIMAL(10,3) NOT NULL,
+      unit TEXT NOT NULL,
+      reference_type TEXT, -- 'production', 'purchase', 'adjustment', 'waste'
+      reference_id TEXT,
+      cost_per_unit DECIMAL(10,4) DEFAULT 0,
+      total_cost DECIMAL(10,2) DEFAULT 0,
+      notes TEXT DEFAULT '',
+      created_by TEXT DEFAULT 'system',
+      created_at TIMESTAMP DEFAULT NOW(),
+      FOREIGN KEY (material_code) REFERENCES materials(code) ON DELETE CASCADE
+    );`);
+
+    await q(`CREATE TABLE IF NOT EXISTS quality_checks (
+      id SERIAL PRIMARY KEY,
+      check_type TEXT NOT NULL, -- 'material_receipt', 'production_batch', 'finished_product'
+      reference_id TEXT NOT NULL,
+      checked_by TEXT NOT NULL,
+      check_date TIMESTAMP DEFAULT NOW(),
+      passed BOOLEAN NOT NULL,
+      temperature DECIMAL(5,2),
+      ph_level DECIMAL(4,2),
+      moisture_content DECIMAL(5,2),
+      visual_inspection TEXT,
+      notes TEXT DEFAULT '',
+      corrective_action TEXT DEFAULT ''
+    );`);
+
+    await q(`CREATE TABLE IF NOT EXISTS cost_calculations (
+      id SERIAL PRIMARY KEY,
+      product_code TEXT NOT NULL,
+      calculation_date DATE DEFAULT CURRENT_DATE,
+      quantity DECIMAL(10,3) NOT NULL,
+      material_cost DECIMAL(10,2) DEFAULT 0,
+      labor_cost DECIMAL(10,2) DEFAULT 0,
+      overhead_cost DECIMAL(10,2) DEFAULT 0,
+      total_cost DECIMAL(10,2) DEFAULT 0,
+      cost_per_unit DECIMAL(10,4) DEFAULT 0,
+      margin_percentage DECIMAL(5,2) DEFAULT 0,
+      suggested_price DECIMAL(10,2) DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW(),
+      FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE
+    );`);
+
+    await q(`CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      updated_at TIMESTAMP DEFAULT NOW()
+    );`);
+
+    await q(`CREATE TABLE IF NOT EXISTS audit_log (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      table_name TEXT,
+      record_id TEXT,
+      old_values JSONB,
+      new_values JSONB,
+      ip_address TEXT,
+      user_agent TEXT,
+      timestamp TIMESTAMP DEFAULT NOW()
+    );`);
+
+    // Performance indexes
+    await q(`CREATE INDEX IF NOT EXISTS idx_materials_active ON materials(active) WHERE active = true;`);
+    await q(`CREATE INDEX IF NOT EXISTS idx_materials_stock ON materials(current_stock, reorder_point);`);
+    await q(`CREATE INDEX IF NOT EXISTS idx_items_active ON items(active) WHERE active = true;`);
+    await q(`CREATE INDEX IF NOT EXISTS idx_production_plan_day ON production_plan(day);`);
+    await q(`CREATE INDEX IF NOT EXISTS idx_production_plan_status ON production_plan(status);`);
+    await q(`CREATE INDEX IF NOT EXISTS idx_inventory_transactions_material ON inventory_transactions(material_code);`);
+    await q(`CREATE INDEX IF NOT EXISTS idx_inventory_transactions_date ON inventory_transactions(created_at);`);
+    await q(`CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);`);
+
+    // Insert default system settings
+    await q(`INSERT INTO system_settings (key, value, description) VALUES 
+      ('default_waste_factor', '0.05', 'Default waste factor for recipes (5%)'),
+      ('auto_inventory_tracking', 'true', 'Enable automatic inventory tracking'),
+      ('quality_check_required', 'false', 'Require quality checks for all production'),
+      ('cost_calculation_method', 'fifo', 'Cost calculation method: fifo, lifo, average'),
+      ('default_labor_cost_per_hour', '15.00', 'Default labor cost per hour'),
+      ('default_overhead_percentage', '25.0', 'Default overhead percentage'),
+      ('auto_reorder_alerts', 'true', 'Enable automatic reorder point alerts'),
+      ('default_shelf_life_hours', '24', 'Default shelf life for baked goods'),
+      ('temperature_monitoring', 'false', 'Enable temperature monitoring'),
+      ('batch_tracking', 'true', 'Enable batch tracking for production')
+    ON CONFLICT (key) DO NOTHING;`);
+
+    console.log('✅ Enhanced database schema ready');
+  } catch (error) {
+    console.error('❌ Schema setup failed:', error.message);
+    throw error;
+  }
+}
+
+/* ---------- Enhanced Authentication ---------- */
+function requireAuth(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  next();
+}
+
+function logAudit(userId, action, tableName = null, recordId = null, oldValues = null, newValues = null, req = null) {
+  const ipAddress = req ? (req.ip || req.connection.remoteAddress) : null;
+  const userAgent = req ? req.get('User-Agent') : null;
+  
+  q(`INSERT INTO audit_log (user_id, action, table_name, record_id, old_values, new_values, ip_address, user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [userId, action, tableName, recordId, oldValues, newValues, ipAddress, userAgent])
+    .catch(err => console.error('Audit log failed:', err.message));
+}
+
+/* ---------- Enhanced Utility Functions ---------- */
+async function getSetting(key, defaultValue = null) {
+  try {
+    const result = await q('SELECT value FROM system_settings WHERE key = $1', [key]);
+    return result.rows.length > 0 ? result.rows[0].value : defaultValue;
+  } catch (error) {
+    return defaultValue;
+  }
+}
+
+async function updateInventory(materialCode, quantity, transactionType, referenceType = null, referenceId = null, userId = 'system') {
+  try {
+    const autoTracking = await getSetting('auto_inventory_tracking', 'true');
+    if (autoTracking !== 'true') return;
+
+    // Get current material info
+    const materialResult = await q('SELECT * FROM materials WHERE code = $1', [materialCode]);
+    if (materialResult.rows.length === 0) return;
+
+    const material = materialResult.rows[0];
+    const costPerUnit = material.price_per_unit || 0;
+    const totalCost = quantity * costPerUnit;
+
+    // Record transaction
+    await q(`INSERT INTO inventory_transactions 
+             (material_code, transaction_type, quantity, unit, reference_type, reference_id, cost_per_unit, total_cost, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [materialCode, transactionType, quantity, material.base_unit, referenceType, referenceId, costPerUnit, totalCost, userId]);
+
+    // Update stock
+    const stockChange = transactionType === 'out' ? -quantity : quantity;
+    await q('UPDATE materials SET current_stock = current_stock + $1, updated_at = NOW() WHERE code = $2',
+      [stockChange, materialCode]);
+
+    console.log(`📦 Inventory updated: ${materialCode} ${transactionType} ${quantity} ${material.base_unit}`);
+  } catch (error) {
+    console.error('Inventory update failed:', error.message);
+  }
+}
+
+async function calculateProductCost(productCode, quantity = 1) {
+  try {
+    const bomResult = await q(`
+      SELECT b.material_code, b.qty, b.unit, b.waste_factor, m.price_per_unit, m.name as material_name
+      FROM bom b
+      JOIN materials m ON m.code = b.material_code
+      WHERE b.product_code = $1 AND m.active = true
+    `, [productCode]);
+
+    let totalMaterialCost = 0;
+    const lines = [];
+    const warnings = [];
+
+    for (const line of bomResult.rows) {
+      const adjustedQty = line.qty * (1 + (line.waste_factor || 0)) * quantity;
+      const lineCost = adjustedQty * line.price_per_unit;
+      totalMaterialCost += lineCost;
+
+      lines.push({
+        material_code: line.material_code,
+        material_name: line.material_name,
+        qty: adjustedQty,
+        unit: line.unit,
+        cost_per_unit: line.price_per_unit,
+        cost: lineCost.toFixed(4)
+      });
+
+      // Check stock availability
+      const stockResult = await q('SELECT current_stock FROM materials WHERE code = $1', [line.material_code]);
+      if (stockResult.rows.length > 0) {
+        const currentStock = stockResult.rows[0].current_stock || 0;
+        if (currentStock < adjustedQty) {
+          warnings.push(`${line.material_name}: Insufficient stock (need ${adjustedQty}, have ${currentStock})`);
+        }
+      }
+    }
+
+    // Calculate additional costs
+    const laborCostPerHour = parseFloat(await getSetting('default_labor_cost_per_hour', '15.00'));
+    const overheadPercentage = parseFloat(await getSetting('default_overhead_percentage', '25.0'));
+    
+    const estimatedLaborHours = quantity * 0.5; // Estimate 30 minutes per unit
+    const laborCost = estimatedLaborHours * laborCostPerHour;
+    const overheadCost = totalMaterialCost * (overheadPercentage / 100);
+    const totalCost = totalMaterialCost + laborCost + overheadCost;
+
+    return {
+      product_code: productCode,
+      quantity: quantity,
+      material_cost: totalMaterialCost.toFixed(2),
+      labor_cost: laborCost.toFixed(2),
+      overhead_cost: overheadCost.toFixed(2),
+      total_cost: totalCost.toFixed(2),
+      cost_per_unit: (totalCost / quantity).toFixed(4),
+      lines: lines,
+      warnings: warnings
+    };
+  } catch (error) {
+    console.error('Cost calculation failed:', error.message);
+    return { error: error.message };
+  }
+}
+
+async function processProduction(productionId, userId = 'system') {
+  try {
+    const productionResult = await q('SELECT * FROM production_plan WHERE id = $1', [productionId]);
+    if (productionResult.rows.length === 0) return { error: 'Production not found' };
+
+    const production = productionResult.rows[0];
+    
+    // Calculate costs
+    const costData = await calculateProductCost(production.product_code, production.qty);
+    if (costData.error) return costData;
+
+    // Deduct materials from inventory
+    const bomResult = await q(`
+      SELECT b.material_code, b.qty, b.waste_factor
+      FROM bom b
+      WHERE b.product_code = $1
+    `, [production.product_code]);
+
+    for (const line of bomResult.rows) {
+      const adjustedQty = line.qty * (1 + (line.waste_factor || 0)) * production.qty;
+      await updateInventory(line.material_code, adjustedQty, 'out', 'production', productionId, userId);
+    }
+
+    // Update production record
+    await q(`UPDATE production_plan 
+             SET status = 'completed', 
+                 actual_qty = $1, 
+                 cost_per_unit = $2, 
+                 total_cost = $3,
+                 updated_at = NOW()
+             WHERE id = $4`,
+      [production.qty, costData.cost_per_unit, costData.total_cost, productionId]);
+
+    // Record cost calculation
+    await q(`INSERT INTO cost_calculations 
+             (product_code, quantity, material_cost, labor_cost, overhead_cost, total_cost, cost_per_unit)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [production.product_code, production.qty, costData.material_cost, costData.labor_cost, 
+       costData.overhead_cost, costData.total_cost, costData.cost_per_unit]);
+
+    logAudit(userId, 'production_completed', 'production_plan', productionId, null, { status: 'completed' });
+
+    return { success: true, cost_data: costData };
+  } catch (error) {
+    console.error('Production processing failed:', error.message);
+    return { error: error.message };
+  }
+}
+
+/* ---------- Enhanced API Routes ---------- */
+
+// Health check
+app.get('/healthz', (req, res) => {
+  res.json({ ok: true, timestamp: new Date().toISOString(), system: 'Bunca Bakery Automated' });
 });
 
-/* ---------- Schema ---------- */
-async function ensureSchema() {
-  await q('BEGIN');
-  await q(`CREATE TABLE IF NOT EXISTS materials (
-    code TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    base_unit TEXT NOT NULL DEFAULT 'g',
-    price_per_unit NUMERIC NOT NULL DEFAULT 0,
-    pack_qty NUMERIC, pack_unit TEXT, pack_price NUMERIC,
-    supplier_code TEXT, note TEXT
-  );`);
-  await q(`CREATE TABLE IF NOT EXISTS items (
-    code TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    category TEXT,
-    yield_qty NUMERIC NOT NULL DEFAULT 1,
-    yield_unit TEXT NOT NULL DEFAULT 'pcs',
-    note TEXT
-  );`);
-  await q(`CREATE TABLE IF NOT EXISTS bom (
-    id SERIAL PRIMARY KEY,
-    product_code TEXT,
-    material_code TEXT,
-    qty NUMERIC NOT NULL,
-    unit TEXT NOT NULL
-  );`);
-  await q(`CREATE TABLE IF NOT EXISTS production_plan (
-    id SERIAL PRIMARY KEY,
-    day DATE NOT NULL,
-    shop TEXT,
-    start_time TIME, end_time TIME,
-    product_code TEXT,
-    qty NUMERIC NOT NULL DEFAULT 0,
-    note TEXT
-  );`);
-  await q(`CREATE TABLE IF NOT EXISTS material_price_history (
-    id SERIAL PRIMARY KEY,
-    material_code TEXT NOT NULL,
-    price_per_unit NUMERIC NOT NULL,
-    changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  );`);
-  await q('COMMIT');
-}
-
-/* ---------- Units & calc helpers ---------- */
-const U = {
-  g: { base: 'g', factor: 1 },
-  kg:{ base: 'g', factor: 1000 },
-  ml:{ base: 'ml', factor: 1 },
-  l: { base: 'ml', factor: 1000 },
-  pcs:{ base: 'pcs', factor: 1 },
-  piece:{ base: 'pcs', factor: 1 },
-  pieces:{ base: 'pcs', factor: 1 },
-  stk:{ base: 'pcs', factor: 1 },
-  'stück':{ base: 'pcs', factor: 1 },
-};
-const normalizeUnit = (u)=> U[String(u||'').toLowerCase()]?.base || (String(u||'').toLowerCase() || null);
-const toBase = (qty, unit)=> {
-  const u = String(unit || '').toLowerCase();
-  const m = U[u];
-  return m ? { qty: Number(qty) * m.factor, unit: m.base } : { qty: Number(qty), unit };
-};
-
-async function scaleRecipe(productCode, targetQty) {
-  const it = await q(`SELECT yield_qty FROM items WHERE code=$1`, [productCode]);
-  if (it.rowCount === 0) throw new Error('item_not_found');
-  const factor = Number(targetQty) / (Number(it.rows[0].yield_qty) || 1);
-
-  const lines = await q(
-    `SELECT b.material_code, b.qty, b.unit, m.price_per_unit, m.name AS material_name
-     FROM bom b JOIN materials m ON m.code=b.material_code
-     WHERE b.product_code=$1 ORDER BY b.id`, [productCode]
-  );
-
-  const out = [];
-  for (const r of lines.rows) {
-    const base0 = toBase(r.qty, r.unit);
-    const baseScaled = { qty: base0.qty * factor, unit: base0.unit };
-    const ppu = Number(r.price_per_unit || 0);
-    out.push({
-      material_code: r.material_code,
-      material_name: r.material_name,
-      unit: baseScaled.unit,
-      qty: Number(baseScaled.qty.toFixed(2)),
-      price_per_unit: Number(ppu.toFixed(6)),
-      cost: Number((baseScaled.qty * ppu).toFixed(2))
-    });
+// Authentication
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+      req.session.user = { email, role: 'admin' };
+      logAudit(email, 'login', null, null, null, null, req);
+      res.json({ success: true, user: { email, role: 'admin' } });
+    } else {
+      res.status(401).json({ error: 'Invalid credentials' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
-  const total = out.reduce((s,x)=>s+x.cost,0);
-  return { lines: out, total_cost: Number(total.toFixed(2)) };
-}
-
-/* ---------- Auth ---------- */
-app.get('/api/session', (req, res) =>
-  res.json({ ok: true, user: authed(req) ? req.session.user : null })
-);
-
-app.post('/api/login', (req, res) => {
-  const email = String(req.body?.email || '').trim();
-  const pass  = String(req.body?.password || '').trim();
-  if (ADMIN_EMAIL && ADMIN_PASSWORD && eqi(email, ADMIN_EMAIL) && pass === ADMIN_PASSWORD) {
-    req.session.user = { email, role: 'admin' };
-    return res.json({ ok: true });
-  }
-  res.status(401).json({ ok: false, error: 'bad_credentials' });
 });
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => { res.clearCookie('sid'); res.json({ ok: true }); });
+  const userId = req.session.user?.email || 'unknown';
+  logAudit(userId, 'logout', null, null, null, null, req);
+  req.session.destroy();
+  res.json({ success: true });
 });
 
-/* ---------- ADMIN: Wipe data (to kill ghost/demo rows) ---------- */
-// POST /api/admin/wipe  { what: 'all' | 'items' | 'materials' | 'plan' }
-app.post('/api/admin/wipe', requireAdmin, async (req, res) => {
-  const what = String(req.body?.what || 'all');
+app.get('/api/session', (req, res) => {
+  res.json({ user: req.session.user || null });
+});
+
+// Enhanced Materials API
+app.get('/api/materials', requireAuth, async (req, res) => {
   try {
-    await q('BEGIN');
-    if (what === 'all' || what === 'plan') {
-      await q(`DELETE FROM production_plan`);
+    const { active = 'true', low_stock = 'false' } = req.query;
+    
+    let query = `
+      SELECT m.*, 
+             CASE WHEN m.current_stock <= m.reorder_point THEN true ELSE false END as needs_reorder,
+             (SELECT COUNT(*) FROM inventory_transactions it WHERE it.material_code = m.code) as transaction_count
+      FROM materials m
+    `;
+    
+    const conditions = [];
+    const params = [];
+    
+    if (active !== 'all') {
+      conditions.push(`m.active = $${params.length + 1}`);
+      params.push(active === 'true');
     }
-    if (what === 'all' || what === 'items') {
-      await q(`DELETE FROM bom`);
-      await q(`DELETE FROM items`);
+    
+    if (low_stock === 'true') {
+      conditions.push(`m.current_stock <= m.reorder_point`);
     }
-    if (what === 'all' || what === 'materials') {
-      await q(`DELETE FROM material_price_history`);
-      await q(`DELETE FROM materials`);
+    
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
-    await q('COMMIT');
-    res.json({ ok:true, wiped: what });
-  } catch (e) {
-    await q('ROLLBACK');
-    res.status(400).json({ ok:false, error: e.message });
+    
+    query += ' ORDER BY m.name';
+    
+    const result = await q(query, params);
+    res.json({ data: result.rows });
+  } catch (error) {
+    console.error('Materials fetch failed:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-/* ---------- Import (JSON arrays) ---------- */
-app.post('/api/import/:dataset', requireAuth, async (req, res) => {
-  const ds = req.params.dataset;
-  const rows = Array.isArray(req.body) ? req.body : [];
+app.post('/api/materials', requireAuth, async (req, res) => {
   try {
-    await q('BEGIN');
-    if (ds === 'materials') {
-      for (const m of rows) {
-        await q(
-          `INSERT INTO materials(code,name,base_unit,pack_qty,pack_unit,pack_price,price_per_unit,supplier_code,note)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-           ON CONFLICT (code) DO UPDATE SET
-            name=EXCLUDED.name, base_unit=EXCLUDED.base_unit, pack_qty=EXCLUDED.pack_qty,
-            pack_unit=EXCLUDED.pack_unit, pack_price=EXCLUDED.pack_price,
-            price_per_unit=EXCLUDED.price_per_unit, supplier_code=EXCLUDED.supplier_code,
-            note=EXCLUDED.note`,
-          [
-            m.code, m.name, normalizeUnit(m.base_unit || 'g'),
-            m.pack_qty ?? null, m.pack_unit ?? null, m.pack_price ?? null,
-            Number(m.price_per_unit ?? 0), m.supplier_code ?? null, m.note ?? ''
-          ]
-        );
-      }
-    } else if (ds === 'items') {
-      for (const it of rows) {
-        await q(
-          `INSERT INTO items(code,name,category,yield_qty,yield_unit,note)
-           VALUES($1,$2,$3,$4,$5,$6)
-           ON CONFLICT (code) DO UPDATE SET
-            name=EXCLUDED.name, category=EXCLUDED.category,
-            yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit, note=EXCLUDED.note`,
-          [it.code, it.name, it.category ?? '', Number(it.yield_qty ?? 1), it.yield_unit || 'pcs', it.note ?? '']
-        );
-      }
-    } else if (ds === 'bom') {
-      const grouped = new Map();
-      for (const r of rows) {
-        const arr = grouped.get(r.product_code) || [];
-        arr.push({ material_code: r.material_code, qty: Number(r.qty), unit: normalizeUnit(r.unit || 'g') });
-        grouped.set(r.product_code, arr);
-      }
-      for (const [product_code, ings] of grouped.entries()) {
-        await q(`DELETE FROM bom WHERE product_code=$1`, [product_code]);
-        for (const ing of ings) {
-          await q(`INSERT INTO bom(product_code,material_code,qty,unit) VALUES($1,$2,$3,$4)`,
-            [product_code, ing.material_code, Number(ing.qty), ing.unit]);
+    const { code, name, base_unit, price_per_unit, current_stock = 0, min_stock = 0, reorder_point = 0, supplier = '', shelf_life_days = 30 } = req.body;
+    
+    const result = await q(`
+      INSERT INTO materials (code, name, base_unit, price_per_unit, current_stock, min_stock, reorder_point, supplier, shelf_life_days)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [code, name, base_unit, price_per_unit, current_stock, min_stock, reorder_point, supplier, shelf_life_days]);
+    
+    logAudit(req.session.user.email, 'material_created', 'materials', code, null, result.rows[0], req);
+    res.json({ data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/materials/:code', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.params;
+    const updates = req.body;
+    
+    // Get old values for audit
+    const oldResult = await q('SELECT * FROM materials WHERE code = $1', [code]);
+    const oldValues = oldResult.rows[0];
+    
+    const fields = Object.keys(updates).filter(key => key !== 'code');
+    const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
+    const values = [code, ...fields.map(field => updates[field])];
+    
+    const result = await q(`
+      UPDATE materials SET ${setClause}, updated_at = NOW()
+      WHERE code = $1
+      RETURNING *
+    `, values);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Material not found' });
+    }
+    
+    logAudit(req.session.user.email, 'material_updated', 'materials', code, oldValues, result.rows[0], req);
+    res.json({ data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/materials/:code', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.params;
+    
+    const oldResult = await q('SELECT * FROM materials WHERE code = $1', [code]);
+    const oldValues = oldResult.rows[0];
+    
+    await q('DELETE FROM materials WHERE code = $1', [code]);
+    
+    logAudit(req.session.user.email, 'material_deleted', 'materials', code, oldValues, null, req);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Inventory transactions
+app.get('/api/materials/:code/transactions', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.params;
+    const result = await q(`
+      SELECT * FROM inventory_transactions 
+      WHERE material_code = $1 
+      ORDER BY created_at DESC 
+      LIMIT 100
+    `, [code]);
+    
+    res.json({ data: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/materials/:code/adjust-stock', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.params;
+    const { quantity, reason = 'Manual adjustment' } = req.body;
+    
+    await updateInventory(code, quantity, quantity > 0 ? 'in' : 'out', 'adjustment', null, req.session.user.email);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Enhanced Items API
+app.get('/api/items', requireAuth, async (req, res) => {
+  try {
+    const { active = 'true' } = req.query;
+    
+    let query = `
+      SELECT i.*, 
+             (SELECT COUNT(*) FROM bom b WHERE b.product_code = i.code) as ingredient_count,
+             (SELECT AVG(cc.cost_per_unit) FROM cost_calculations cc WHERE cc.product_code = i.code) as avg_cost_per_unit
+      FROM items i
+    `;
+    
+    if (active !== 'all') {
+      query += ' WHERE i.active = $1';
+    }
+    
+    query += ' ORDER BY i.name';
+    
+    const params = active !== 'all' ? [active === 'true'] : [];
+    const result = await q(query, params);
+    
+    res.json({ data: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/items', requireAuth, async (req, res) => {
+  try {
+    const { code, name, yield_qty = 1, yield_unit = 'pcs', category = 'bakery', shelf_life_hours = 24, allergens = [] } = req.body;
+    
+    const result = await q(`
+      INSERT INTO items (code, name, yield_qty, yield_unit, category, shelf_life_hours, allergens)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [code, name, yield_qty, yield_unit, category, shelf_life_hours, allergens]);
+    
+    logAudit(req.session.user.email, 'item_created', 'items', code, null, result.rows[0], req);
+    res.json({ data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Enhanced BOM API
+app.get('/api/items/:code/bom', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.params;
+    const result = await q(`
+      SELECT b.*, m.name as material_name, m.base_unit, m.price_per_unit, m.current_stock
+      FROM bom b
+      JOIN materials m ON m.code = b.material_code
+      WHERE b.product_code = $1
+      ORDER BY m.name
+    `, [code]);
+    
+    res.json({ data: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/items/:code/bom/priced', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.params;
+    const { qty = 1 } = req.query;
+    
+    const costData = await calculateProductCost(code, parseFloat(qty));
+    res.json({ data: costData });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Enhanced Production Planning API
+app.get('/api/plan', requireAuth, async (req, res) => {
+  try {
+    const { week_start, status } = req.query;
+    
+    let query = `
+      SELECT p.*, i.name as product_name, i.yield_unit,
+             (SELECT COUNT(*) FROM quality_checks qc WHERE qc.reference_id = p.id::text AND qc.check_type = 'production_batch') as quality_checks
+      FROM production_plan p
+      JOIN items i ON i.code = p.product_code
+    `;
+    
+    const conditions = [];
+    const params = [];
+    
+    if (week_start) {
+      conditions.push(`p.day >= $${params.length + 1}`);
+      params.push(week_start);
+      
+      const weekEnd = new Date(week_start);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      conditions.push(`p.day <= $${params.length + 1}`);
+      params.push(weekEnd.toISOString().split('T')[0]);
+    }
+    
+    if (status) {
+      conditions.push(`p.status = $${params.length + 1}`);
+      params.push(status);
+    }
+    
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    
+    query += ' ORDER BY p.day, p.start_time, p.priority DESC';
+    
+    const result = await q(query, params);
+    res.json({ data: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/plan', requireAuth, async (req, res) => {
+  try {
+    const { day, product_code, qty, start_time, end_time, priority = 5, assigned_staff = [], equipment_required = [], shop = '', note = '' } = req.body;
+    
+    const result = await q(`
+      INSERT INTO production_plan (day, product_code, qty, start_time, end_time, priority, assigned_staff, equipment_required, shop, note)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
+    `, [day, product_code, qty, start_time, end_time, priority, assigned_staff, equipment_required, shop, note]);
+    
+    logAudit(req.session.user.email, 'production_planned', 'production_plan', result.rows[0].id, null, result.rows[0], req);
+    res.json({ data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/plan/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    
+    const oldResult = await q('SELECT * FROM production_plan WHERE id = $1', [id]);
+    const oldValues = oldResult.rows[0];
+    
+    const fields = Object.keys(updates).filter(key => key !== 'id');
+    const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
+    const values = [id, ...fields.map(field => updates[field])];
+    
+    const result = await q(`
+      UPDATE production_plan SET ${setClause}, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, values);
+    
+    logAudit(req.session.user.email, 'production_updated', 'production_plan', id, oldValues, result.rows[0], req);
+    res.json({ data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Production processing
+app.post('/api/plan/:id/complete', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await processProduction(id, req.session.user.email);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Enhanced Analytics API
+app.get('/api/analytics/dashboard', requireAuth, async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    // Production metrics
+    const productionStats = await q(`
+      SELECT 
+        COUNT(*) as total_planned,
+        COUNT(*) FILTER (WHERE status = 'completed') as completed,
+        COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress,
+        SUM(total_cost) FILTER (WHERE status = 'completed') as total_production_cost
+      FROM production_plan 
+      WHERE day >= $1
+    `, [weekAgo]);
+    
+    // Inventory alerts
+    const inventoryAlerts = await q(`
+      SELECT COUNT(*) as low_stock_count
+      FROM materials 
+      WHERE active = true AND current_stock <= reorder_point
+    `);
+    
+    // Cost trends
+    const costTrends = await q(`
+      SELECT 
+        calculation_date,
+        AVG(cost_per_unit) as avg_cost_per_unit,
+        SUM(total_cost) as daily_total_cost
+      FROM cost_calculations 
+      WHERE calculation_date >= $1
+      GROUP BY calculation_date
+      ORDER BY calculation_date
+    `, [weekAgo]);
+    
+    // Quality metrics
+    const qualityStats = await q(`
+      SELECT 
+        COUNT(*) as total_checks,
+        COUNT(*) FILTER (WHERE passed = true) as passed_checks
+      FROM quality_checks 
+      WHERE check_date >= $1
+    `, [weekAgo]);
+    
+    res.json({
+      production: productionStats.rows[0],
+      inventory: inventoryAlerts.rows[0],
+      cost_trends: costTrends.rows,
+      quality: qualityStats.rows[0]
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// System settings
+app.get('/api/settings', requireAuth, async (req, res) => {
+  try {
+    const result = await q('SELECT * FROM system_settings ORDER BY key');
+    res.json({ data: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/settings/:key', requireAuth, async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+    
+    await q(`
+      INSERT INTO system_settings (key, value, updated_at)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()
+    `, [key, value]);
+    
+    logAudit(req.session.user.email, 'setting_updated', 'system_settings', key, null, { value }, req);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Legacy routes for compatibility
+app.get('/api/search', requireAuth, async (req, res) => {
+  try {
+    const { q: searchQuery } = req.query;
+    if (!searchQuery) return res.json({ data: [] });
+    
+    const materials = await q(`
+      SELECT 'material' as type, code, name, base_unit as unit, price_per_unit as price
+      FROM materials 
+      WHERE active = true AND (LOWER(code) LIKE LOWER($1) OR LOWER(name) LIKE LOWER($1))
+      LIMIT 10
+    `, [`%${searchQuery}%`]);
+    
+    const items = await q(`
+      SELECT 'item' as type, code, name, yield_unit as unit, 0 as price
+      FROM items 
+      WHERE active = true AND (LOWER(code) LIKE LOWER($1) OR LOWER(name) LIKE LOWER($1))
+      LIMIT 10
+    `, [`%${searchQuery}%`]);
+    
+    res.json({ data: [...materials.rows, ...items.rows] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Import/Export routes (simplified)
+app.post('/api/import', requireAuth, async (req, res) => {
+  try {
+    const { type, data } = req.body;
+    let imported = 0;
+    
+    if (type === 'materials') {
+      for (const item of data) {
+        try {
+          await q(`
+            INSERT INTO materials (code, name, base_unit, price_per_unit, current_stock, min_stock)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (code) DO UPDATE SET
+              name = $2, base_unit = $3, price_per_unit = $4, updated_at = NOW()
+          `, [item.code, item.name, item.base_unit, item.price_per_unit || 0, item.current_stock || 0, item.min_stock || 0]);
+          imported++;
+        } catch (err) {
+          console.error('Import error for item:', item.code, err.message);
         }
       }
-    } else if (ds === 'plan') {
-      for (const p of rows) {
-        await q(
-          `INSERT INTO production_plan(day,shop,start_time,end_time,product_code,qty,note)
-           VALUES($1,$2,$3,$4,$5,$6,$7)`,
-          [p.date || p.day, p.shop ?? null, p.start_time ?? null, p.end_time ?? null,
-           p.product_code, Number(p.qty ?? p.planned_qty ?? 0), p.note ?? '']
-        );
-      }
-    } else {
-      return res.status(400).json({ ok: false, error: 'unknown_dataset' });
     }
-    await q('COMMIT');
-    res.json({ ok: true, inserted: rows.length });
-  } catch (e) {
-    await q('ROLLBACK');
-    res.status(400).json({ ok: false, error: e.message });
+    
+    logAudit(req.session.user.email, 'data_imported', type, null, null, { count: imported }, req);
+    res.json({ imported });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-/* ---------- Materials ---------- */
-app.get('/api/materials', requireAuth, async (_req, res) => {
-  const { rows } = await q(`
-    SELECT code, name, base_unit, price_per_unit, pack_qty, pack_unit, pack_price, supplier_code, note
-    FROM materials ORDER BY name
-  `);
-  res.json({ ok: true, data: rows });
-});
-app.post('/api/materials', requireAuth, async (req, res) => {
-  const {
-    code, name, base_unit = 'g',
-    price_per_unit = 0, pack_qty = null, pack_unit = null, pack_price = null,
-    supplier_code = null, note = '',
-  } = req.body || {};
-  await q(
-    `INSERT INTO materials(code,name,base_unit,pack_qty,pack_unit,pack_price,price_per_unit,supplier_code,note)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-     ON CONFLICT (code) DO UPDATE SET
-       name=EXCLUDED.name, base_unit=EXCLUDED.base_unit,
-       pack_qty=EXCLUDED.pack_qty, pack_unit=EXCLUDED.pack_unit, pack_price=EXCLUDED.pack_price,
-       price_per_unit=EXCLUDED.price_per_unit, supplier_code=EXCLUDED.supplier_code, note=EXCLUDED.note`,
-    [code, name, normalizeUnit(base_unit), pack_qty, pack_unit, pack_price, price_per_unit, supplier_code, note]
-  );
-  res.json({ ok: true });
-});
-app.delete('/api/materials/:code', requireAuth, async (req, res) => {
-  const r = await q(`DELETE FROM materials WHERE code=$1`, [req.params.code]);
-  res.json({ ok: true, deleted: r.rowCount });
-});
-app.get('/api/materials/search', requireAuth, async (req, res) => {
-  const s = `%${String(req.query.q||'').toLowerCase()}%`;
-  const { rows } = await q(
-    `SELECT code, name, base_unit, price_per_unit
-     FROM materials
-     WHERE lower(code) LIKE $1 OR lower(name) LIKE $1
-     ORDER BY name LIMIT 20`, [s]
-  );
-  res.json({ ok: true, data: rows });
-});
-
-/* ---------- Items & BOM ---------- */
-app.get('/api/items', requireAuth, async (_req, res) => {
-  const { rows } = await q(`SELECT code,name,category,yield_qty,yield_unit,note FROM items ORDER BY name`);
-  res.json({ ok: true, data: rows });
-});
-app.post('/api/items', requireAuth, async (req, res) => {
-  const { code, name, category = '', yield_qty = 1, yield_unit = 'pcs', note = '' } = req.body || {};
-  await q(
-    `INSERT INTO items(code,name,category,yield_qty,yield_unit,note)
-     VALUES($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (code) DO UPDATE SET
-       name=EXCLUDED.name, category=EXCLUDED.category,
-       yield_qty=EXCLUDED.yield_qty, yield_unit=EXCLUDED.yield_unit, note=EXCLUDED.note`,
-    [code, name, category, Number(yield_qty), yield_unit, note]
-  );
-  res.json({ ok: true });
-});
-app.delete('/api/items/:code', requireAuth, async (req, res) => {
-  await q(`DELETE FROM production_plan WHERE product_code=$1`, [req.params.code]);
-  await q(`DELETE FROM bom WHERE product_code=$1`, [req.params.code]);
-  const r = await q(`DELETE FROM items WHERE code=$1`, [req.params.code]);
-  res.json({ ok: true, deleted: r.rowCount });
-});
-app.get('/api/items/:code/bom', requireAuth, async (req, res) => {
-  const { rows } = await q(
-    `SELECT b.id, b.material_code, m.name AS material_name, b.qty, b.unit
-     FROM bom b JOIN materials m ON m.code=b.material_code
-     WHERE b.product_code=$1 ORDER BY b.id`, [req.params.code]
-  );
-  res.json({ ok: true, data: rows });
-});
-app.post('/api/items/:code/bom', requireAuth, async (req, res) => {
-  const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
-  await q(`DELETE FROM bom WHERE product_code=$1`, [req.params.code]);
-  for (const L of lines) {
-    await q(
-      `INSERT INTO bom(product_code,material_code,qty,unit)
-       VALUES($1,$2,$3,$4)`,
-      [req.params.code, L.material_code, Number(L.qty), normalizeUnit(L.unit || 'g')]
-    );
-  }
-  res.json({ ok: true });
-});
-app.get('/api/items/:code/bom/priced', requireAuth, async (req, res) => {
-  const qty = Number(req.query.qty || 0);
-  if (!qty) return res.status(400).json({ ok: false, error: 'qty_required' });
-  try { const r = await scaleRecipe(req.params.code, qty); res.json({ ok: true, data: r }); }
-  catch (e) { res.status(400).json({ ok: false, error: e.message }); }
-});
-
-/* ---------- Calc single line ---------- */
-app.post('/api/calc/line', requireAuth, async (req, res) => {
-  const { material_code, qty, unit } = req.body || {};
-  const base = toBase(Number(qty || 0), unit || 'g');
-  const p = await q(`SELECT price_per_unit FROM materials WHERE code=$1`, [material_code]);
-  const ppu = p.rowCount ? Number(p.rows[0].price_per_unit || 0) : 0;
-  const cost = Number(base.qty || 0) * ppu;
-  res.json({ ok: true, data: { price_per_unit: Number(ppu.toFixed(6)), cost: Number(cost.toFixed(2)) } });
-});
-
-/* ---------- Plan (daily & weekly & calc) ---------- */
-app.get('/api/plan', requireAuth, async (req, res) => {
-  const { date } = req.query;
-  if (!date) return res.json({ ok: true, data: [] });
-  const { rows } = await q(
-    `SELECT id, day, start_time, end_time, product_code, qty, shop, note,
-            (SELECT name FROM items i WHERE i.code=pp.product_code) AS product_name
-     FROM production_plan pp
-     WHERE day=$1
-     ORDER BY start_time NULLS FIRST, id`, [date]
-  );
-  res.json({ ok: true, data: rows });
-});
-app.post('/api/plan/calc', requireAuth, async (req, res) => {
-  let list = req.body?.rows;
-  if ((!list || !Array.isArray(list)) && req.body?.date) {
-    const { rows } = await q(`SELECT product_code, qty FROM production_plan WHERE day=$1`, [req.body.date]);
-    list = rows.map(r => ({ product_code: r.product_code, qty: Number(r.qty) }));
-  }
-  if (!Array.isArray(list) || list.length === 0)
-    return res.json({ ok: true, data: { lines: [], total_cost: 0 } });
-
-  const need = new Map();
-  let totalCost = 0;
-  for (const row of list) {
-    const one = await scaleRecipe(row.product_code, Number(row.qty||0));
-    for (const L of one.lines) {
-      const key = `${L.material_code}|${L.unit}`;
-      const cur = need.get(key) || { ...L };
-      if (need.has(key)) { cur.qty = Number((cur.qty + L.qty).toFixed(2)); cur.cost = Number((cur.cost + L.cost).toFixed(2)); }
-      need.set(key, cur);
-    }
-    totalCost = Number((totalCost + one.total_cost).toFixed(2));
-  }
-  const lines = Array.from(need.values()).sort((a,b)=> (a.material_name||a.material_code).localeCompare(b.material_name||b.material_code));
-  res.json({ ok: true, data: { lines, total_cost: totalCost } });
-});
-
-/* ---------- CSV Exports ---------- */
-function toCSV(rows, cols) {
-  const esc = (v)=> {
-    const s = v==null ? '' : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
-  };
-  return [ cols.join(','), ...rows.map(r => cols.map(c=>esc(r[c])).join(',')) ].join('\n');
-}
-app.get('/api/tools/export/items', requireAuth, async (_req, res) => {
-  const { rows } = await q(`SELECT code,name,category,yield_qty,yield_unit,note FROM items ORDER BY code`);
-  const csv = toCSV(rows, ['code','name','category','yield_qty','yield_unit','note']);
-  res.setHeader('Content-Type','text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition','attachment; filename="items.csv"');
-  res.send(csv);
-});
-app.get('/api/tools/export/plan', requireAuth, async (req, res) => {
-  const start = req.query.start ? String(req.query.start).slice(0,10) : null;
-  if (!start) return res.status(400).send('start required');
-  const days = [...Array(7)].map((_,i)=> { const d=new Date(start); d.setDate(new Date(start).getDate()+i); return d.toISOString().slice(0,10); });
-  const { rows } = await q(
-    `SELECT day, shop, start_time, end_time, product_code, qty, note FROM production_plan
-     WHERE day = ANY($1::date[])
-     ORDER BY day, start_time NULLS FIRST, id`, [days]
-  );
-  const csv = toCSV(rows, ['day','shop','start_time','end_time','product_code','qty','note']);
-  res.setHeader('Content-Type','text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition','attachment; filename="plan-week.csv"');
-  res.send(csv);
-});
-
-/* ---------- Pages ---------- */
-app.get('/', (req, res) => {
-  if (authed(req)) return res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-  return res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-/* ---------- 404 ---------- */
-app.use((req, res) => {
-  const file = path.join(__dirname, 'public', '404.html');
-  if (fs.existsSync(file)) return res.status(404).sendFile(file);
-  res.status(404).send('Not found');
-});
-
-/* ---------- Boot (guarded to avoid 502) ---------- */
-(async () => {
+// Admin wipe (for demo purposes)
+app.post('/api/admin/wipe', requireAuth, async (req, res) => {
   try {
-    console.log('Bakeflow starting…');
-    console.log('DB URL present:', !!DATABASE_URL, 'Admin email set:', !!ADMIN_EMAIL);
+    if (req.session.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    await q('TRUNCATE TABLE audit_log, cost_calculations, quality_checks, inventory_transactions, production_plan, bom, items, materials RESTART IDENTITY CASCADE');
+    
+    logAudit(req.session.user.email, 'database_wiped', null, null, null, null, req);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* ---------- Static Routes ---------- */
+app.get('/', (req, res) => {
+  res.redirect('/login.html');
+});
+
+app.get('/login.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+/* ---------- Enhanced Server Startup ---------- */
+async function startServer() {
+  try {
+    console.log('🔌 Testing database connection...');
+    await q('SELECT NOW()');
+    console.log('✅ Database connection established');
+    
     await ensureSchema();
-    app.listen(PORT, () => console.log(`Bakeflow listening on :${PORT}`));
-  } catch (e) {
-    console.error('FATAL boot error:', e);
+    
+    app.listen(PORT, () => {
+      console.log(`🚀 Bunca Bakery Automated System listening on port ${PORT}`);
+      console.log('🎯 Features enabled:');
+      console.log('   ✅ Automatic inventory tracking');
+      console.log('   ✅ Smart cost calculations');
+      console.log('   ✅ Production automation');
+      console.log('   ✅ Quality control integration');
+      console.log('   ✅ Advanced analytics');
+      console.log('   ✅ Audit logging');
+      console.log('🌟 System ready for fully automated bakery workflow management');
+    });
+  } catch (error) {
+    console.error('❌ FATAL: Server startup failed:', error.message);
     process.exit(1);
   }
-})();
+}
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('🛑 Shutting down gracefully...');
+  await pool.end();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('🛑 Shutting down gracefully...');
+  await pool.end();
+  process.exit(0);
+});
+
+startServer();

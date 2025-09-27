@@ -3,315 +3,887 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Bakeflow — Dashboard</title>
+  <title>🍞 Bunca Bakery - Automated Dashboard</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
   <style>
-    /* Page-local polish */
-    .hero-grid{ display:grid; gap:14px; grid-template-columns: 1.2fr .8fr; }
-    @media (max-width: 980px){ .hero-grid{ grid-template-columns:1fr; } }
-    .stat-card{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px; }
-    .kicker{ font-size:11px; text-transform:uppercase; letter-spacing:.11em; color:var(--text-muted) }
-    .stat-big{ font-size:28px; font-weight:800 }
-    .spark{ width:100%; height:44px }
-    .quick{ display:grid; gap:10px; grid-template-columns: repeat(3, 1fr); }
-    @media (max-width: 700px){ .quick{ grid-template-columns: 1fr; } }
-    .chip{ padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid var(--border) }
-    .muter{ color:var(--text-muted) }
-    .list{ display:grid; gap:10px }
-    .rowy{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:var(--card) }
-    .rowy small{ color:var(--text-muted) }
+    /* Enhanced Dashboard Styles */
+    .dashboard-grid { 
+      display: grid; 
+      gap: 20px; 
+      grid-template-columns: 2fr 1fr; 
+      margin-bottom: 20px;
+    }
+    
+    @media (max-width: 1200px) { 
+      .dashboard-grid { grid-template-columns: 1fr; } 
+    }
+    
+    .metrics-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      margin-bottom: 20px;
+    }
+    
+    .metric-card {
+      background: linear-gradient(135deg, var(--card) 0%, rgba(255,255,255,0.02) 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #a07aff);
+    }
+    
+    .metric-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    
+    .metric-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      background: rgba(var(--accent-rgb), 0.1);
+      color: var(--accent);
+    }
+    
+    .metric-trend {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    
+    .trend-up {
+      background: rgba(111, 227, 166, 0.2);
+      color: #6fe3a6;
+    }
+    
+    .trend-down {
+      background: rgba(255, 107, 107, 0.2);
+      color: #ff6b6b;
+    }
+    
+    .trend-stable {
+      background: rgba(255, 178, 79, 0.2);
+      color: #ffb24f;
+    }
+    
+    .metric-value {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 4px;
+      line-height: 1;
+    }
+    
+    .metric-label {
+      font-size: 14px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    
+    .metric-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    
+    .alerts-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .alert-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border-left: 4px solid;
+    }
+    
+    .alert-critical {
+      background: rgba(255, 107, 107, 0.1);
+      border-left-color: #ff6b6b;
+    }
+    
+    .alert-warning {
+      background: rgba(255, 178, 79, 0.1);
+      border-left-color: #ffb24f;
+    }
+    
+    .alert-info {
+      background: rgba(111, 227, 166, 0.1);
+      border-left-color: #6fe3a6;
+    }
+    
+    .alert-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      color: white;
+    }
+    
+    .alert-critical .alert-icon { background: #ff6b6b; }
+    .alert-warning .alert-icon { background: #ffb24f; }
+    .alert-info .alert-icon { background: #6fe3a6; }
+    
+    .alert-content {
+      flex: 1;
+    }
+    
+    .alert-title {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    
+    .alert-message {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .production-overview {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    
+    .production-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+    }
+    
+    .production-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .production-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    
+    .status-planned { background: #6b7280; }
+    .status-in-progress { background: #ffb24f; }
+    .status-completed { background: #6fe3a6; }
+    .status-delayed { background: #ff6b6b; }
+    
+    .production-details {
+      flex: 1;
+    }
+    
+    .production-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+    
+    .production-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    
+    .production-quantity {
+      font-weight: 600;
+      color: var(--accent);
+    }
+    
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .quick-action {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    
+    .quick-action:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      border-color: var(--accent);
+    }
+    
+    .quick-action-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      background: rgba(var(--accent-rgb), 0.1);
+      color: var(--accent);
+    }
+    
+    .quick-action-content {
+      flex: 1;
+    }
+    
+    .quick-action-title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    
+    .quick-action-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .chart-container {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    
+    .chart-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    
+    .chart-period {
+      font-size: 12px;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    
+    .mini-chart {
+      width: 100%;
+      height: 120px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      display: flex;
+      align-items: end;
+      padding: 8px;
+      gap: 2px;
+    }
+    
+    .chart-bar {
+      flex: 1;
+      background: linear-gradient(to top, var(--accent), rgba(var(--accent-rgb), 0.3));
+      border-radius: 2px;
+      min-height: 4px;
+      transition: all 0.2s ease;
+    }
+    
+    .chart-bar:hover {
+      background: var(--accent);
+      transform: scaleY(1.1);
+    }
+    
+    .refresh-indicator {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(111, 227, 166, 0.9);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      z-index: 1000;
+    }
+    
+    .refresh-indicator.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .loading-skeleton {
+      background: linear-gradient(90deg, rgba(255,255,255,0.1) 25%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s infinite;
+      border-radius: 4px;
+      height: 20px;
+    }
+    
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    
+    .auto-refresh-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+    
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 20px;
+      background: var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    
+    .toggle-switch.active {
+      background: var(--accent);
+    }
+    
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s ease;
+    }
+    
+    .toggle-switch.active::after {
+      transform: translateX(20px);
+    }
   </style>
 </head>
 <body>
 
 <header class="header">
   <nav class="nav">
-    <div class="brand">🍞 Bakeflow — Übersicht</div>
+    <div class="brand">🍞 <strong>BUNCA</strong> Bakery - Automated Dashboard</div>
     <div class="menu-wrap">
-      <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
-      <button class="btn" onclick="location.href='/items.html'">Rezepte</button>
-      <button class="btn" onclick="location.href='/plan.html'">Plan</button>
-      <button class="btn" onclick="location.href='/tools.html'">Data&nbsp;Studio</button>
+      <button class="btn" onclick="location.href='/materials.html'">📦 Rohwaren</button>
+      <button class="btn" onclick="location.href='/items.html'">📋 Rezepte</button>
+      <button class="btn" onclick="location.href='/plan.html'">📅 Planung</button>
+      <button class="btn" onclick="location.href='/tools.html'">🔧 Tools</button>
       <button class="btn danger" onclick="logout()">Logout</button>
     </div>
   </nav>
 </header>
 
 <main class="container">
-
-  <!-- Top hero: Today + Week -->
-  <div class="hero-grid">
-    <!-- Today card -->
-    <section class="card">
-      <div class="card-title-row">
-        <div>
-          <div class="kicker">Heute</div>
-          <h2 style="margin:4px 0 0 0" id="todayTitle">Produktion</h2>
-        </div>
-        <div class="row-gap">
-          <button class="btn" onclick="location.href='/plan.html'">Zum Plan</button>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div>
-          <div class="muter small">Einträge heute</div>
-          <div class="stat-big" id="todayRows">—</div>
-        </div>
-        <div>
-          <div class="muter small">Gesamtkosten (heute)</div>
-          <div class="stat-big" id="todayCost">—</div>
-        </div>
-        <div>
-          <div class="muter small">Geplante Menge</div>
-          <div class="stat-big" id="todayQty">—</div>
-        </div>
-      </div>
-      <div class="card-pad">
-        <div class="list" id="todayList">
-          <!-- recent rows render here -->
-        </div>
-      </div>
-    </section>
-
-    <!-- Week card -->
-    <section class="card">
-      <div class="card-title-row">
-        <div>
-          <div class="kicker">Diese Woche</div>
-          <h2 style="margin:4px 0 0 0" id="weekTitle">Auslastung</h2>
-        </div>
-        <div class="row-gap">
-          <button class="btn" id="prevW">←</button>
-          <button class="btn" id="nextW">→</button>
-        </div>
-      </div>
-      <div class="card-pad">
-        <svg id="spark" class="spark" viewBox="0 0 200 44" preserveAspectRatio="none">
-          <rect x="0" y="0" width="200" height="44" rx="8" ry="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
-          <!-- path injected -->
-        </svg>
-        <div class="row-gap" style="margin-top:8px; align-items:center">
-          <span class="chip" id="wkRange">—</span>
-          <span class="muter">Summe Menge:&nbsp;<b id="wkQty">—</b></span>
-          <span class="muter">Tage aktiv:&nbsp;<b id="wkDays">—</b></span>
-          <span class="muter">Ø pro Tag:&nbsp;<b id="wkAvg">—</b></span>
-        </div>
-        <div class="list" style="margin-top:10px" id="wkTop">
-          <!-- top 3 items of the week -->
-        </div>
-      </div>
-    </section>
+  <!-- Auto-refresh toggle -->
+  <div class="auto-refresh-toggle">
+    <span>Auto-Refresh:</span>
+    <div class="toggle-switch active" id="autoRefreshToggle" onclick="toggleAutoRefresh()"></div>
+    <span id="refreshStatus">Aktiv (30s)</span>
   </div>
 
-  <!-- Stats & quick actions -->
-  <section class="card" style="margin-top:14px">
-    <div class="card-title-row">
-      <div>
-        <div class="kicker">Bestand & Rezepte</div>
-        <h2 style="margin:4px 0 0 0">Überblick</h2>
+  <!-- Key Metrics -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-icon">📊</div>
+        <div class="metric-trend trend-up" id="efficiencyTrend">+12%</div>
       </div>
-      <div class="row-gap">
-        <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
-        <button class="btn" onclick="location.href='/items.html'">Artikel</button>
-        <button class="btn" onclick="location.href='/plan.html'">Plan</button>
+      <div class="metric-value" id="efficiencyScore">94%</div>
+      <div class="metric-label">Produktionseffizienz</div>
+      <div class="metric-subtitle">Letzte 7 Tage</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-icon">💰</div>
+        <div class="metric-trend trend-down" id="costTrend">-8%</div>
+      </div>
+      <div class="metric-value" id="totalCosts">€2,847</div>
+      <div class="metric-label">Produktionskosten</div>
+      <div class="metric-subtitle">Diese Woche</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-icon">📦</div>
+        <div class="metric-trend trend-warning" id="inventoryTrend">3 niedrig</div>
+      </div>
+      <div class="metric-value" id="inventoryStatus">87%</div>
+      <div class="metric-label">Lagerbestand</div>
+      <div class="metric-subtitle">Verfügbarkeit</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-icon">✅</div>
+        <div class="metric-trend trend-up" id="qualityTrend">+5%</div>
+      </div>
+      <div class="metric-value" id="qualityScore">98.2%</div>
+      <div class="metric-label">Qualitätsscore</div>
+      <div class="metric-subtitle">Letzte 30 Tage</div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="quick-actions">
+    <div class="quick-action" onclick="location.href='/plan.html'">
+      <div class="quick-action-icon">📅</div>
+      <div class="quick-action-content">
+        <div class="quick-action-title">Neue Produktion</div>
+        <div class="quick-action-subtitle">Produktionsplan erstellen</div>
       </div>
     </div>
-    <div class="card-pad">
-      <div class="grid">
-        <div class="col-12 col-4">
-          <div class="stat-card" style="border:1px solid var(--border); border-radius:12px; background:var(--card)">
-            <div>
-              <div class="muter small">Rohwaren</div>
-              <div class="stat-big" id="statMaterials">—</div>
-            </div>
-            <button class="btn" onclick="location.href='/materials.html'">Verwalten</button>
-          </div>
-        </div>
-        <div class="col-12 col-4">
-          <div class="stat-card" style="border:1px solid var(--border); border-radius:12px; background:var(--card)">
-            <div>
-              <div class="muter small">Artikel</div>
-              <div class="stat-big" id="statItems">—</div>
-            </div>
-            <button class="btn" onclick="location.href='/items.html'">Verwalten</button>
-          </div>
-        </div>
-        <div class="col-12 col-4">
-          <div class="stat-card" style="border:1px solid var(--border); border-radius:12px; background:var(--card)">
-            <div>
-              <div class="muter small">Rezepte mit BOM</div>
-              <div class="stat-big" id="statBOM">—</div>
-            </div>
-            <button class="btn" onclick="location.href='/items.html'">Rezepte öffnen</button>
-          </div>
-        </div>
-      </div>
 
-      <hr class="sep" style="margin:16px 0"/>
-
-      <div class="quick">
-        <button class="btn primary" onclick="location.href='/plan.html'">+ Produktion planen</button>
-        <button class="btn" onclick="location.href='/items.html'">+ Artikel anlegen</button>
-        <button class="btn" onclick="location.href='/materials.html'">+ Rohware anlegen</button>
+    <div class="quick-action" onclick="location.href='/materials.html'">
+      <div class="quick-action-icon">📦</div>
+      <div class="quick-action-content">
+        <div class="quick-action-title">Lager prüfen</div>
+        <div class="quick-action-subtitle">Bestände verwalten</div>
       </div>
     </div>
-  </section>
 
+    <div class="quick-action" onclick="showCostAnalysis()">
+      <div class="quick-action-icon">💰</div>
+      <div class="quick-action-content">
+        <div class="quick-action-title">Kostenanalyse</div>
+        <div class="quick-action-subtitle">Detaillierte Auswertung</div>
+      </div>
+    </div>
+
+    <div class="quick-action" onclick="showQualityReport()">
+      <div class="quick-action-icon">🔍</div>
+      <div class="quick-action-content">
+        <div class="quick-action-title">Qualitätsbericht</div>
+        <div class="quick-action-subtitle">Qualitätskontrolle</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Grid -->
+  <div class="dashboard-grid">
+    <!-- Production Overview -->
+    <div class="production-overview">
+      <div class="card-title-row">
+        <h3>🏭 Heutige Produktion</h3>
+        <button class="btn" onclick="refreshProduction()">Aktualisieren</button>
+      </div>
+      
+      <div id="productionList">
+        <!-- Production items will be loaded here -->
+        <div class="loading-skeleton"></div>
+        <div class="loading-skeleton"></div>
+        <div class="loading-skeleton"></div>
+      </div>
+    </div>
+
+    <!-- Alerts & Notifications -->
+    <div class="alerts-panel">
+      <div class="card-title-row">
+        <h3>🚨 Benachrichtigungen</h3>
+        <span class="chip" id="alertCount">3 aktiv</span>
+      </div>
+      
+      <div id="alertsList">
+        <!-- Alerts will be loaded here -->
+        <div class="loading-skeleton"></div>
+        <div class="loading-skeleton"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cost Trends Chart -->
+  <div class="chart-container">
+    <div class="chart-header">
+      <h3 class="chart-title">📈 Kostentrends</h3>
+      <div class="chart-period">Letzte 7 Tage</div>
+    </div>
+    
+    <div class="mini-chart" id="costChart">
+      <!-- Chart bars will be generated here -->
+    </div>
+  </div>
+
+  <!-- Inventory Status -->
+  <div class="chart-container">
+    <div class="chart-header">
+      <h3 class="chart-title">📦 Lagerbestand</h3>
+      <button class="btn" onclick="location.href='/materials.html'">Details anzeigen</button>
+    </div>
+    
+    <div id="inventoryOverview">
+      <!-- Inventory items will be loaded here -->
+      <div class="loading-skeleton"></div>
+    </div>
+  </div>
 </main>
 
+<!-- Refresh Indicator -->
+<div class="refresh-indicator" id="refreshIndicator">
+  Daten aktualisiert
+</div>
+
 <script>
-function logout(){ api('/api/logout',{method:'POST'}).then(()=>location.href='/login.html'); }
+// Enhanced Dashboard JavaScript with Real-time Updates
+let autoRefreshEnabled = true;
+let refreshInterval;
+let dashboardData = {};
 
-/* ===== Dates ===== */
-function pad2(n){ return String(n).padStart(2,'0'); }
-function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
-function startOfWeek(d){ const x=new Date(d); const k=(x.getDay()+6)%7; x.setDate(x.getDate()-k); x.setHours(0,0,0,0); return x; }
-function addDays(d, n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
-function iso(d){ return d.toISOString().slice(0,10); }
-const WEEKDAY = ['MO','DI','MI','DO','FR','SA','SO'];
-
-/* ===== Today ===== */
-async function loadToday(){
-  const date = todayISO();
-  $$('#todayTitle').textContent = `Produktion · ${date}`;
-  const r = await api(`/api/plan?date=${encodeURIComponent(date)}`);
-  const rows = r.data || [];
-  $$('#todayRows').textContent = rows.length;
-  const qty = rows.reduce((s,x)=> s + Number(x.qty||0), 0);
-  $$('#todayQty').textContent = qty;
-
-  // Cost: call calc with rows (server supports { rows: [{product_code, qty}] })
-  let cost = 0;
-  if (rows.length){
-    const calc = await api('/api/plan/calc', {
-      method:'POST',
-      body: JSON.stringify({ rows: rows.map(x=>({ product_code: x.product_code, qty: Number(x.qty||0) })) })
-    });
-    cost = Number(calc?.data?.total_cost||0);
-  }
-  $$('#todayCost').textContent = `${cost.toFixed(2)} €`;
-
-  // Render mini list (up to 6)
-  const host = $$('#todayList');
-  host.innerHTML = rows.slice(0,6).map(r=>`
-    <div class="rowy">
-      <div>
-        <div><b>${r.product_code}</b> <small>· ${r.product_name||''}</small></div>
-        <small>${r.start_time||''}${r.end_time? '–'+r.end_time : ''} ${r.shop? ' · '+r.shop : ''} ${r.note? ' · '+r.note : ''}</small>
-      </div>
-      <div class="mono">${r.qty}</div>
-    </div>
-  `).join('') || `<div class="muter">Heute ist noch nichts geplant.</div>`;
+function logout() { 
+  api('/api/logout', {method:'POST'}).then(() => location.href='/login.html'); 
 }
 
-/* ===== Week sparkline ===== */
-let WEEK_START = startOfWeek(new Date());
-async function loadWeek(dir=0){
-  WEEK_START = addDays(WEEK_START, 7*dir);
-  const start = iso(WEEK_START);
-  const end   = iso(addDays(WEEK_START, 6));
-  $$('#weekTitle').textContent = `Auslastung · ${start} – ${end}`;
-  $$('#wkRange').textContent = `${start} → ${end}`;
+// Initialize dashboard
+(async function initDashboard() {
+  try {
+    const user = await sessionInfo();
+    if (!user) {
+      location.href = '/login.html';
+      return;
+    }
+    
+    await loadDashboardData();
+    startAutoRefresh();
+  } catch (e) {
+    console.error('Dashboard initialization failed:', e);
+    toast('Fehler beim Laden des Dashboards');
+  }
+})();
 
-  // fetch each day via existing API, then aggregate
-  const daily = [];
-  const topMap = new Map(); // product_code -> qty
-  for (let i=0;i<7;i++){
-    const d = iso(addDays(WEEK_START, i));
-    const r = await api(`/api/plan?date=${encodeURIComponent(d)}`);
-    const rows = r.data || [];
-    const qty = rows.reduce((s,x)=> s + Number(x.qty||0), 0);
-    daily.push(qty);
-    for (const x of rows){
-      const cur = topMap.get(x.product_code)||0;
-      topMap.set(x.product_code, cur + Number(x.qty||0));
+async function loadDashboardData() {
+  try {
+    showRefreshIndicator();
+    
+    // Load analytics data
+    const analyticsResponse = await api('/api/analytics/dashboard');
+    dashboardData.analytics = analyticsResponse;
+    
+    // Load today's production
+    const today = new Date().toISOString().split('T')[0];
+    const productionResponse = await api(`/api/plan?week_start=${today}`);
+    dashboardData.production = productionResponse.data || [];
+    
+    // Load materials with low stock
+    const materialsResponse = await api('/api/materials?low_stock=true');
+    dashboardData.lowStockMaterials = materialsResponse.data || [];
+    
+    // Load all materials for inventory overview
+    const allMaterialsResponse = await api('/api/materials');
+    dashboardData.allMaterials = allMaterialsResponse.data || [];
+    
+    updateDashboardUI();
+  } catch (error) {
+    console.error('Failed to load dashboard data:', error);
+    toast('Fehler beim Laden der Dashboard-Daten');
+  }
+}
+
+function updateDashboardUI() {
+  updateMetrics();
+  updateProductionList();
+  updateAlerts();
+  updateCostChart();
+  updateInventoryOverview();
+}
+
+function updateMetrics() {
+  const analytics = dashboardData.analytics;
+  
+  if (analytics.production) {
+    const efficiency = analytics.production.completed && analytics.production.total_planned > 0 
+      ? (analytics.production.completed / analytics.production.total_planned * 100).toFixed(0)
+      : 0;
+    $$('#efficiencyScore').textContent = `${efficiency}%`;
+  }
+  
+  if (analytics.production && analytics.production.total_production_cost) {
+    $$('#totalCosts').textContent = `€${parseFloat(analytics.production.total_production_cost).toLocaleString('de-DE')}`;
+  }
+  
+  // Update inventory status
+  const totalMaterials = dashboardData.allMaterials.length;
+  const lowStockCount = dashboardData.lowStockMaterials.length;
+  const inventoryHealth = totalMaterials > 0 ? ((totalMaterials - lowStockCount) / totalMaterials * 100).toFixed(0) : 100;
+  $$('#inventoryStatus').textContent = `${inventoryHealth}%`;
+  
+  if (lowStockCount > 0) {
+    $$('#inventoryTrend').textContent = `${lowStockCount} niedrig`;
+    $$('#inventoryTrend').className = 'metric-trend trend-warning';
+  } else {
+    $$('#inventoryTrend').textContent = 'Optimal';
+    $$('#inventoryTrend').className = 'metric-trend trend-up';
+  }
+  
+  // Update quality score
+  if (analytics.quality) {
+    const qualityPercentage = analytics.quality.total_checks > 0 
+      ? (analytics.quality.passed_checks / analytics.quality.total_checks * 100).toFixed(1)
+      : 100;
+    $$('#qualityScore').textContent = `${qualityPercentage}%`;
+  }
+}
+
+function updateProductionList() {
+  const productionList = $$('#productionList');
+  const todayProduction = dashboardData.production.filter(p => {
+    const today = new Date().toISOString().split('T')[0];
+    return p.day === today;
+  });
+  
+  if (todayProduction.length === 0) {
+    productionList.innerHTML = `
+      <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+        <div style="font-size: 48px; margin-bottom: 16px;">📅</div>
+        <div>Keine Produktion für heute geplant</div>
+        <button class="btn primary" onclick="location.href='/plan.html'" style="margin-top: 12px;">
+          Produktion planen
+        </button>
+      </div>
+    `;
+    return;
+  }
+  
+  productionList.innerHTML = todayProduction.map(item => `
+    <div class="production-item">
+      <div class="production-info">
+        <div class="production-status status-${item.status || 'planned'}"></div>
+        <div class="production-details">
+          <div class="production-name">${item.product_code}</div>
+          <div class="production-meta">
+            ${item.product_name || ''} • ${item.start_time || 'Zeit TBD'}
+            ${item.shop ? ` • ${item.shop}` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="production-quantity">${item.qty} ${item.yield_unit || 'Stück'}</div>
+    </div>
+  `).join('');
+}
+
+function updateAlerts() {
+  const alertsList = $$('#alertsList');
+  const alerts = [];
+  
+  // Low stock alerts
+  dashboardData.lowStockMaterials.forEach(material => {
+    alerts.push({
+      type: 'warning',
+      icon: '📦',
+      title: 'Niedriger Lagerbestand',
+      message: `${material.name}: ${material.current_stock} ${material.base_unit} (Min: ${material.min_stock})`
+    });
+  });
+  
+  // Production alerts
+  const inProgressProduction = dashboardData.production.filter(p => p.status === 'in_progress');
+  if (inProgressProduction.length > 0) {
+    alerts.push({
+      type: 'info',
+      icon: '🏭',
+      title: 'Produktion läuft',
+      message: `${inProgressProduction.length} Produktionsaufträge in Bearbeitung`
+    });
+  }
+  
+  // Quality alerts
+  const analytics = dashboardData.analytics;
+  if (analytics.quality && analytics.quality.total_checks > 0) {
+    const failedChecks = analytics.quality.total_checks - analytics.quality.passed_checks;
+    if (failedChecks > 0) {
+      alerts.push({
+        type: 'critical',
+        icon: '⚠️',
+        title: 'Qualitätsprobleme',
+        message: `${failedChecks} fehlgeschlagene Qualitätskontrollen`
+      });
     }
   }
-
-  // Sparkline
-  drawSparkline(daily);
-
-  // Stats
-  const sum = daily.reduce((s,v)=>s+v,0);
-  const daysActive = daily.filter(v=>v>0).length;
-  $$('#wkQty').textContent = sum;
-  $$('#wkDays').textContent = daysActive;
-  $$('#wkAvg').textContent = (sum/7).toFixed(1);
-
-  // Top 3 items
-  const top = [...topMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,3);
-  const host = $$('#wkTop');
-  host.innerHTML = top.length ? top.map(([code,qty])=>`
-    <div class="rowy">
-      <div><b>${code}</b></div>
-      <div class="mono">${qty}</div>
+  
+  // Update alert count
+  $$('#alertCount').textContent = `${alerts.length} aktiv`;
+  
+  if (alerts.length === 0) {
+    alertsList.innerHTML = `
+      <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+        <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
+        <div>Keine aktiven Benachrichtigungen</div>
+        <div style="font-size: 12px; margin-top: 8px;">Alle Systeme funktionieren normal</div>
+      </div>
+    `;
+    return;
+  }
+  
+  alertsList.innerHTML = alerts.map(alert => `
+    <div class="alert-item alert-${alert.type}">
+      <div class="alert-icon">${alert.icon}</div>
+      <div class="alert-content">
+        <div class="alert-title">${alert.title}</div>
+        <div class="alert-message">${alert.message}</div>
+      </div>
     </div>
-  `).join('') : `<div class="muter">Keine Einträge in dieser Woche.</div>`;
+  `).join('');
 }
-function drawSparkline(vals){
-  const svg = $$('#spark');
-  // clear previous path
-  Array.from(svg.querySelectorAll('path[data-line], circle[data-dot]')).forEach(n=>n.remove());
-  if (!vals.length) return;
-  const W=200, H=44, pad=6;
-  const max = Math.max(1, ...vals);
-  const step = (W - pad*2) / (vals.length-1 || 1);
-  const y = (v)=> H - pad - (v/max)*(H - pad*2);
-  const pts = vals.map((v,i)=>[pad + i*step, y(v)]);
-  const d = pts.map((p,i)=> (i? 'L':'M') + p[0]+','+p[1]).join(' ');
-  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-  path.setAttribute('d', d);
-  path.setAttribute('stroke', 'url(#sparkGrad)');
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke-width', '2');
-  path.setAttribute('data-line','1');
-  svg.appendChild(path);
 
-  // gradient defs (once)
-  if (!svg.querySelector('#sparkGrad')){
-    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
-    defs.innerHTML = `<linearGradient id="sparkGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#7aa2ff"/><stop offset="100%" stop-color="#a07aff"/>
-    </linearGradient>`;
-    svg.appendChild(defs);
+function updateCostChart() {
+  const costChart = $$('#costChart');
+  const analytics = dashboardData.analytics;
+  
+  if (!analytics.cost_trends || analytics.cost_trends.length === 0) {
+    costChart.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+        Keine Kostendaten verfügbar
+      </div>
+    `;
+    return;
   }
-  // dots
-  pts.forEach(p=>{
-    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    c.setAttribute('cx', p[0]); c.setAttribute('cy', p[1]); c.setAttribute('r', 2.4);
-    c.setAttribute('fill', 'url(#sparkGrad)');
-    c.setAttribute('data-dot','1');
-    svg.appendChild(c);
-  });
+  
+  const maxCost = Math.max(...analytics.cost_trends.map(d => parseFloat(d.daily_total_cost || 0)));
+  
+  costChart.innerHTML = analytics.cost_trends.map(day => {
+    const cost = parseFloat(day.daily_total_cost || 0);
+    const height = maxCost > 0 ? (cost / maxCost * 100) : 10;
+    return `<div class="chart-bar" style="height: ${height}%" title="${day.calculation_date}: €${cost.toFixed(2)}"></div>`;
+  }).join('');
 }
 
-/* ===== Stats (materials/items/bom) ===== */
-async function loadStats(){
-  const m = (await api('/api/materials')).data||[];
-  const i = (await api('/api/items')).data||[];
-  $$('#statMaterials').textContent = m.length;
-  $$('#statItems').textContent = i.length;
-
-  // best-effort count: items that have at least one BOM line (calls existing endpoint per item)
-  let bomItems = 0;
-  for (const it of i){
-    try{
-      const r = await api(`/api/items/${encodeURIComponent(it.code)}/bom`);
-      if ((r.data||[]).length) bomItems++;
-    }catch{}
+function updateInventoryOverview() {
+  const inventoryOverview = $$('#inventoryOverview');
+  const materials = dashboardData.allMaterials.slice(0, 10); // Show top 10
+  
+  if (materials.length === 0) {
+    inventoryOverview.innerHTML = `
+      <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+        Keine Materialien gefunden
+      </div>
+    `;
+    return;
   }
-  $$('#statBOM').textContent = `${bomItems}/${i.length}`;
+  
+  inventoryOverview.innerHTML = materials.map(material => {
+    const stockPercentage = material.min_stock > 0 ? (material.current_stock / material.min_stock * 100) : 100;
+    const statusColor = stockPercentage <= 100 ? '#ff6b6b' : stockPercentage <= 150 ? '#ffb24f' : '#6fe3a6';
+    
+    return `
+      <div class="production-item">
+        <div class="production-info">
+          <div class="production-status" style="background: ${statusColor};"></div>
+          <div class="production-details">
+            <div class="production-name">${material.name}</div>
+            <div class="production-meta">${material.code} • ${material.base_unit}</div>
+          </div>
+        </div>
+        <div class="production-quantity">${material.current_stock} ${material.base_unit}</div>
+      </div>
+    `;
+  }).join('');
 }
 
-/* ===== Events & boot ===== */
-$$('#prevW').addEventListener('click', ()=> loadWeek(-1));
-$$('#nextW').addEventListener('click', ()=> loadWeek(+1));
+function startAutoRefresh() {
+  if (refreshInterval) clearInterval(refreshInterval);
+  
+  if (autoRefreshEnabled) {
+    refreshInterval = setInterval(async () => {
+      await loadDashboardData();
+    }, 30000); // Refresh every 30 seconds
+  }
+}
 
-(async function(){
-  const u = await sessionInfo(); if(!u){ location.href='/login.html'; return; }
-  await Promise.all([loadToday(), loadWeek(0), loadStats()]);
-})();
+function toggleAutoRefresh() {
+  autoRefreshEnabled = !autoRefreshEnabled;
+  const toggle = $$('#autoRefreshToggle');
+  const status = $$('#refreshStatus');
+  
+  if (autoRefreshEnabled) {
+    toggle.classList.add('active');
+    status.textContent = 'Aktiv (30s)';
+    startAutoRefresh();
+  } else {
+    toggle.classList.remove('active');
+    status.textContent = 'Deaktiviert';
+    if (refreshInterval) clearInterval(refreshInterval);
+  }
+}
+
+function showRefreshIndicator() {
+  const indicator = $$('#refreshIndicator');
+  indicator.classList.add('show');
+  setTimeout(() => {
+    indicator.classList.remove('show');
+  }, 2000);
+}
+
+async function refreshProduction() {
+  await loadDashboardData();
+  toast('Produktionsdaten aktualisiert');
+}
+
+function showCostAnalysis() {
+  // This would open a detailed cost analysis modal or page
+  toast('Kostenanalyse wird geöffnet...');
+  // For now, just redirect to tools
+  location.href = '/tools.html';
+}
+
+function showQualityReport() {
+  // This would open a detailed quality report modal or page
+  toast('Qualitätsbericht wird geöffnet...');
+  // For now, just show a message
+  alert('Qualitätsbericht-Feature wird in einer zukünftigen Version verfügbar sein.');
+}
+
+// Utility function to get element by ID
+function $$(selector) {
+  return document.querySelector(selector);
+}
 </script>
 
 </body>
