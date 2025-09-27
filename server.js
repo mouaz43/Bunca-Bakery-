@@ -1,7 +1,6 @@
 // Bunca Bakery — Server (Express + PostgreSQL)
-// Endpoints: /api/products, /api/recipes, /api/plan, /api/import/file, /api/session, /api/login, /api/logout
+// Clean login with startup admin + optional first-user bootstrap
 
-// Load .env locally if available; ignore in production if module is missing
 try { require('dotenv').config(); } catch (_) {}
 
 const express = require('express');
@@ -16,11 +15,11 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-/* ========================== Ensure dirs ========================== */
+/* ---------- Ensure folders ---------- */
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-/* ========================== DB ========================== */
+/* ---------- Database ---------- */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
@@ -28,14 +27,11 @@ const pool = new Pool({
 
 async function q(sql, params = []) {
   const client = await pool.connect();
-  try {
-    return await client.query(sql, params);
-  } finally {
-    client.release();
-  }
+  try { return await client.query(sql, params); }
+  finally { client.release(); }
 }
 
-/* ======================= Middleware ====================== */
+/* ---------- Middleware ---------- */
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -43,12 +39,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'bunca-bakery-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 12 }
+  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 12 } // 12h
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-/* ======================= File Upload ===================== */
+/* ---------- Uploads ---------- */
 const upload = multer({
   dest: UPLOAD_DIR,
   limits: { fileSize: 8 * 1024 * 1024 },
@@ -62,7 +58,7 @@ const upload = multer({
   }
 });
 
-/* ======================= Schema ========================== */
+/* ---------- Schema + bootstrap ---------- */
 async function ensureSchema() {
   await q(`
     CREATE TABLE IF NOT EXISTS users (
@@ -70,7 +66,7 @@ async function ensureSchema() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       name TEXT DEFAULT 'User',
-      role TEXT DEFAULT 'user',
+      role TEXT DEFAULT 'admin',
       active BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT NOW()
     )
@@ -128,28 +124,49 @@ async function ensureSchema() {
     )
   `);
 
-  const admin = await q(`SELECT 1 FROM users WHERE email='admin@bunca.bakery'`);
-  if (admin.rowCount === 0) {
-    const hash = await bcrypt.hash('demo123', 10);
+  // Create or ensure admin on startup
+  const adminEmail = (process.env.ADMIN_EMAIL || '').trim() || 'admin@bunca.bakery';
+  const adminPassword = (process.env.ADMIN_PASSWORD || '').trim() || 'demo123';
+
+  const existing = await q(`SELECT 1 FROM users WHERE email=$1`, [adminEmail]);
+  if (existing.rowCount === 0) {
+    const hash = await bcrypt.hash(adminPassword, 10);
     await q(
-      `INSERT INTO users(email,password_hash,name,role) VALUES($1,$2,'Admin','admin')`,
-      ['admin@bunca.bakery', hash]
+      `INSERT INTO users(email,password_hash,name,role,active) VALUES($1,$2,'Admin','admin',true)`,
+      [adminEmail, hash]
     );
-    console.log('Default admin user created: admin@bunca.bakery / demo123');
+    console.log(`Admin ensured: ${adminEmail}`);
+  } else {
+    console.log(`Admin present: ${adminEmail}`);
   }
 }
 
-/* ======================= Auth Helpers ==================== */
+/* ---------- Auth helpers ---------- */
 function requireAuth(req, res, next) {
   if (req.session.user?.id) return next();
   res.status(401).json({ error: 'Authentication required' });
 }
 
-/* ======================= Auth Routes ===================== */
+/* ---------- Auth routes ---------- */
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    const r = await q(`SELECT * FROM users WHERE email=$1 AND active=true`, [email]);
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+    const totalUsers = await q(`SELECT COUNT(*)::int AS c FROM users`);
+    let r = await q(`SELECT * FROM users WHERE email=$1 AND active=true`, [email.trim()]);
+
+    // Optional bootstrap: allow first ever login to create the user
+    if (r.rowCount === 0 && totalUsers.rows[0].c === 0 && process.env.ALLOW_FIRST_USER === '1') {
+      const hash = await bcrypt.hash(password, 10);
+      await q(
+        `INSERT INTO users(email,password_hash,name,role,active) VALUES($1,$2,$3,'admin',true)`,
+        [email.trim(), hash, 'Admin']
+      );
+      r = await q(`SELECT * FROM users WHERE email=$1`, [email.trim()]);
+      console.log(`First user bootstrapped: ${email}`);
+    }
+
     if (r.rowCount === 0) return res.status(401).json({ error: 'Invalid credentials' });
 
     const user = r.rows[0];
@@ -173,7 +190,7 @@ app.get('/api/session', (req, res) => {
   res.json({ user: req.session.user });
 });
 
-/* ======================= Products API ==================== */
+/* ---------- Products API ---------- */
 app.get('/api/products', async (_req, res) => {
   try {
     const r = await q(
@@ -222,8 +239,7 @@ app.put('/api/products/:code', requireAuth, async (req, res) => {
 
 app.delete('/api/products/:code', requireAuth, async (req, res) => {
   try {
-    const { code } = req.params;
-    await q(`UPDATE products SET active=false WHERE code=$1`, [code]);
+    await q(`UPDATE products SET active=false WHERE code=$1`, [req.params.code]);
     res.json({ success: true });
   } catch (e) {
     console.error('Product delete error', e);
@@ -231,7 +247,7 @@ app.delete('/api/products/:code', requireAuth, async (req, res) => {
   }
 });
 
-/* ======================= Recipes API ===================== */
+/* ---------- Recipes API ---------- */
 const RECIPE_COST_SQL = `
   SELECT r.code,
          COALESCE(SUM(ri.amount * p.unit_price * (1 + ri.waste_factor)), 0) AS total_batch_cost,
@@ -354,7 +370,7 @@ app.get('/api/recipes/:code/ingredients', async (req, res) => {
   }
 });
 
-/* ======================= Production Plan ================= */
+/* ---------- Production Plan ---------- */
 app.get('/api/plan', async (req, res) => {
   try {
     const params = [];
@@ -433,7 +449,7 @@ app.delete('/api/plan/:id', requireAuth, async (req, res) => {
   }
 });
 
-/* ======================= Import API ===================== */
+/* ---------- Import API ---------- */
 app.post('/api/import/file', requireAuth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -531,12 +547,12 @@ function parseSpreadsheet(filePath) {
   }
 }
 
-/* ======================= Root / Start =================== */
+/* ---------- Root + start ---------- */
 app.get('/', (_req, res) => res.redirect('/login.html'));
 
 async function start() {
   try {
-    console.log('Starting Bunca Bakery server...');
+    console.log('Starting Bunca Bakery server…');
     await ensureSchema();
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (e) {
