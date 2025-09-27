@@ -1,675 +1,90 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>🍞 Bunca Bakery - Login</title>
-  <link rel="stylesheet" href="/styles.css"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>Bunca Bakery — Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/styles.css">
   <style>
     body {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      background: #f8f9fa;
       display: flex;
-      align-items: center;
       justify-content: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    /* Animated Background */
-    .bg-animation {
-      position: absolute;
-      inset: 0;
-      overflow: hidden;
-      z-index: 0;
-    }
-
-    .bg-animation::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
-      animation: rotate 20s linear infinite;
-    }
-
-    .bg-animation::after {
-      content: '';
-      position: absolute;
-      top: -50%;
-      right: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle, rgba(245, 158, 11, 0.1) 0%, transparent 50%);
-      animation: rotate 25s linear infinite reverse;
-    }
-
-    @keyframes rotate {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    /* Floating Elements */
-    .floating-elements {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-    }
-
-    .floating-element {
-      position: absolute;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 50%;
-      animation: float 6s ease-in-out infinite;
-    }
-
-    .floating-element:nth-child(1) {
-      width: 80px;
-      height: 80px;
-      top: 20%;
-      left: 10%;
-      animation-delay: 0s;
-    }
-
-    .floating-element:nth-child(2) {
-      width: 120px;
-      height: 120px;
-      top: 60%;
-      right: 15%;
-      animation-delay: 2s;
-    }
-
-    .floating-element:nth-child(3) {
-      width: 60px;
-      height: 60px;
-      bottom: 20%;
-      left: 20%;
-      animation-delay: 4s;
-    }
-
-    @keyframes float {
-      0%, 100% { transform: translateY(0px) rotate(0deg); }
-      50% { transform: translateY(-20px) rotate(180deg); }
-    }
-
-    /* Login Container */
-    .login-container {
-      position: relative;
-      z-index: 10;
-      width: 100%;
-      max-width: 420px;
-      padding: 0 24px;
-    }
-
-    .login-card {
-      background: rgba(30, 41, 59, 0.8);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 24px;
-      padding: 48px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .login-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, var(--primary), var(--secondary));
-    }
-
-    .login-header {
-      text-align: center;
-      margin-bottom: 40px;
-    }
-
-    .login-logo {
-      font-size: 64px;
-      margin-bottom: 16px;
-      animation: bounce 2s ease-in-out infinite;
-    }
-
-    .login-title {
-      font-size: 32px;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 8px;
-    }
-
-    .login-subtitle {
-      color: var(--text-muted);
-      font-size: 16px;
-      font-weight: 500;
-    }
-
-    .login-form {
-      space-y: 24px;
-    }
-
-    .form-group {
-      margin-bottom: 24px;
-      position: relative;
-    }
-
-    .form-label {
-      display: block;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 8px;
-      transition: color 0.2s ease;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 16px 20px;
-      font-size: 16px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 2px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      color: var(--text);
-      transition: all 0.3s ease;
-      position: relative;
-    }
-
-    .form-input:focus {
-      outline: none;
-      border-color: var(--primary);
-      background: rgba(255, 255, 255, 0.08);
-      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
-    }
-
-    .form-input::placeholder {
-      color: var(--text-muted);
-    }
-
-    .input-icon {
-      position: absolute;
-      right: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-muted);
-      font-size: 18px;
-      pointer-events: none;
-    }
-
-    .login-button {
-      width: 100%;
-      padding: 16px;
-      font-size: 16px;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      color: white;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-      margin-top: 32px;
-    }
-
-    .login-button::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-      transition: left 0.5s ease;
-    }
-
-    .login-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
-    }
-
-    .login-button:hover::before {
-      left: 100%;
-    }
-
-    .login-button:active {
-      transform: translateY(0);
-    }
-
-    .login-button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .login-button.loading {
-      pointer-events: none;
-    }
-
-    .login-button.loading::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 20px;
-      height: 20px;
-      margin: -10px 0 0 -10px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top: 2px solid white;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    .forgot-password {
-      text-align: center;
-      margin-top: 24px;
-    }
-
-    .forgot-password a {
-      color: var(--primary);
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 500;
-      transition: color 0.2s ease;
-    }
-
-    .forgot-password a:hover {
-      color: var(--primary-light);
-    }
-
-    .demo-info {
-      background: rgba(245, 158, 11, 0.1);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      border-radius: 12px;
-      padding: 16px;
-      margin-top: 24px;
-      text-align: center;
-    }
-
-    .demo-info-title {
-      font-weight: 600;
-      color: var(--warning);
-      margin-bottom: 8px;
-    }
-
-    .demo-info-text {
-      font-size: 14px;
-      color: var(--text-muted);
-      line-height: 1.5;
-    }
-
-    .demo-credentials {
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
-      padding: 12px;
-      margin-top: 12px;
-      font-family: 'Courier New', monospace;
-      font-size: 13px;
-      cursor: pointer;
-      transition: background 0.2s ease;
-    }
-
-    .demo-credentials:hover {
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    /* Responsive Design */
-    @media (max-width: 480px) {
-      .login-card {
-        padding: 32px 24px;
-        margin: 16px;
-      }
-
-      .login-title {
-        font-size: 28px;
-      }
-
-      .login-logo {
-        font-size: 48px;
-      }
-    }
-
-    /* Error States */
-    .form-group.error .form-input {
-      border-color: var(--error);
-      background: rgba(239, 68, 68, 0.1);
-    }
-
-    .form-group.error .form-label {
-      color: var(--error);
-    }
-
-    .error-message {
-      color: var(--error);
-      font-size: 14px;
-      margin-top: 8px;
-      display: flex;
       align-items: center;
-      gap: 8px;
+      min-height: 100vh;
     }
-
-    /* Success Animation */
-    @keyframes success {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-      100% { transform: scale(1); }
+    .login-card {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 360px;
     }
-
-    .login-card.success {
-      animation: success 0.6s ease;
-      border-color: var(--success);
+    h1 {
+      margin-bottom: 1.5rem;
+      font-size: 1.5rem;
+      text-align: center;
     }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; margin-bottom: .5rem; font-weight: 600; }
+    input {
+      width: 100%; padding: .75rem; border: 1px solid #ccc;
+      border-radius: 8px; font-size: 1rem;
     }
-
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      25% { transform: translateX(-5px); }
-      75% { transform: translateX(5px); }
+    button {
+      width: 100%; padding: .75rem; background: #503CEB; color: white;
+      border: none; border-radius: 8px; font-size: 1rem; cursor: pointer;
     }
+    button:hover { background: #3a2fb8; }
+    .error { color: #c00; margin-top: 1rem; text-align: center; }
   </style>
 </head>
 <body>
-  <!-- Animated Background -->
-  <div class="bg-animation"></div>
-  
-  <!-- Floating Elements -->
-  <div class="floating-elements">
-    <div class="floating-element"></div>
-    <div class="floating-element"></div>
-    <div class="floating-element"></div>
+  <div class="login-card">
+    <h1>Bunca Bakery</h1>
+    <form id="loginForm">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="email" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" required>
+      </div>
+      <button type="submit">Login</button>
+    </form>
+    <div id="errorMsg" class="error"></div>
   </div>
 
-  <!-- Login Container -->
-  <div class="login-container">
-    <div class="login-card" id="loginCard">
-      <!-- Header -->
-      <div class="login-header">
-        <div class="login-logo">🍞</div>
-        <h1 class="login-title">BUNCA Bakery</h1>
-        <p class="login-subtitle">Automated Workflow Management</p>
-      </div>
-
-      <!-- Login Form -->
-      <form class="login-form" id="loginForm">
-        <div class="form-group" id="emailGroup">
-          <label class="form-label" for="email">Email Address</label>
-          <div style="position: relative;">
-            <input 
-              type="email" 
-              id="email" 
-              name="email" 
-              class="form-input" 
-              placeholder="Enter your email address"
-              required
-              autocomplete="email"
-            />
-            <span class="input-icon">📧</span>
-          </div>
-          <div class="error-message" id="emailError" style="display: none;">
-            <span>⚠️</span>
-            <span>Please enter a valid email address</span>
-          </div>
-        </div>
-
-        <div class="form-group" id="passwordGroup">
-          <label class="form-label" for="password">Password</label>
-          <div style="position: relative;">
-            <input 
-              type="password" 
-              id="password" 
-              name="password" 
-              class="form-input" 
-              placeholder="Enter your password"
-              required
-              autocomplete="current-password"
-            />
-            <span class="input-icon">🔒</span>
-          </div>
-          <div class="error-message" id="passwordError" style="display: none;">
-            <span>⚠️</span>
-            <span>Password is required</span>
-          </div>
-        </div>
-
-        <button type="submit" class="login-button" id="loginButton">
-          <span id="loginButtonText">Sign In to Dashboard</span>
-        </button>
-      </form>
-
-      <!-- Forgot Password -->
-      <div class="forgot-password">
-        <a href="#" onclick="showForgotPassword()">Forgot your password?</a>
-      </div>
-
-      <!-- Demo Information -->
-      <div class="demo-info">
-        <div class="demo-info-title">🚀 Demo Access</div>
-        <div class="demo-info-text">
-          Click below to auto-fill demo credentials
-        </div>
-        <div class="demo-credentials" onclick="fillDemoCredentials()">
-          <div><strong>Email:</strong> admin@bunca.bakery</div>
-          <div><strong>Password:</strong> demo123</div>
-          <div style="font-size: 11px; margin-top: 8px; opacity: 0.7;">Click to auto-fill</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="/js/app.js"></script>
   <script>
-    // Login functionality
-    class LoginManager {
-      constructor() {
-        this.form = document.getElementById('loginForm');
-        this.emailInput = document.getElementById('email');
-        this.passwordInput = document.getElementById('password');
-        this.loginButton = document.getElementById('loginButton');
-        this.loginButtonText = document.getElementById('loginButtonText');
-        this.loginCard = document.getElementById('loginCard');
-        
-        this.init();
-      }
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const errorBox = document.getElementById('errorMsg');
+      errorBox.textContent = '';
 
-      init() {
-        this.form.addEventListener('submit', this.handleSubmit.bind(this));
-        this.emailInput.addEventListener('input', this.clearError.bind(this, 'email'));
-        this.passwordInput.addEventListener('input', this.clearError.bind(this, 'password'));
-        
-        // Auto-focus email input
-        setTimeout(() => this.emailInput.focus(), 500);
-        
-        // Check if already logged in
-        this.checkExistingSession();
-        
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            this.handleSubmit(e);
-          }
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
         });
-      }
 
-      async checkExistingSession() {
-        try {
-          const user = await sessionInfo();
-          if (user) {
-            this.showSuccess('Already logged in, redirecting...');
-            setTimeout(() => {
-              window.location.href = '/dashboard.html';
-            }, 1000);
-          }
-        } catch (error) {
-          // Not logged in, continue with login form
-        }
-      }
-
-      async handleSubmit(event) {
-        event.preventDefault();
-        
-        const email = this.emailInput.value.trim();
-        const password = this.passwordInput.value;
-        
-        // Validate inputs
-        if (!this.validateInputs(email, password)) {
+        if (!res.ok) {
+          const data = await res.json();
+          errorBox.textContent = data.error || 'Login failed';
           return;
         }
-        
-        // Show loading state
-        this.setLoading(true);
-        
-        try {
-          await app.login(email, password);
-          this.showSuccess('Login successful! Redirecting...');
-          
-          // Redirect after success animation
-          setTimeout(() => {
-            window.location.href = '/dashboard.html';
-          }, 1500);
-          
-        } catch (error) {
-          this.setLoading(false);
-          this.showError('Invalid email or password. Please try again.');
-        }
+
+        const data = await res.json();
+        window.location.href = '/dashboard.html';
+      } catch (err) {
+        errorBox.textContent = 'Network error: ' + err.message;
       }
-
-      validateInputs(email, password) {
-        let isValid = true;
-        
-        // Email validation
-        if (!email) {
-          this.showFieldError('email', 'Email is required');
-          isValid = false;
-        } else if (!this.isValidEmail(email)) {
-          this.showFieldError('email', 'Please enter a valid email address');
-          isValid = false;
-        }
-        
-        // Password validation
-        if (!password) {
-          this.showFieldError('password', 'Password is required');
-          isValid = false;
-        }
-        
-        return isValid;
-      }
-
-      isValidEmail(email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-      }
-
-      showFieldError(field, message) {
-        const group = document.getElementById(`${field}Group`);
-        const error = document.getElementById(`${field}Error`);
-        
-        group.classList.add('error');
-        error.style.display = 'flex';
-        error.querySelector('span:last-child').textContent = message;
-        
-        // Shake animation
-        group.style.animation = 'shake 0.5s ease';
-        setTimeout(() => {
-          group.style.animation = '';
-        }, 500);
-      }
-
-      clearError(field) {
-        const group = document.getElementById(`${field}Group`);
-        const error = document.getElementById(`${field}Error`);
-        
-        group.classList.remove('error');
-        error.style.display = 'none';
-      }
-
-      setLoading(loading) {
-        this.loginButton.disabled = loading;
-        
-        if (loading) {
-          this.loginButton.classList.add('loading');
-          this.loginButtonText.textContent = 'Signing In...';
-        } else {
-          this.loginButton.classList.remove('loading');
-          this.loginButtonText.textContent = 'Sign In to Dashboard';
-        }
-      }
-
-      showSuccess(message) {
-        this.loginCard.classList.add('success');
-        toast(message, 'success');
-      }
-
-      showError(message) {
-        toast(message, 'error');
-        
-        // Shake the card
-        this.loginCard.style.animation = 'shake 0.5s ease';
-        setTimeout(() => {
-          this.loginCard.style.animation = '';
-        }, 500);
-      }
-    }
-
-    // Initialize login manager
-    const loginManager = new LoginManager();
-
-    // Demo credentials auto-fill
-    function fillDemoCredentials() {
-      document.getElementById('email').value = 'admin@bunca.bakery';
-      document.getElementById('password').value = 'demo123';
-      toast('Demo credentials filled in! Click Sign In to continue.', 'success');
-    }
-
-    // Forgot password functionality
-    function showForgotPassword() {
-      showModal('🔐 Password Reset', `
-        <div class="form-group">
-          <label class="form-label">Email Address</label>
-          <input type="email" class="input" placeholder="Enter your email address" id="resetEmail">
-        </div>
-        <div class="alert alert-info">
-          <span>ℹ️</span>
-          <span>For demo purposes, please contact the administrator to reset your password.</span>
-        </div>
-      `, [
-        {
-          text: 'Cancel',
-          class: 'btn-outline',
-          onclick: 'closeModal()'
-        },
-        {
-          text: 'Send Reset Link',
-          class: 'btn-primary',
-          onclick: 'sendPasswordReset()'
-        }
-      ]);
-    }
-
-    function sendPasswordReset() {
-      const email = document.getElementById('resetEmail').value;
-      if (!email) {
-        toast('Please enter your email address', 'warning');
-        return;
-      }
-      
-      toast('Password reset instructions would be sent to your email', 'info');
-      closeModal();
-    }
-
-    console.log('🍞 Bunca Bakery Login Page Loaded');
+    });
   </script>
 </body>
 </html>
