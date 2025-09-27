@@ -76,69 +76,97 @@ async function ensureSchema() {
   try {
     console.log('🔧 Setting up enhanced database schema...');
     
-    // Core tables with enhanced columns
+    // First, create basic tables if they don't exist (backward compatible)
     await q(`CREATE TABLE IF NOT EXISTS materials (
       id SERIAL PRIMARY KEY,
       code TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       base_unit TEXT NOT NULL,
-      price_per_unit DECIMAL(10,4) NOT NULL DEFAULT 0,
-      current_stock DECIMAL(10,3) DEFAULT 0,
-      min_stock DECIMAL(10,3) DEFAULT 0,
-      reorder_point DECIMAL(10,3) DEFAULT 0,
-      supplier TEXT DEFAULT '',
-      shelf_life_days INTEGER DEFAULT 30,
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW()
+      price_per_unit DECIMAL(10,4) NOT NULL DEFAULT 0
     );`);
+    
+    // Then safely add new columns one by one
+    try {
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS current_stock DECIMAL(10,3) DEFAULT 0;`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS min_stock DECIMAL(10,3) DEFAULT 0;`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS reorder_point DECIMAL(10,3) DEFAULT 0;`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS supplier TEXT DEFAULT '';`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS shelf_life_days INTEGER DEFAULT 30;`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+      console.log('✅ Materials table enhanced successfully');
+    } catch (error) {
+      console.log('ℹ️ Materials table migration skipped (columns may already exist)');
+    }
 
+    // Create basic items table
     await q(`CREATE TABLE IF NOT EXISTS items (
       id SERIAL PRIMARY KEY,
       code TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       yield_qty DECIMAL(10,3) NOT NULL DEFAULT 1,
-      yield_unit TEXT NOT NULL DEFAULT 'pcs',
-      category TEXT DEFAULT 'bakery',
-      shelf_life_hours INTEGER DEFAULT 24,
-      allergens TEXT[] DEFAULT '{}',
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW()
+      yield_unit TEXT NOT NULL DEFAULT 'pcs'
     );`);
+    
+    // Safely add new columns to items table
+    try {
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'bakery';`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS shelf_life_hours INTEGER DEFAULT 24;`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS allergens TEXT[] DEFAULT '{}';`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+      console.log('✅ Items table enhanced successfully');
+    } catch (error) {
+      console.log('ℹ️ Items table migration skipped (columns may already exist)');
+    }
 
+    // Create basic BOM table
     await q(`CREATE TABLE IF NOT EXISTS bom (
       id SERIAL PRIMARY KEY,
       product_code TEXT NOT NULL,
       material_code TEXT NOT NULL,
       qty DECIMAL(10,4) NOT NULL,
-      unit TEXT NOT NULL,
-      waste_factor DECIMAL(5,4) DEFAULT 0.05,
-      notes TEXT DEFAULT '',
-      FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE,
-      FOREIGN KEY (material_code) REFERENCES materials(code) ON DELETE CASCADE
+      unit TEXT NOT NULL
     );`);
+    
+    // Safely add new columns to BOM table
+    try {
+      await q(`ALTER TABLE bom ADD COLUMN IF NOT EXISTS waste_factor DECIMAL(5,4) DEFAULT 0.05;`);
+      await q(`ALTER TABLE bom ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';`);
+      console.log('✅ BOM table enhanced successfully');
+    } catch (error) {
+      console.log('ℹ️ BOM table migration skipped (columns may already exist)');
+    }
 
+    // Create basic production_plan table
     await q(`CREATE TABLE IF NOT EXISTS production_plan (
       id SERIAL PRIMARY KEY,
       day DATE NOT NULL,
       product_code TEXT NOT NULL,
-      qty DECIMAL(10,3) NOT NULL,
-      status TEXT DEFAULT 'planned',
-      priority INTEGER DEFAULT 5,
-      start_time TIME,
-      end_time TIME,
-      assigned_staff TEXT[] DEFAULT '{}',
-      equipment_required TEXT[] DEFAULT '{}',
-      shop TEXT DEFAULT '',
-      note TEXT DEFAULT '',
-      actual_qty DECIMAL(10,3) DEFAULT 0,
-      cost_per_unit DECIMAL(10,4) DEFAULT 0,
-      total_cost DECIMAL(10,2) DEFAULT 0,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW(),
-      FOREIGN KEY (product_code) REFERENCES items(code) ON DELETE CASCADE
+      qty DECIMAL(10,3) NOT NULL
     );`);
+    
+    // Safely add new columns to production_plan table
+    try {
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'planned';`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 5;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS start_time TIME;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS end_time TIME;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS assigned_staff TEXT[] DEFAULT '{}';`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS equipment_required TEXT[] DEFAULT '{}';`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS shop TEXT DEFAULT '';`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS actual_qty DECIMAL(10,3) DEFAULT 0;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS cost_per_unit DECIMAL(10,4) DEFAULT 0;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS total_cost DECIMAL(10,2) DEFAULT 0;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+      console.log('✅ Production plan table enhanced successfully');
+    } catch (error) {
+      console.log('ℹ️ Production plan table migration skipped (columns may already exist)');
+    }
 
     // Enhanced automation tables
     await q(`CREATE TABLE IF NOT EXISTS inventory_transactions (
