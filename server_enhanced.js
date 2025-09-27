@@ -332,9 +332,58 @@ async function ensureSchema() {
       reason TEXT
     );`);
 
-    // Create indexes for performance
-    await q(`CREATE INDEX IF NOT EXISTS idx_materials_active ON materials(active) WHERE active = true;`);
-    await q(`CREATE INDEX IF NOT EXISTS idx_items_active ON items(active) WHERE active = true;`);
+    // Add missing columns to existing tables (migration-safe)
+    try {
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS reorder_point DECIMAL(10,3) DEFAULT 0;`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS supplier_id INTEGER;`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS shelf_life_hours INTEGER DEFAULT 24;`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+      await q(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+    } catch (e) {
+      console.log('[INFO] Materials table columns already exist or migration not needed');
+    }
+
+    try {
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS category TEXT;`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS allergens TEXT[];`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS shelf_life_hours INTEGER DEFAULT 24;`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+      await q(`ALTER TABLE items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+    } catch (e) {
+      console.log('[INFO] Items table columns already exist or migration not needed');
+    }
+
+    try {
+      await q(`ALTER TABLE bom ADD COLUMN IF NOT EXISTS waste_factor DECIMAL(5,4) DEFAULT 0.05;`);
+      await q(`ALTER TABLE bom ADD COLUMN IF NOT EXISTS notes TEXT;`);
+    } catch (e) {
+      console.log('[INFO] BOM table columns already exist or migration not needed');
+    }
+
+    try {
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'planned';`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 5;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS start_time TIME;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS end_time TIME;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS assigned_staff TEXT[];`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS equipment_required TEXT[];`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS shop TEXT;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS note TEXT;`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+      await q(`ALTER TABLE production_plan ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+    } catch (e) {
+      console.log('[INFO] Production plan table columns already exist or migration not needed');
+    }
+
+    // Create indexes for performance (only after columns exist)
+    try {
+      await q(`CREATE INDEX IF NOT EXISTS idx_materials_active ON materials(active) WHERE active = true;`);
+      await q(`CREATE INDEX IF NOT EXISTS idx_items_active ON items(active) WHERE active = true;`);
+    } catch (e) {
+      console.log('[INFO] Indexes already exist or columns not ready');
+    }
     await q(`CREATE INDEX IF NOT EXISTS idx_production_plan_day ON production_plan(day);`);
     await q(`CREATE INDEX IF NOT EXISTS idx_production_plan_status ON production_plan(status);`);
     await q(`CREATE INDEX IF NOT EXISTS idx_inventory_transactions_material ON inventory_transactions(material_code);`);
