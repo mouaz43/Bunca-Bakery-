@@ -1,7 +1,9 @@
 // Bunca Bakery — Server (Express + PostgreSQL)
 // Endpoints: /api/products, /api/recipes, /api/plan, /api/import/file, /api/session, /api/login, /api/logout
 
-require('dotenv').config();
+// Load .env locally if available; ignore in production if module is missing
+try { require('dotenv').config(); } catch (_) {}
+
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
@@ -14,8 +16,11 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-/* ========================== DB ========================== */
+/* ========================== Ensure dirs ========================== */
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+/* ========================== DB ========================== */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
@@ -31,7 +36,6 @@ async function q(sql, params = []) {
 }
 
 /* ======================= Middleware ====================== */
-
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -39,15 +43,14 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'bunca-bakery-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 12 } // 12h
+  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 12 }
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
 /* ======================= File Upload ===================== */
-
 const upload = multer({
-  dest: 'uploads/',
+  dest: UPLOAD_DIR,
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ok = [
@@ -60,9 +63,7 @@ const upload = multer({
 });
 
 /* ======================= Schema ========================== */
-
 async function ensureSchema() {
-  // Users
   await q(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -75,7 +76,6 @@ async function ensureSchema() {
     )
   `);
 
-  // Products (Rohwaren)
   await q(`
     CREATE TABLE IF NOT EXISTS products (
       id SERIAL PRIMARY KEY,
@@ -90,7 +90,6 @@ async function ensureSchema() {
     )
   `);
 
-  // Recipes
   await q(`
     CREATE TABLE IF NOT EXISTS recipes (
       id SERIAL PRIMARY KEY,
@@ -104,7 +103,6 @@ async function ensureSchema() {
     )
   `);
 
-  // Recipe ingredients (BOM)
   await q(`
     CREATE TABLE IF NOT EXISTS recipe_ingredients (
       id SERIAL PRIMARY KEY,
@@ -117,7 +115,6 @@ async function ensureSchema() {
     )
   `);
 
-  // Production plan
   await q(`
     CREATE TABLE IF NOT EXISTS production_plan (
       id SERIAL PRIMARY KEY,
@@ -131,7 +128,6 @@ async function ensureSchema() {
     )
   `);
 
-  // Default admin
   const admin = await q(`SELECT 1 FROM users WHERE email='admin@bunca.bakery'`);
   if (admin.rowCount === 0) {
     const hash = await bcrypt.hash('demo123', 10);
@@ -144,14 +140,12 @@ async function ensureSchema() {
 }
 
 /* ======================= Auth Helpers ==================== */
-
 function requireAuth(req, res, next) {
   if (req.session.user?.id) return next();
   res.status(401).json({ error: 'Authentication required' });
 }
 
 /* ======================= Auth Routes ===================== */
-
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -180,8 +174,6 @@ app.get('/api/session', (req, res) => {
 });
 
 /* ======================= Products API ==================== */
-
-// GET products with simple fields
 app.get('/api/products', async (_req, res) => {
   try {
     const r = await q(
@@ -240,8 +232,6 @@ app.delete('/api/products/:code', requireAuth, async (req, res) => {
 });
 
 /* ======================= Recipes API ===================== */
-
-// Helper: cost per piece
 const RECIPE_COST_SQL = `
   SELECT r.code,
          COALESCE(SUM(ri.amount * p.unit_price * (1 + ri.waste_factor)), 0) AS total_batch_cost,
@@ -262,8 +252,6 @@ app.get('/api/recipes', async (_req, res) => {
       `SELECT id, code, name, yield_qty, yield_unit, category, active, created_at FROM recipes
        WHERE active=true ORDER BY name`
     );
-
-    // attach unit_cost
     const rows = [];
     for (const rec of r.rows) {
       const c = await q(RECIPE_COST_SQL, [rec.code]);
@@ -279,13 +267,11 @@ app.get('/api/recipes', async (_req, res) => {
 app.post('/api/recipes', requireAuth, async (req, res) => {
   try {
     const { code, name, yield_qty = 1, yield_unit = 'pcs', category = 'bakery', ingredientsJson } = req.body || {};
-
     const r = await q(
       `INSERT INTO recipes(code,name,yield_qty,yield_unit,category)
        VALUES($1,$2,$3,$4,$5) RETURNING *`,
       [code || `R_${Date.now()}`, name, yield_qty, yield_unit, category]
     );
-
     if (ingredientsJson) {
       const ingredients = JSON.parse(ingredientsJson);
       for (const ing of ingredients) {
@@ -298,7 +284,6 @@ app.post('/api/recipes', requireAuth, async (req, res) => {
         );
       }
     }
-
     res.json(r.rows[0]);
   } catch (e) {
     console.error('Recipe create error', e);
@@ -310,7 +295,6 @@ app.put('/api/recipes/:code', requireAuth, async (req, res) => {
   try {
     const { code } = req.params;
     const { name, yield_qty, yield_unit, category, active = true, ingredientsJson } = req.body || {};
-
     const r = await q(
       `UPDATE recipes SET name=$1, yield_qty=$2, yield_unit=$3, category=$4, active=$5
        WHERE code=$6 RETURNING *`,
@@ -320,7 +304,6 @@ app.put('/api/recipes/:code', requireAuth, async (req, res) => {
 
     if (ingredientsJson) {
       const ingredients = JSON.parse(ingredientsJson);
-      // Upsert each ingredient
       for (const ing of ingredients) {
         await q(
           `INSERT INTO recipe_ingredients(recipe_code,product_code,amount,unit,waste_factor)
@@ -330,7 +313,6 @@ app.put('/api/recipes/:code', requireAuth, async (req, res) => {
           [code, ing.productId, ing.amount || 0, ing.unit || '', ing.waste_factor || 0]
         );
       }
-      // Optionally: remove ingredients not present anymore
       const keep = ingredients.map(i => i.productId);
       if (keep.length) {
         await q(`DELETE FROM recipe_ingredients WHERE recipe_code=$1 AND product_code NOT IN (${keep.map((_,i)=>`$${i+2}`).join(',')})`, [code, ...keep]);
@@ -338,7 +320,6 @@ app.put('/api/recipes/:code', requireAuth, async (req, res) => {
         await q(`DELETE FROM recipe_ingredients WHERE recipe_code=$1`, [code]);
       }
     }
-
     res.json(r.rows[0]);
   } catch (e) {
     console.error('Recipe update error', e);
@@ -348,8 +329,7 @@ app.put('/api/recipes/:code', requireAuth, async (req, res) => {
 
 app.delete('/api/recipes/:code', requireAuth, async (req, res) => {
   try {
-    const { code } = req.params;
-    await q(`UPDATE recipes SET active=false WHERE code=$1`, [code]);
+    await q(`UPDATE recipes SET active=false WHERE code=$1`, [req.params.code]);
     res.json({ success: true });
   } catch (e) {
     console.error('Recipe delete error', e);
@@ -357,7 +337,6 @@ app.delete('/api/recipes/:code', requireAuth, async (req, res) => {
   }
 });
 
-// Get ingredients for a recipe
 app.get('/api/recipes/:code/ingredients', async (req, res) => {
   try {
     const r = await q(
@@ -376,7 +355,6 @@ app.get('/api/recipes/:code/ingredients', async (req, res) => {
 });
 
 /* ======================= Production Plan ================= */
-
 app.get('/api/plan', async (req, res) => {
   try {
     const params = [];
@@ -402,8 +380,8 @@ app.get('/api/plan', async (req, res) => {
          GROUP BY r.code, r.yield_qty
        ) cost ON cost.code = r.code
        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-       ORDER BY pp.date DESC, r.name`
-      , params
+       ORDER BY pp.date DESC, r.name`,
+      params
     );
     res.json(r.rows);
   } catch (e) {
@@ -456,13 +434,12 @@ app.delete('/api/plan/:id', requireAuth, async (req, res) => {
 });
 
 /* ======================= Import API ===================== */
-
 app.post('/api/import/file', requireAuth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const type = req.body.type; // "products" | "recipes" | "plan"
-    const rows = parseSpreadsheet(req.file.path, req.file.mimetype);
+    const type = req.body.type; // products | recipes | plan
+    const rows = parseSpreadsheet(req.file.path);
     let imported = 0;
 
     if (type === 'products') {
@@ -487,8 +464,6 @@ app.post('/api/import/file', requireAuth, upload.single('file'), async (req, res
     }
 
     if (type === 'recipes') {
-      // Expect columns: code,name,yield_qty,yield_unit,ingredients_json
-      // ingredients_json: [{product_code,amount,unit,waste_factor}]
       for (const r of rows) {
         if (!r.code || !r.name) continue;
         await q(`
@@ -538,14 +513,12 @@ app.post('/api/import/file', requireAuth, upload.single('file'), async (req, res
   }
 });
 
-function parseSpreadsheet(filePath, mimetype) {
+function parseSpreadsheet(filePath) {
   try {
     const wb = XLSX.readFile(filePath);
     const sheet = wb.SheetNames[0];
-    const data = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: '' });
-    return data;
-  } catch (_) {
-    // fallback simple CSV
+    return XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: '' });
+  } catch {
     const csv = fs.readFileSync(filePath, 'utf8');
     const [head, ...lines] = csv.split(/\r?\n/).filter(Boolean);
     const headers = head.split(',').map(h => h.trim());
@@ -559,7 +532,6 @@ function parseSpreadsheet(filePath, mimetype) {
 }
 
 /* ======================= Root / Start =================== */
-
 app.get('/', (_req, res) => res.redirect('/login.html'));
 
 async function start() {
