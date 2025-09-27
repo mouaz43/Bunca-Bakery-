@@ -3,742 +3,289 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Materials - Bunca Bakery</title>
+  <title>Bunca Bakeryflow — Rohwaren</title>
   <link rel="stylesheet" href="/styles.css"/>
-  <style>
-    .materials-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-
-    .materials-actions {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .search-box {
-      position: relative;
-      min-width: 250px;
-    }
-
-    .search-input {
-      width: 100%;
-      padding: 8px 12px 8px 36px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--surface);
-      color: var(--text);
-    }
-
-    .search-icon {
-      position: absolute;
-      left: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-muted);
-    }
-
-    .materials-table {
-      width: 100%;
-      border-collapse: collapse;
-      background: var(--surface);
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-
-    .materials-table th,
-    .materials-table td {
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .materials-table th {
-      background: var(--surface-variant);
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .materials-table tr:hover {
-      background: var(--surface-variant);
-    }
-
-    .stock-indicator {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      margin-right: 8px;
-    }
-
-    .stock-ok { background: var(--success); }
-    .stock-low { background: var(--warning); }
-    .stock-out { background: var(--error); }
-
-    .action-buttons {
-      display: flex;
-      gap: 8px;
-    }
-
-    .btn-icon {
-      padding: 6px;
-      min-width: auto;
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 1000;
-    }
-
-    .modal.show {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .modal-content {
-      background: var(--surface);
-      border-radius: 8px;
-      padding: 24px;
-      width: 90%;
-      max-width: 500px;
-      max-height: 90vh;
-      overflow-y: auto;
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    .modal-title {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 600;
-    }
-
-    .close-btn {
-      background: none;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      color: var(--text-muted);
-      padding: 0;
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    .form-label {
-      display: block;
-      margin-bottom: 4px;
-      font-weight: 500;
-      color: var(--text);
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 8px 12px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: var(--surface);
-      color: var(--text);
-    }
-
-    .form-input:focus {
-      outline: none;
-      border-color: var(--primary);
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    .import-area {
-      border: 2px dashed var(--border);
-      border-radius: 8px;
-      padding: 24px;
-      text-align: center;
-      margin-bottom: 16px;
-      cursor: pointer;
-      transition: border-color 0.2s;
-    }
-
-    .import-area:hover {
-      border-color: var(--primary);
-    }
-
-    .import-area.dragover {
-      border-color: var(--primary);
-      background: rgba(var(--primary-rgb), 0.1);
-    }
-
-    .file-input {
-      display: none;
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-
-    .stat-card {
-      background: var(--surface);
-      padding: 16px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-
-    .stat-value {
-      font-size: 24px;
-      font-weight: 700;
-      color: var(--primary);
-    }
-
-    .stat-label {
-      font-size: 14px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: var(--text-muted);
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 40px;
-      color: var(--text-muted);
-    }
-
-    @media (max-width: 768px) {
-      .materials-header {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .materials-actions {
-        justify-content: space-between;
-      }
-
-      .search-box {
-        min-width: auto;
-        flex: 1;
-      }
-
-      .materials-table {
-        font-size: 14px;
-      }
-
-      .materials-table th,
-      .materials-table td {
-        padding: 8px;
-      }
-
-      .form-row {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+  <script defer src="/js/app.js"></script>
 </head>
 <body>
-  <header class="header">
-    <nav class="nav">
-      <div class="brand">
-        <span class="brand-icon">B</span>
-        Bunca Bakery
-      </div>
-      <div class="nav-links">
-        <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        <a href="/materials.html" class="nav-link active">Materials</a>
-        <a href="/items.html" class="nav-link">Items</a>
-        <a href="/plan.html" class="nav-link">Production</a>
-        <button onclick="logout()" class="btn btn-outline">Logout</button>
-      </div>
-    </nav>
-  </header>
+<header class="header">
+  <nav class="nav">
+    <div class="brand">Bunca Bakeryflow <small>Rohwaren</small></div>
+    <div class="menu">
+      <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
+      <button class="btn" onclick="location.href='/items.html'">Rezepte</button>
+      <button class="btn" onclick="location.href='/plan.html'">Produktionsplan</button>
+      <button class="btn" onclick="location.href='/admin.html'">Admin</button>
+      <button class="btn danger" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+</header>
 
-  <main class="main">
-    <div class="container">
-      <!-- Stats -->
-      <div class="stats-grid" id="statsGrid">
-        <div class="stat-card">
-          <div class="stat-value" id="totalMaterials">-</div>
-          <div class="stat-label">Total Materials</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="lowStockCount">-</div>
-          <div class="stat-label">Low Stock Items</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="totalValue">-</div>
-          <div class="stat-label">Total Inventory Value</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="activeSuppliers">-</div>
-          <div class="stat-label">Active Suppliers</div>
-        </div>
+<main class="container">
+  <div class="card">
+    <div class="card-head">
+      <div class="row">
+        <strong>Rohwaren verwalten</strong>
+        <span id="countBadge" class="badge">0</span>
       </div>
-
-      <!-- Header -->
-      <div class="materials-header">
-        <h1>Raw Materials Management</h1>
-        <div class="materials-actions">
-          <div class="search-box">
-            <span class="search-icon">[S]</span>
-            <input type="text" class="search-input" placeholder="Search materials..." id="searchInput">
-          </div>
-          <button class="btn btn-outline" onclick="showImportModal()">Import</button>
-          <button class="btn btn-primary" onclick="showAddModal()">Add Material</button>
-        </div>
-      </div>
-
-      <!-- Materials Table -->
-      <div class="table-container">
-        <table class="materials-table" id="materialsTable">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Unit</th>
-              <th>Price/Unit</th>
-              <th>Stock</th>
-              <th>Min Stock</th>
-              <th>Supplier</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="materialsBody">
-            <tr>
-              <td colspan="8" class="loading">Loading materials...</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="toolbar">
+        <input id="q" class="search" type="text" placeholder="Suchen nach Name oder Code">
+        <button class="btn primary" onclick="openMaterialModal()">Neu</button>
+        <button class="btn" onclick="openImport()">Import</button>
       </div>
     </div>
-  </main>
-
-  <!-- Add/Edit Material Modal -->
-  <div class="modal" id="materialModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title" id="modalTitle">Add Material</h3>
-        <button class="close-btn" onclick="closeModal()">&times;</button>
-      </div>
-      <form id="materialForm">
-        <div class="form-group">
-          <label class="form-label">Code *</label>
-          <input type="text" class="form-input" id="materialCode" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Name *</label>
-          <input type="text" class="form-input" id="materialName" required>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Base Unit *</label>
-            <select class="form-input" id="materialUnit" required>
-              <option value="kg">kg</option>
-              <option value="g">g</option>
-              <option value="l">l</option>
-              <option value="ml">ml</option>
-              <option value="pcs">pcs</option>
-              <option value="pack">pack</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Price per Unit</label>
-            <input type="number" step="0.01" class="form-input" id="materialPrice" placeholder="0.00">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Current Stock</label>
-            <input type="number" step="0.001" class="form-input" id="materialStock" placeholder="0">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Min Stock</label>
-            <input type="number" step="0.001" class="form-input" id="materialMinStock" placeholder="0">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Supplier</label>
-          <input type="text" class="form-input" id="materialSupplier" placeholder="Supplier name">
-        </div>
-        <div class="form-actions" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Material</button>
-        </div>
-      </form>
+    <div class="card-body">
+      <table class="table" id="matTable">
+        <thead>
+          <tr>
+            <th>Code</th><th>Name</th><th>Einheit</th><th>Preis/Einheit</th><th>Bestand</th><th>Min.</th><th>Lieferant</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="matBody">
+          <tr><td colspan="8"><div class="skeleton"></div></td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
+</main>
 
-  <!-- Import Modal -->
-  <div class="modal" id="importModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">Import Materials</h3>
-        <button class="close-btn" onclick="closeImportModal()">&times;</button>
+<!-- Modal -->
+<div id="modalHost"></div>
+
+<script>
+let MATERIALS = [];
+let API_KIND = 'materials'; // or 'products'
+
+(async function init(){
+  const user = await sessionInfo(); if(!user){ location.href='/login.html'; return; }
+  await detectApiKind();
+  await loadMaterials();
+  document.getElementById('q').addEventListener('input', renderMaterials);
+})();
+
+async function detectApiKind(){
+  try{
+    await api('/api/materials');
+    API_KIND = 'materials';
+  }catch(e){
+    API_KIND = 'products';
+  }
+}
+
+async function loadMaterials(){
+  try{
+    const endpoint = API_KIND==='materials' ? '/api/materials' : '/api/products';
+    const res = await api(endpoint);
+    MATERIALS = (res.data || res) ?? [];
+    renderMaterials();
+  }catch(err){
+    console.error(err); toast('Fehler beim Laden der Rohwaren', 'error');
+  }
+}
+
+function renderMaterials(){
+  const q = document.getElementById('q').value.toLowerCase();
+  const body = document.getElementById('matBody');
+  const rows = MATERIALS.filter(r =>
+    (!q) || String(r.name).toLowerCase().includes(q) || String(r.code).toLowerCase().includes(q)
+  );
+  document.getElementById('countBadge').textContent = rows.length;
+
+  if(!rows.length){
+    body.innerHTML = `<tr><td colspan="8" class="muted">Keine Einträge</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = rows.map(r=>{
+    const unit = r.base_unit || r.unit || 'kg';
+    const price = Number(r.price_per_unit ?? r.unit_price ?? 0);
+    const stock = Number(r.current_stock ?? 0);
+    const min   = Number(r.min_stock ?? 0);
+    const sup   = r.supplier || '';
+    const low   = stock <= min && (min>0);
+    return `
+      <tr class="row">
+        <td>${escape(r.code)}</td>
+        <td>${escape(r.name)}</td>
+        <td>${escape(unit)}</td>
+        <td>${formatCurrency(price)}</td>
+        <td>${formatNumber(stock,2)}</td>
+        <td>${formatNumber(min,2)} ${low?`<span class="badge warn">niedrig</span>`:''}</td>
+        <td>${escape(sup)}</td>
+        <td class="row right">
+          <button class="btn" onclick='openMaterialModal(${JSON.stringify(slim(r))})'>Bearbeiten</button>
+          <button class="btn danger" onclick='deleteMaterial("${r.code}")'>Löschen</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function slim(r){
+  return {
+    code:r.code,
+    name:r.name,
+    unit:r.base_unit||r.unit||'kg',
+    price:Number(r.price_per_unit ?? r.unit_price ?? 0),
+    stock:Number(r.current_stock ?? 0),
+    min:Number(r.min_stock ?? 0),
+    supplier:r.supplier||''
+  };
+}
+
+function openMaterialModal(data){
+  const isEdit = !!data;
+  const host = document.getElementById('modalHost');
+  host.innerHTML = `
+    <div class="modal-wrap" onclick="closeModal(event)">
+      <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
+        <div class="head">${isEdit?'Rohware bearbeiten':'Rohware anlegen'}</div>
+        <div class="body">
+          <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label>Code</label>
+              <input id="m-code" type="text" ${isEdit?'disabled':''} value="${data?escapeAttr(data.code):''}">
+            </div>
+            <div>
+              <label>Name</label>
+              <input id="m-name" type="text" value="${data?escapeAttr(data.name):''}">
+            </div>
+            <div>
+              <label>Einheit</label>
+              <input id="m-unit" type="text" value="${data?escapeAttr(data.unit):'kg'}">
+            </div>
+            <div>
+              <label>Preis/Einheit</label>
+              <input id="m-price" type="number" step="0.0001" value="${data?data.price:0}">
+            </div>
+            <div>
+              <label>Bestand</label>
+              <input id="m-stock" type="number" step="0.001" value="${data?data.stock:0}">
+            </div>
+            <div>
+              <label>Min. Bestand</label>
+              <input id="m-min" type="number" step="0.001" value="${data?data.min:0}">
+            </div>
+            <div style="grid-column:1/-1">
+              <label>Lieferant</label>
+              <input id="m-supplier" type="text" value="${data?escapeAttr(data.supplier):''}">
+            </div>
+          </div>
+        </div>
+        <div class="foot">
+          <button class="btn" onclick="document.getElementById('modalHost').innerHTML=''">Abbrechen</button>
+          <button class="btn primary" onclick="${isEdit?'saveMaterialEdit()':'saveMaterialCreate()'}">${isEdit?'Speichern':'Anlegen'}</button>
+        </div>
       </div>
-      <div class="import-area" onclick="document.getElementById('fileInput').click()">
-        <div style="font-size: 48px; margin-bottom: 12px;">[FILE]</div>
-        <div style="font-weight: 600; margin-bottom: 8px;">Click to select file or drag and drop</div>
-        <div style="color: var(--text-muted); font-size: 14px;">Supports Excel (.xlsx) and CSV files</div>
-        <input type="file" class="file-input" id="fileInput" accept=".xlsx,.xls,.csv">
+    </div>`;
+  // keep reference of edit item
+  openMaterialModal._edit = data || null;
+}
+
+function closeModal(ev){ if(ev.target.classList.contains('modal-wrap')) document.getElementById('modalHost').innerHTML=''; }
+
+async function saveMaterialCreate(){
+  try{
+    const payload = readForm();
+    if(API_KIND==='materials'){
+      await api('/api/materials',{method:'POST', body:payload});
+    }else{
+      await api('/api/products',{method:'POST', body:{
+        code:payload.code, name:payload.name, unit:payload.base_unit,
+        unit_price:payload.price_per_unit, group:'', supplier:payload.supplier
+      }});
+    }
+    toast('Rohware angelegt','success');
+    document.getElementById('modalHost').innerHTML='';
+    await loadMaterials();
+  }catch(e){ console.error(e); toast('Speichern fehlgeschlagen','error'); }
+}
+
+async function saveMaterialEdit(){
+  try{
+    const payload = readForm();
+    const code = openMaterialModal._edit.code;
+    if(API_KIND==='materials'){
+      await api('/api/materials/'+encodeURIComponent(code),{method:'PUT', body:{
+        name:payload.name, base_unit:payload.base_unit, price_per_unit:payload.price_per_unit,
+        current_stock:payload.current_stock, min_stock:payload.min_stock, supplier:payload.supplier
+      }});
+    }else{
+      await api('/api/products/'+encodeURIComponent(code),{method:'PUT', body:{
+        name:payload.name, unit:payload.base_unit, unit_price:payload.price_per_unit,
+        group:'', supplier:payload.supplier, active:true
+      }});
+    }
+    toast('Rohware gespeichert','success');
+    document.getElementById('modalHost').innerHTML='';
+    await loadMaterials();
+  }catch(e){ console.error(e); toast('Speichern fehlgeschlagen','error'); }
+}
+
+async function deleteMaterial(code){
+  if(!confirm('Wirklich löschen?')) return;
+  try{
+    if(API_KIND==='materials'){
+      await api('/api/materials/'+encodeURIComponent(code),{method:'DELETE'});
+    }else{
+      await api('/api/products/'+encodeURIComponent(code),{method:'DELETE'});
+    }
+    toast('Gelöscht','info');
+    await loadMaterials();
+  }catch(e){ console.error(e); toast('Löschen fehlgeschlagen','error'); }
+}
+
+function readForm(){
+  const g = id=>document.getElementById(id).value;
+  return {
+    code:g('m-code').trim(),
+    name:g('m-name').trim(),
+    base_unit:g('m-unit').trim()||'kg',
+    price_per_unit:Number(g('m-price')||0),
+    current_stock:Number(g('m-stock')||0),
+    min_stock:Number(g('m-min')||0),
+    supplier:g('m-supplier').trim()
+  };
+}
+
+/* Import */
+function openImport(){
+  const host = document.getElementById('modalHost');
+  host.innerHTML = `
+    <div class="modal-wrap" onclick="closeModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="head">Rohwaren importieren</div>
+        <div class="body">
+          <p class="muted">XLSX oder CSV mit Spalten: code, name, unit/base_unit, unit_price/price_per_unit, current_stock, min_stock, supplier</p>
+          <input id="impFile" type="file" accept=".xlsx,.csv"/>
+        </div>
+        <div class="foot">
+          <button class="btn" onclick="document.getElementById('modalHost').innerHTML=''">Abbrechen</button>
+          <button class="btn primary" onclick="doImport()">Import starten</button>
+        </div>
       </div>
-      <div style="margin-bottom: 16px;">
-        <strong>Required columns:</strong> code, name, base_unit, price_per_unit, current_stock, min_stock, supplier
-      </div>
-      <div class="form-actions" style="display: flex; gap: 12px; justify-content: flex-end;">
-        <button type="button" class="btn btn-outline" onclick="closeImportModal()">Cancel</button>
-        <button type="button" class="btn btn-primary" onclick="processImport()" id="importBtn" disabled>Import</button>
-      </div>
-    </div>
-  </div>
+    </div>`;
+}
+async function doImport(){
+  const file = document.getElementById('impFile').files[0];
+  if(!file) return toast('Bitte Datei wählen','warning');
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('type', API_KIND==='materials' ? 'products' : 'products'); // server import expects "products"
+  try{
+    const r = await fetch('/api/import/file',{method:'POST', body:fd});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json();
+    toast('Import erfolgreich: '+(j.imported||0)+' Zeilen','success');
+    document.getElementById('modalHost').innerHTML='';
+    await loadMaterials();
+  }catch(e){ console.error(e); toast('Import fehlgeschlagen','error'); }
+}
 
-  <script src="/js/app.js"></script>
-  <script>
-    let materials = [];
-    let editingMaterial = null;
-    let selectedFile = null;
-
-    // Initialize page
-    document.addEventListener('DOMContentLoaded', async () => {
-      await checkAuth();
-      await loadMaterials();
-      setupEventListeners();
-    });
-
-    async function checkAuth() {
-      try {
-        const user = await sessionInfo();
-        if (!user) {
-          window.location.href = '/login.html';
-          return;
-        }
-      } catch (error) {
-        window.location.href = '/login.html';
-      }
-    }
-
-    function setupEventListeners() {
-      // Search functionality
-      document.getElementById('searchInput').addEventListener('input', (e) => {
-        filterMaterials(e.target.value);
-      });
-
-      // File input change
-      document.getElementById('fileInput').addEventListener('change', (e) => {
-        selectedFile = e.target.files[0];
-        document.getElementById('importBtn').disabled = !selectedFile;
-      });
-
-      // Drag and drop
-      const importArea = document.querySelector('.import-area');
-      importArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        importArea.classList.add('dragover');
-      });
-
-      importArea.addEventListener('dragleave', () => {
-        importArea.classList.remove('dragover');
-      });
-
-      importArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        importArea.classList.remove('dragover');
-        selectedFile = e.dataTransfer.files[0];
-        document.getElementById('importBtn').disabled = !selectedFile;
-      });
-
-      // Form submission
-      document.getElementById('materialForm').addEventListener('submit', saveMaterial);
-    }
-
-    async function loadMaterials() {
-      try {
-        const response = await api('/api/materials');
-        materials = response.data || [];
-        renderMaterials();
-        updateStats();
-      } catch (error) {
-        console.error('Failed to load materials:', error);
-        toast('Failed to load materials', 'error');
-      }
-    }
-
-    function renderMaterials() {
-      const tbody = document.getElementById('materialsBody');
-      
-      if (materials.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No materials found. Add some materials to get started.</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = materials.map(material => {
-        const stockStatus = getStockStatus(material);
-        return `
-          <tr>
-            <td><strong>${material.code}</strong></td>
-            <td>${material.name}</td>
-            <td>${material.base_unit}</td>
-            <td>${formatCurrency(material.price_per_unit)}</td>
-            <td>
-              <span class="stock-indicator ${stockStatus.class}"></span>
-              ${formatNumber(material.current_stock)} ${material.base_unit}
-            </td>
-            <td>${formatNumber(material.min_stock)} ${material.base_unit}</td>
-            <td>${material.supplier || '-'}</td>
-            <td>
-              <div class="action-buttons">
-                <button class="btn btn-icon btn-outline" onclick="editMaterial('${material.code}')" title="Edit">
-                  [E]
-                </button>
-                <button class="btn btn-icon btn-outline" onclick="deleteMaterial('${material.code}')" title="Delete">
-                  [D]
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function getStockStatus(material) {
-      if (material.current_stock <= 0) {
-        return { class: 'stock-out', label: 'Out of Stock' };
-      } else if (material.current_stock <= material.min_stock) {
-        return { class: 'stock-low', label: 'Low Stock' };
-      } else {
-        return { class: 'stock-ok', label: 'In Stock' };
-      }
-    }
-
-    function updateStats() {
-      const totalMaterials = materials.length;
-      const lowStockCount = materials.filter(m => m.current_stock <= m.min_stock).length;
-      const totalValue = materials.reduce((sum, m) => sum + (m.current_stock * m.price_per_unit), 0);
-      const activeSuppliers = new Set(materials.filter(m => m.supplier).map(m => m.supplier)).size;
-
-      document.getElementById('totalMaterials').textContent = totalMaterials;
-      document.getElementById('lowStockCount').textContent = lowStockCount;
-      document.getElementById('totalValue').textContent = formatCurrency(totalValue);
-      document.getElementById('activeSuppliers').textContent = activeSuppliers;
-    }
-
-    function filterMaterials(searchTerm) {
-      const filtered = materials.filter(material => 
-        material.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (material.supplier && material.supplier.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-      
-      const tbody = document.getElementById('materialsBody');
-      if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No materials match your search.</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = filtered.map(material => {
-        const stockStatus = getStockStatus(material);
-        return `
-          <tr>
-            <td><strong>${material.code}</strong></td>
-            <td>${material.name}</td>
-            <td>${material.base_unit}</td>
-            <td>${formatCurrency(material.price_per_unit)}</td>
-            <td>
-              <span class="stock-indicator ${stockStatus.class}"></span>
-              ${formatNumber(material.current_stock)} ${material.base_unit}
-            </td>
-            <td>${formatNumber(material.min_stock)} ${material.base_unit}</td>
-            <td>${material.supplier || '-'}</td>
-            <td>
-              <div class="action-buttons">
-                <button class="btn btn-icon btn-outline" onclick="editMaterial('${material.code}')" title="Edit">
-                  [E]
-                </button>
-                <button class="btn btn-icon btn-outline" onclick="deleteMaterial('${material.code}')" title="Delete">
-                  [D]
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function showAddModal() {
-      editingMaterial = null;
-      document.getElementById('modalTitle').textContent = 'Add Material';
-      document.getElementById('materialForm').reset();
-      document.getElementById('materialCode').disabled = false;
-      document.getElementById('materialModal').classList.add('show');
-    }
-
-    function editMaterial(code) {
-      editingMaterial = materials.find(m => m.code === code);
-      if (!editingMaterial) return;
-
-      document.getElementById('modalTitle').textContent = 'Edit Material';
-      document.getElementById('materialCode').value = editingMaterial.code;
-      document.getElementById('materialCode').disabled = true;
-      document.getElementById('materialName').value = editingMaterial.name;
-      document.getElementById('materialUnit').value = editingMaterial.base_unit;
-      document.getElementById('materialPrice').value = editingMaterial.price_per_unit;
-      document.getElementById('materialStock').value = editingMaterial.current_stock;
-      document.getElementById('materialMinStock').value = editingMaterial.min_stock;
-      document.getElementById('materialSupplier').value = editingMaterial.supplier || '';
-      
-      document.getElementById('materialModal').classList.add('show');
-    }
-
-    async function saveMaterial(e) {
-      e.preventDefault();
-      
-      const formData = {
-        code: document.getElementById('materialCode').value,
-        name: document.getElementById('materialName').value,
-        base_unit: document.getElementById('materialUnit').value,
-        price_per_unit: parseFloat(document.getElementById('materialPrice').value) || 0,
-        current_stock: parseFloat(document.getElementById('materialStock').value) || 0,
-        min_stock: parseFloat(document.getElementById('materialMinStock').value) || 0,
-        supplier: document.getElementById('materialSupplier').value
-      };
-
-      try {
-        if (editingMaterial) {
-          await api(`/api/materials/${formData.code}`, {
-            method: 'PUT',
-            body: JSON.stringify(formData)
-          });
-          toast('Material updated successfully', 'success');
-        } else {
-          await api('/api/materials', {
-            method: 'POST',
-            body: JSON.stringify(formData)
-          });
-          toast('Material created successfully', 'success');
-        }
-        
-        closeModal();
-        await loadMaterials();
-      } catch (error) {
-        console.error('Save error:', error);
-        toast('Failed to save material', 'error');
-      }
-    }
-
-    async function deleteMaterial(code) {
-      if (!confirm('Are you sure you want to delete this material?')) return;
-
-      try {
-        await api(`/api/materials/${code}`, { method: 'DELETE' });
-        toast('Material deleted successfully', 'success');
-        await loadMaterials();
-      } catch (error) {
-        console.error('Delete error:', error);
-        toast('Failed to delete material', 'error');
-      }
-    }
-
-    function closeModal() {
-      document.getElementById('materialModal').classList.remove('show');
-    }
-
-    function showImportModal() {
-      selectedFile = null;
-      document.getElementById('fileInput').value = '';
-      document.getElementById('importBtn').disabled = true;
-      document.getElementById('importModal').classList.add('show');
-    }
-
-    function closeImportModal() {
-      document.getElementById('importModal').classList.remove('show');
-    }
-
-    async function processImport() {
-      if (!selectedFile) return;
-
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
-      try {
-        document.getElementById('importBtn').disabled = true;
-        document.getElementById('importBtn').textContent = 'Importing...';
-        
-        const response = await fetch('/api/import/materials', {
-          method: 'POST',
-          body: formData
-        });
-
-        const result = await response.json();
-        
-        if (result.success) {
-          toast(`Successfully imported ${result.imported} materials`, 'success');
-          closeImportModal();
-          await loadMaterials();
-        } else {
-          toast('Import failed: ' + result.error, 'error');
-        }
-      } catch (error) {
-        console.error('Import error:', error);
-        toast('Import failed', 'error');
-      } finally {
-        document.getElementById('importBtn').disabled = false;
-        document.getElementById('importBtn').textContent = 'Import';
-      }
-    }
-
-    // Utility functions
-    function formatCurrency(amount) {
-      return new Intl.NumberFormat('de-DE', {
-        style: 'currency',
-        currency: 'EUR'
-      }).format(amount);
-    }
-
-    function formatNumber(number) {
-      return new Intl.NumberFormat('de-DE', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 3
-      }).format(number);
-    }
-
-    // Auto-refresh every 30 seconds
-    setInterval(loadMaterials, 30000);
-  </script>
+/* utils */
+function formatCurrency(n,c='EUR'){ return new Intl.NumberFormat('de-DE',{style:'currency',currency:c}).format(Number(n||0)); }
+function formatNumber(n,d=2){ return new Intl.NumberFormat('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(n||0)); }
+function escape(s){ return String(s??'').replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+function escapeAttr(s){ return escape(s).replace(/"/g,'&quot;'); }
+</script>
 </body>
 </html>
