@@ -4,9 +4,9 @@
   "description": "Fully Automated Bakery Workflow Management System with Advanced Import & Beautiful UI",
   "private": true,
   "type": "commonjs",
-  "main": "server.js",
+  "main": "start.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node start.js",
     "dev": "NODE_ENV=development nodemon server.js",
     "test": "node test.js"
   },
