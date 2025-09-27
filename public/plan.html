@@ -3,560 +3,126 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Bakeflow — Produktion</title>
+  <title>Bunca Bakeryflow — Produktionsplan</title>
   <link rel="stylesheet" href="/styles.css"/>
   <script defer src="/js/app.js"></script>
-  <style>
-    /* Page-local polish */
-    .weekbar{ display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border) }
-    .wkbtn{ padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--glass); cursor:pointer }
-    .wkbtn:hover{ transform:translateY(-1px) }
-    .week-title{ font-weight:800; letter-spacing:.3px }
-    .day-group{ padding:10px 14px; border-bottom:1px dashed var(--border); backdrop-filter: blur(2px) }
-    .day-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px }
-    .ghost{ opacity:.6; font-style:italic }
-    .pill{ padding:3px 8px; border-radius:999px; border:1px solid var(--border); background:rgba(255,255,255,.05) }
-    .autosave{ display:flex; align-items:center; gap:6px; color:var(--text-muted); font-size:12px }
-    .calc-panel{ position:sticky; bottom:0; border-top:1px solid var(--border); background:rgba(16,18,26,.9); backdrop-filter: blur(10px); padding:12px 16px; z-index:20 }
-    .warning{ color:#ffb24f }
-    .success{ color:#6fe3a6 }
-    .empty{ padding:14px; color:var(--text-muted) }
-    .cmd-hint{ color:var(--text-muted); font-size:12px }
-    .inline-input{ width:100%; background:transparent; border:1px dashed var(--border); padding:6px 8px; border-radius:8px; color:var(--text) }
-    .inline-input:focus{ border-style:solid; border-color:var(--accent) }
-    .ghost-suggest{ display:flex; gap:8px; align-items:center; color:var(--text-muted); font-size:12px }
-    .kbd{ font-size:11px; padding:1px 6px; border:1px solid var(--border); border-radius:6px; color:var(--text-muted) }
-    .mini-row{ display:grid; grid-template-columns: 100px 80px 80px 1fr 120px 120px 110px; gap:8px; align-items:center; }
-    @media (max-width: 900px){
-      .mini-row{ grid-template-columns: 1fr 90px 90px 1fr 80px 90px 80px; }
-      .hide-sm{ display:none }
-    }
-    .materials-mini{ display:grid; grid-template-columns: 1fr 80px 60px 80px; gap:6px; }
-    .sumline{ display:flex; align-items:center; justify-content:flex-end; gap:12px }
-  </style>
 </head>
 <body>
-
 <header class="header">
   <nav class="nav">
-    <div class="brand">🍞 Bakeflow — Produktion</div>
-    <div class="menu-wrap">
-      <input id="q" class="input" placeholder="Suchen …  ( / )" style="min-width:260px"/>
+    <div class="brand">Bunca Bakeryflow <small>Produktionsplan</small></div>
+    <div class="menu">
       <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
       <button class="btn" onclick="location.href='/items.html'">Rezepte</button>
+      <button class="btn" onclick="location.href='/plan.html'">Produktionsplan</button>
+      <button class="btn" onclick="location.href='/admin.html'">Admin</button>
       <button class="btn danger" onclick="logout()">Logout</button>
     </div>
   </nav>
 </header>
 
 <main class="container">
-
-  <!-- Planner card -->
   <div class="card">
-    <div class="weekbar">
-      <button class="wkbtn" id="prevW">← Vorherige</button>
-      <div class="week-title" id="weekTitle">Woche</div>
-      <button class="wkbtn" id="nextW">Nächste →</button>
-      <div class="spacer"></div>
-      <div class="autosave" id="saveState">
-        <span class="pill">Auto-Speichern</span>
-        <span>Bereit</span>
+    <div class="card-head">
+      <strong>Planung</strong>
+      <div class="toolbar">
+        <input id="day" type="date">
+        <input id="code" type="text" placeholder="Rezept-Code">
+        <input id="qty" type="number" step="0.001" placeholder="Menge">
+        <input id="shop" type="text" placeholder="Filiale (optional)">
+        <input id="note" type="text" placeholder="Notiz (optional)">
+        <button class="btn primary" onclick="addRow()">Hinzufügen</button>
       </div>
     </div>
-
-    <!-- Quick command line -->
-    <div class="card-pad" style="border-bottom:1px solid var(--border)">
-      <div class="row-gap" style="align-items:center">
-        <span class="muted small">Schnelleingabe</span>
-        <input id="cmd" class="input" placeholder='z. B. "MO 08:00-10:00 MUFFIN_CHOCO 60 @ShopA" oder "morgen 6:00 BREAD_WHITE 40"'/>
-        <button class="btn" id="cmdGo">Hinzufügen</button>
-        <span class="cmd-hint">Enter fügt hinzu • Felder: <span class="kbd">Tag/Zeit</span> <span class="kbd">Artikel</span> <span class="kbd">Menge</span> <span class="kbd">@Shop?</span></span>
-      </div>
-    </div>
-
-    <!-- Week body -->
-    <div id="weekBody">
-      <!-- Filled by JS: 7 day sections; rows render as .mini-row -->
+    <div class="card-body">
+      <table class="table">
+        <thead><tr><th>Datum</th><th>Rezept</th><th>Menge</th><th>Filiale</th><th>Status</th><th>Kosten/Stück</th><th>Summe</th><th></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="8"><div class="skeleton"></div></td></tr></tbody>
+      </table>
     </div>
   </div>
-
-  <!-- Usage/Cost panel -->
-  <div class="calc-panel">
-    <div class="row-gap" style="justify-content:space-between; align-items:center">
-      <div class="row-gap">
-        <button class="btn" id="calcBtn">Rohwaren-Bedarf & Kosten berechnen</button>
-        <span id="calcState" class="muted small">—</span>
-      </div>
-      <div class="row-gap">
-        <button class="btn" id="exportCsv">Export Woche (CSV)</button>
-        <button class="btn" id="copyUsage">Kopieren</button>
-      </div>
-    </div>
-    <div id="usageWrap" style="margin-top:10px; display:none">
-      <div class="materials-mini muted" style="margin-bottom:6px">
-        <div>Material</div><div class="right">Menge</div><div>Einheit</div><div class="right">€</div>
-      </div>
-      <div id="usageRows" class="materials-mini"></div>
-      <div class="sumline" style="margin-top:8px">
-        <div class="muted">Summe</div>
-        <div id="totalCost" style="font-weight:700">0.00 €</div>
-      </div>
-    </div>
-  </div>
-
 </main>
 
-<!-- Floating action: add row -->
-<button class="fab" id="addRowFab">+ Eintrag</button>
-
-<!-- Drawer: add/edit row -->
-<aside id="rowDrawer" class="drawer">
-  <div class="drawer-head">
-    <h3 id="dTitle" style="margin:0">Plan-Eintrag</h3>
-    <div class="row-gap">
-      <button class="btn subtle" onclick="Drawer.close()">Schließen (Esc)</button>
-    </div>
-  </div>
-  <div class="drawer-body">
-    <div class="grid">
-      <div class="col-4">
-        <label>Tag</label>
-        <select id="f_day" class="input"></select>
-      </div>
-      <div class="col-4">
-        <label>Start</label>
-        <input id="f_start" class="input" placeholder="08:00"/>
-      </div>
-      <div class="col-4">
-        <label>Ende</label>
-        <input id="f_end" class="input" placeholder="10:00"/>
-      </div>
-      <div class="col-12">
-        <label>Artikel (Suche)</label>
-        <div style="position:relative">
-          <input id="f_item" class="input" placeholder="Tippen…"/>
-          <div id="acItems" class="dropdown hidden"></div>
-        </div>
-        <div class="ghost-suggest" id="itemHint" style="margin-top:6px">Kein Artikel gewählt</div>
-      </div>
-      <div class="col-6">
-        <label>Menge</label>
-        <input id="f_qty" class="input" type="number" step="1" value="0"/>
-      </div>
-      <div class="col-6">
-        <label>Shop</label>
-        <input id="f_shop" class="input" placeholder="optional"/>
-      </div>
-      <div class="col-12">
-        <label>Notiz</label>
-        <input id="f_note" class="input" placeholder="optional…"/>
-      </div>
-    </div>
-
-    <hr class="sep"/>
-
-    <div class="row-gap">
-      <div class="muted small">Schnellvorschläge:</div>
-      <div id="smartHints" class="row-gap"></div>
-    </div>
-  </div>
-  <div class="drawer-foot">
-    <button class="btn danger" id="delBtn" title="Löschen">Löschen</button>
-    <div class="spacer"></div>
-    <button class="btn" onclick="Drawer.close()">Abbrechen</button>
-    <button class="btn primary" id="saveBtn">Speichern</button>
-  </div>
-</aside>
-
 <script>
-/* ============== Boot / State ============== */
-function logout(){ api('/api/logout',{method:'POST'}).then(()=>location.href='/login.html'); }
-let ITEMS=[], WEEK=[], WEEK_START=null; // WEEK: array of plan rows
-let AUTOSAVE_TIMER=null, SAVING=false, DIRTY=false;
-let CURRENT_ROW=null; // object for drawer editing {id?, day, start_time, end_time, product_code, qty, note, shop}
+let PLAN = [];
 
-/* ============== Dates helpers ============== */
-function pad2(n){ return String(n).padStart(2,'0'); }
-function fmtDate(dt){ return dt.toISOString().slice(0,10); }
-function parseDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y, m-1, d); }
-function monday(d){ const dt=new Date(d); const day=(dt.getDay()+6)%7; dt.setDate(dt.getDate()-day); dt.setHours(0,0,0,0); return dt; }
-function addDays(dt,n){ const x=new Date(dt); x.setDate(x.getDate()+n); return x; }
-const WEEKDAY = ['MO','DI','MI','DO','FR','SA','SO'];
+(async function init(){
+  const user = await sessionInfo(); if(!user){ location.href='/login.html'; return; }
+  document.getElementById('day').value = new Date().toISOString().slice(0,10);
+  await loadPlan();
+})();
 
-/* ============== Load items once (for autocomplete) ============== */
-async function loadItems(){
-  const r = await api('/api/items');
-  ITEMS = r.data || [];
+async function loadPlan(){
+  const d = document.getElementById('day').value;
+  const res = await api('/api/plan?date='+encodeURIComponent(d)).catch(()=>({data:[]}));
+  PLAN = Array.isArray(res)?res:(res.data||[]);
+  render();
 }
 
-/* ============== Week Load/Save/Render ============== */
-async function loadWeek(startDate){
-  WEEK_START = fmtDate(monday(startDate));
-  $$('#weekTitle').textContent = `Woche ab ${WEEK_START} (${WEEKDAY[0]}–${WEEKDAY[6]})`;
-  // populate day select in drawer
-  const sel = $$('#f_day'); sel.innerHTML='';
-  for (let i=0;i<7;i++){ const d=fmtDate(addDays(parseDate(WEEK_START), i)); const opt=document.createElement('option'); opt.value=d; opt.textContent=`${WEEKDAY[i]} ${d}`; sel.appendChild(opt); }
-
-  const r = await api(`/api/plan/week?start=${encodeURIComponent(WEEK_START)}`);
-  WEEK = r.data || [];
-  renderWeek();
-  DIRTY=false; markSaveState('Bereit');
-}
-function renderWeek(){
-  const host = $$('#weekBody'); host.innerHTML='';
-  for (let i=0;i<7;i++){
-    const d = fmtDate(addDays(parseDate(WEEK_START), i));
-    const rows = WEEK.filter(x=>x.day===d);
-    const group = document.createElement('div'); group.className='day-group';
-    group.innerHTML = `
-      <div class="day-head">
-        <div class="row-gap">
-          <h3 style="margin:0">${WEEKDAY[i]} <span class="muted small">${d}</span></h3>
-          ${rows.length ? `<span class="pill">${rows.length} Einträge</span>` : `<span class="ghost">leer</span>`}
-        </div>
-        <div class="row-gap">
-          <button class="btn subtle" data-quick="${d}">+ Eintrag</button>
-        </div>
-      </div>
-      <div class="grid" style="gap:8px">
-        ${rows.length ? rows.map(r => rowHtml(r)).join('') : `<div class="empty">Noch nichts geplant. <span class="ghost">Nutze die Schnelleingabe oben oder “+ Eintrag”.</span></div>`}
-      </div>
+function render(){
+  const body = document.getElementById('rows');
+  if(!PLAN.length){ body.innerHTML = `<tr><td colspan="8" class="muted">Keine Einträge</td></tr>`; return; }
+  body.innerHTML = PLAN.map(r=>{
+    const date = esc((r.date||r.day||'').slice(0,10));
+    const name = esc(r.recipe_name || r.product_name || r.recipe_code || r.product_code);
+    const qty  = Number(r.quantity||r.qty||0);
+    const unit = r.yield_unit || 'Stück';
+    const unitCost = Number(r.unit_cost||r.unitCost||0);
+    const total = Number(r.total_cost||0) || unitCost*qty;
+    const st = (r.status||'planned').toLowerCase();
+    const badgeClass = st==='completed'?'ok':st==='delayed'?'err':st==='in_progress'?'warn':'';
+    return `
+      <tr class="row">
+        <td>${date}</td>
+        <td>${name}</td>
+        <td>${qty} ${esc(unit)}</td>
+        <td>${esc(r.shop||'')}</td>
+        <td><span class="badge ${badgeClass}">${esc(r.status||'planned')}</span></td>
+        <td>${formatCurrency(unitCost)}</td>
+        <td>${formatCurrency(total)}</td>
+        <td class="row right">
+          <button class="btn" onclick='editRow(${r.id})'>Bearbeiten</button>
+          <button class="btn danger" onclick='removeRow(${r.id})'>Löschen</button>
+        </td>
+      </tr>
     `;
-    host.appendChild(group);
-  }
-}
-function rowHtml(r){
-  const time = `${r.start_time||''}${r.end_time? '–'+r.end_time : ''}`;
-  return `
-    <div class="mini-row card-pad" style="border:1px solid var(--border); border-radius:12px; background:var(--card)">
-      <div class="mono small">${time||'—'}</div>
-      <div class="mono small hide-sm">${r.shop||'—'}</div>
-      <div class="mono small">${r.product_code}</div>
-      <div class="small">${r.product_name||''}</div>
-      <div class="right">${r.qty}</div>
-      <div class="row-actions">
-        <button class="btn subtle" data-edit="${r.id}">Bearb.</button>
-        <button class="btn danger" data-del="${r.id}">Löschen</button>
-      </div>
-      <div class="muted small hide-sm">${r.note||''}</div>
-    </div>
-  `;
+  }).join('');
 }
 
-/* ============== Autosave ============== */
-function markSaveState(text, cls=''){
-  const el = $$('#saveState'); const label = el.querySelector('span:last-child');
-  label.textContent = text; el.className = 'autosave ' + cls;
-}
-function touchDirty(){
-  DIRTY = true; markSaveState('Änderungen …', 'warning');
-  if (AUTOSAVE_TIMER) clearTimeout(AUTOSAVE_TIMER);
-  AUTOSAVE_TIMER = setTimeout(saveWeek, 600); // debounce autosave
-}
-async function saveWeek(){
-  if (!DIRTY || SAVING) return;
-  try {
-    SAVING = true; markSaveState('Speichern …', 'warning');
-    // pack rows as simple array (week save API)
-    const rows = WEEK.map(r=>({
-      day: r.day, shop: r.shop||null, start_time: r.start_time||null, end_time: r.end_time||null,
-      product_code: r.product_code, qty: Number(r.qty||0), note: r.note||''
-    }));
-    await api('/api/plan/week/save', { method:'POST', body: JSON.stringify({ start: WEEK_START, rows }) });
-    DIRTY=false; markSaveState('Gespeichert', 'success');
-  } catch(e){
-    markSaveState('Fehler beim Speichern', 'warning'); toast(e.message||'Fehler');
-  } finally { SAVING=false; }
-}
-
-/* ============== Drawer (add/edit) ============== */
-function openDrawer(title){ $$('#dTitle').textContent=title; Drawer.open('#rowDrawer'); }
-function fillDrawer(r){
-  // r may be null (new)
-  $$('#f_day').value = r?.day || WEEK_START;
-  $$('#f_start').value = r?.start_time || '';
-  $$('#f_end').value   = r?.end_time || '';
-  const it = ITEMS.find(x=>x.code === r?.product_code);
-  $$('#f_item').value  = r?.product_code ? `${r.product_code} — ${(it?.name||'')}` : '';
-  $$('#itemHint').textContent = r?.product_code ? `Gewählt: ${r.product_code}` : 'Kein Artikel gewählt';
-  $$('#f_qty').value   = r?.qty || 0;
-  $$('#f_shop').value  = r?.shop || '';
-  $$('#f_note').value  = r?.note || '';
-  $$('#delBtn').style.display = r?.id ? 'inline-flex' : 'none';
-  suggestSmart(r);
-}
-function readDrawer(){
-  const txt = $$('#f_item').value.trim();
-  let product_code = '';
-  if (txt.includes('—')) product_code = txt.split('—')[0].trim();
-  else if (ITEMS.some(x=>x.code===txt)) product_code = txt;
-  return {
-    id: CURRENT_ROW?.id || null,
-    day: $$('#f_day').value,
-    start_time: $$('#f_start').value.trim() || null,
-    end_time: $$('#f_end').value.trim() || null,
-    product_code,
-    qty: Number($$('#f_qty').value||0),
-    shop: $$('#f_shop').value.trim() || null,
-    note: $$('#f_note').value.trim() || ''
-  };
-}
-
-/* Smart suggestions (based on item yield & recent usage) */
-function suggestSmart(r){
-  const box = $$('#smartHints'); box.innerHTML='';
-  if (!ITEMS.length) return;
-  const recent = WEEK.slice(-5).map(x=>x.product_code);
-  const top = [...new Set(recent)].slice(0,3)
-    .map(code => ITEMS.find(i=>i.code===code))
-    .filter(Boolean);
-  const random = ITEMS.slice(0,50).sort(()=>Math.random()-0.5).slice(0,3-top.length);
-  const picks = [...top, ...random];
-  picks.forEach(it=>{
-    const b = document.createElement('button');
-    b.className = 'btn'; b.textContent = `${it.code} (${it.yield_qty} ${it.yield_unit})`;
-    b.onclick = ()=>{ $$('#f_item').value = `${it.code} — ${it.name}`; $$('#itemHint').textContent=`Gewählt: ${it.code}`; };
-    box.appendChild(b);
-  });
-}
-
-/* Save / Delete from drawer */
-$$('#saveBtn').addEventListener('click', async ()=>{
-  const row = readDrawer();
-  if (!row.product_code || !row.qty) return toast('Artikel & Menge erforderlich');
-  if (row.id){ // update in-place
-    const idx = WEEK.findIndex(x=>x.id===row.id);
-    if (idx>=0){ WEEK[idx] = { ...WEEK[idx], ...row, product_name: WEEK[idx].product_name }; touchDirty(); renderWeek(); Drawer.close(); }
-  } else {
-    const it = ITEMS.find(x=>x.code===row.product_code);
-    const newRow = {
-      id: Math.random().toString(36).slice(2), // temp client id (server will reassign next load)
-      day: row.day, shop: row.shop, start_time: row.start_time, end_time: row.end_time,
-      product_code: row.product_code, product_name: it?.name||'', qty: row.qty, note: row.note
-    };
-    WEEK.push(newRow); touchDirty(); renderWeek(); Drawer.close();
-  }
-});
-$$('#delBtn').addEventListener('click', async ()=>{
-  if (!CURRENT_ROW?.id) return;
-  if (!confirm('Eintrag löschen?')) return;
-  // Optimistic remove; server delete is optional (we’re saving whole week anyway)
-  WEEK = WEEK.filter(x=>x.id !== CURRENT_ROW.id);
-  touchDirty(); renderWeek(); Drawer.close();
-});
-
-/* ============== Inline edit handlers ============== */
-$$('#weekBody').addEventListener('click', async (e)=>{
-  const q = e.target?.dataset;
-  if (!q) return;
-  if (q.edit){
-    const id = q.edit;
-    const r = WEEK.find(x=>String(x.id)===String(id));
-    CURRENT_ROW = r || null;
-    fillDrawer(r); openDrawer('Eintrag bearbeiten');
-  }
-  if (q.quick){
-    CURRENT_ROW = null;
-    fillDrawer({ day: q.quick, qty: 0 }); openDrawer('Eintrag hinzufügen');
-  }
-  if (q.del){
-    const id = q.del;
-    if (!confirm('Eintrag löschen?')) return;
-    WEEK = WEEK.filter(x=>String(x.id)!==String(id));
-    touchDirty(); renderWeek();
-  }
-});
-
-/* ============== Items autocomplete ============== */
-let AC_TIMER=null;
-$$('#f_item').addEventListener('input', (e)=>{
-  clearTimeout(AC_TIMER);
-  const q = e.target.value.trim().toLowerCase();
-  const wrap = $$('#acItems');
-  if (!q){ wrap.classList.add('hidden'); wrap.innerHTML=''; return; }
-  AC_TIMER = setTimeout(()=>{
-    const list = ITEMS.filter(i => (
-      i.code.toLowerCase().includes(q) || i.name.toLowerCase().includes(q)
-    )).slice(0,10);
-    if (!list.length){ wrap.classList.add('hidden'); wrap.innerHTML=''; return; }
-    wrap.classList.remove('hidden');
-    wrap.innerHTML = list.map(i=>`
-      <div class="dropdown-item" data-code="${i.code}" data-name="${i.name}">
-        <div class="bold">${i.name}</div>
-        <div class="muted mono small">${i.code} — Yield: ${i.yield_qty} ${i.yield_unit}</div>
-      </div>
-    `).join('');
-  }, 120);
-});
-$$('#acItems').addEventListener('click', (e)=>{
-  const el = e.target.closest('.dropdown-item'); if(!el) return;
-  $$('#f_item').value = `${el.dataset.code} — ${el.dataset.name}`;
-  $$('#itemHint').textContent = `Gewählt: ${el.dataset.code}`;
-  $$('#acItems').classList.add('hidden'); $$('#acItems').innerHTML='';
-});
-
-/* ============== Week navigation ============== */
-$$('#prevW').addEventListener('click', ()=> loadWeek(addDays(parseDate(WEEK_START), -7)));
-$$('#nextW').addEventListener('click', ()=> loadWeek(addDays(parseDate(WEEK_START), 7)));
-
-/* ============== Quick command line ============== */
-/*
-  Supports examples:
-  "MO 08:00-10:00 MUFFIN_CHOCO 60 @ShopA"
-  "morgen 6:00 BREAD_WHITE 40"
-  "FR BAGUETTE 120"
-*/
-function parseCmd(s){
-  const src = s.trim();
-  if (!src) return null;
-  let day = null, start=null, end=null, code=null, qty=null, shop=null;
-
-  // tokens
-  const tokens = src.split(/\s+/);
-
-  // day
-  const dmap = { mo:0, di:1, mi:2, do:3, fr:4, sa:5, so:6 };
-  if (/^morgen/i.test(tokens[0])) {
-    const tomorrow = addDays(new Date(), 1);
-    day = fmtDate(monday(tomorrow)); // align to week start of tomorrow
-    const idx = Math.floor((tomorrow - monday(tomorrow)) / 86400000);
-    day = fmtDate(addDays(monday(tomorrow), idx));
-    tokens.shift();
-  } else if (dmap[tokens[0]?.slice(0,2).toLowerCase()] != null) {
-    const i = dmap[tokens[0].slice(0,2).toLowerCase()];
-    day = fmtDate(addDays(parseDate(WEEK_START), i));
-    tokens.shift();
-  } else {
-    // default to MO
-    day = fmtDate(parseDate(WEEK_START));
-  }
-
-  // time block
-  if (/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(tokens[0])) {
-    const [a,b] = tokens.shift().split('-');
-    start = a; end = b;
-  } else if (/^\d{1,2}:\d{2}$/.test(tokens[0])) {
-    start = tokens.shift();
-  }
-
-  // shop (optional at end with @Shop)
-  if (/@/.test(tokens[tokens.length-1])) {
-    const t = tokens.pop();
-    shop = t.replace(/^@/, '');
-  }
-
-  // qty (last number token)
-  for (let i=tokens.length-1;i>=0;i--){
-    if (/^\d+([.,]\d+)?$/.test(tokens[i])) { qty = Number(tokens[i].replace(',','.')); tokens.splice(i,1); break; }
-  }
-
-  // remaining joined => code
-  code = tokens.join('_').toUpperCase();
-  if (!code || !qty) return null;
-  return { day, start_time:start, end_time:end, product_code:code, qty, shop };
-}
-function addCmdRow(obj){
-  const it = ITEMS.find(x=>x.code===obj.product_code);
-  const row = {
-    id: Math.random().toString(36).slice(2),
-    day: obj.day, shop: obj.shop||null,
-    start_time: obj.start_time||null, end_time: obj.end_time||null,
-    product_code: obj.product_code, product_name: it?.name||'', qty: Number(obj.qty||0),
-    note: ''
-  };
-  WEEK.push(row);
-}
-$$('#cmdGo').addEventListener('click', ()=>{
-  const s = $$('#cmd').value; const r = parseCmd(s);
-  if (!r) return toast('Befehl unvollständig. Beispiel: "MO 08:00-10:00 MUFFIN_CHOCO 60 @Shop"');
-  addCmdRow(r); $$('#cmd').value=''; touchDirty(); renderWeek(); smartUsagePreview();
-});
-$$('#cmd').addEventListener('keydown', (e)=>{
-  if (e.key==='Enter'){ e.preventDefault(); $$('#cmdGo').click(); }
-});
-
-/* ============== Usage & cost ============== */
-async function calcUsage(){
-  $$('#calcState').textContent = 'Berechne …';
+async function addRow(){
+  const d = val('day'), code = val('code'), qty = Number(val('qty'));
+  const shop = val('shop'), note = val('note');
+  if(!d || !code || !qty){ return toast('Datum, Code und Menge sind erforderlich','warning'); }
   try{
-    const r = await api('/api/plan/calc', { method:'POST', body: JSON.stringify({ week_start: WEEK_START }) });
-    const data = r.data || { lines:[], total_cost:0 };
-    const wrap = $$('#usageWrap'), rows = $$('#usageRows');
-    rows.innerHTML = '';
-    data.lines.forEach(L=>{
-      const div = document.createElement('div');
-      div.className='materials-mini';
-      div.innerHTML = `
-        <div>${L.material_name||L.material_code}</div>
-        <div class="right">${L.qty}</div>
-        <div>${L.unit}</div>
-        <div class="right">${L.cost.toFixed(2)} €</div>
-      `;
-      rows.appendChild(div);
-    });
-    $$('#totalCost').textContent = `${Number(data.total_cost||0).toFixed(2)} €`;
-    wrap.style.display = 'block'; $$('#calcState').textContent = `${data.lines.length} Positionen`;
-  } catch(e){
-    $$('#calcState').textContent = 'Fehler'; toast(e.message||'Fehler');
-  }
-}
-$$('#calcBtn').addEventListener('click', calcUsage);
-
-/* small smart preview after adding rows (doesn’t call server if nothing changed recently) */
-let USAGE_PREVIEW_TIMER=null;
-function smartUsagePreview(){
-  if (USAGE_PREVIEW_TIMER) clearTimeout(USAGE_PREVIEW_TIMER);
-  USAGE_PREVIEW_TIMER = setTimeout(()=>{ if (!DIRTY) calcUsage(); }, 1500);
+    await api('/api/plan',{method:'POST', body:{day:d, date:d, product_code:code, recipe_code:code, qty, quantity:qty, shop, note}});
+    toast('Eintrag angelegt','success'); await loadPlan();
+  }catch(e){ console.error(e); toast('Speichern fehlgeschlagen','error'); }
 }
 
-/* Copy & Export */
-$$('#copyUsage').addEventListener('click', async ()=>{
-  const txt = [...$$$('#usageRows > .materials-mini')].map(n=>{
-    const t = n.innerText.replace(/\n+/g, ' | ');
-    return t;
-  }).join('\n');
+async function editRow(id){
+  const row = PLAN.find(x=>x.id===id); if(!row) return;
+  const qty = prompt('Neue Menge', Number(row.quantity||row.qty||0));
+  if(qty===null) return;
+  const d = (row.date||row.day||'').slice(0,10);
   try{
-    await navigator.clipboard.writeText(txt);
-    toast('Kopiert ✔︎');
-  } catch{ toast('Konnte nicht kopieren'); }
-});
-$$('#exportCsv').addEventListener('click', ()=>{
-  location.href = `/api/tools/export/plan?format=csv&start=${encodeURIComponent(WEEK_START)}`;
-});
-
-/* ============== Search filter for week table (client-side) ============== */
-$$('#q').addEventListener('input', ()=>{
-  const s = $$('#q').value.trim().toLowerCase();
-  const body = $$('#weekBody');
-  $$$('.mini-row', body).forEach(r=>{
-    r.style.display = r.textContent.toLowerCase().includes(s) ? '' : 'none';
-  });
-});
-document.addEventListener('keydown', (e)=>{ if(e.key==='/'){ e.preventDefault(); $$('#q').focus(); } });
-
-/* ============== Floating add button ============== */
-$$('#addRowFab').addEventListener('click', ()=>{
-  CURRENT_ROW=null; fillDrawer({ day: WEEK_START, qty:0 }); openDrawer('Eintrag hinzufügen');
-});
-
-/* ============== Page boot ============== */
-async function boot(){
-  const u = await sessionInfo(); if(!u){ location.href='/login.html'; return; }
-  await loadItems();
-  await loadWeek(new Date()); // this week
-  // recalc on first load
-  calcUsage();
+    await api('/api/plan/'+id,{method:'PUT', body:{
+      date:d, recipe_code:row.recipe_code||row.product_code, quantity:Number(qty),
+      shop:row.shop||'', status:row.status||'planned', note:row.note||''
+    }});
+    toast('Gespeichert','success'); await loadPlan();
+  }catch(e){ console.error(e); toast('Speichern fehlgeschlagen','error'); }
 }
-boot();
 
-/* Recalc usage after autosave settles */
-const obs = new MutationObserver(()=>{
-  const txt = $$('#saveState').innerText;
-  if (/Gespeichert/.test(txt)) calcUsage();
-});
-obs.observe($$('#saveState'), { childList:true, subtree:true });
+async function removeRow(id){
+  if(!confirm('Wirklich löschen?')) return;
+  try{ await api('/api/plan/'+id,{method:'DELETE'}); toast('Gelöscht','info'); await loadPlan(); }
+  catch(e){ console.error(e); toast('Löschen fehlgeschlagen','error'); }
+}
 
+/* utils */
+function val(id){ return document.getElementById(id).value.trim(); }
+function esc(s){return String(s??'').replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function formatCurrency(n,c='EUR'){ return new Intl.NumberFormat('de-DE',{style:'currency',currency:c}).format(Number(n||0)); }
 </script>
-
 </body>
 </html>
