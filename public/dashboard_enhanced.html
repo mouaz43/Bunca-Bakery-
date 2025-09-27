@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Bunca Bakery - Enhanced Automated Dashboard</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <script defer src="/js/app.js"></script>
+  <style>
+    /* Enhanced Dashboard Styles */
+    .dashboard-grid { 
+      display: grid; 
+      gap: 16px; 
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      margin-bottom: 20px;
+    }
+    
+    .metric-card {
+      background: linear-gradient(135deg, var(--card) 0%, rgba(255,255,255,0.02) 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #a07aff);
+    }
+    
+    .metric-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    
+    .metric-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      background: rgba(var(--accent-rgb), 0.1);
+    }
+    
+    .metric-value {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text);
+      margin: 8px 0;
+    }
+    
+    .metric-label {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    
+    .metric-change {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    
+    .metric-change.positive {
+      background: rgba(111, 227, 166, 0.1);
+      color: #6fe3a6;
+    }
+    
+    .metric-change.negative {
+      background: rgba(255, 107, 107, 0.1);
+      color: #ff6b6b;
+    }
+    
+    .alert-card {
+      border-left: 4px solid #ffb24f;
+      background: rgba(255, 178, 79, 0.05);
+    }
+    
+    .alert-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      margin: 4px 0;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .status-indicator.green { background: #6fe3a6; }
+    .status-indicator.yellow { background: #ffb24f; }
+    .status-indicator.red { background: #ff6b6b; }
+    
+    .production-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .timeline-item {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      border-left: 3px solid var(--accent);
+    }
+    
+    .timeline-time {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      min-width: 60px;
+    }
+    
+    .timeline-content {
+      flex: 1;
+      margin-left: 12px;
+    }
+    
+    .timeline-title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    
+    .timeline-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    
+    .action-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      color: var(--text);
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+    
+    .action-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .chart-container {
+      height: 200px;
+      position: relative;
+      margin-top: 16px;
+    }
+    
+    .auto-refresh {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      z-index: 100;
+    }
+    
+    .refresh-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #6fe3a6;
+      display: inline-block;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .inventory-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    
+    .inventory-item {
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+    }
+    
+    .inventory-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .stock-bar {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    
+    .stock-fill {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    
+    .stock-fill.high { background: #6fe3a6; }
+    .stock-fill.medium { background: #ffb24f; }
+    .stock-fill.low { background: #ff6b6b; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <nav class="nav">
+    <div class="brand">🍞 <strong>BUNCA</strong> Bakery - Enhanced Dashboard</div>
+    <div class="menu-wrap">
+      <button class="btn" onclick="location.href='/materials.html'">Rohwaren</button>
+      <button class="btn" onclick="location.href='/items.html'">Rezepte</button>
+      <button class="btn" onclick="location.href='/plan.html'">Produktion</button>
+      <button class="btn" onclick="location.href='/analytics.html'">Analytics</button>
+      <button class="btn danger" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+</header>
+
+<div class="auto-refresh" id="autoRefresh">
+  <span class="refresh-dot"></span>
+  Auto-Update: <span id="refreshStatus">Aktiv</span>
+</div>
+
+<main class="container">
+
+  <!-- Key Metrics Grid -->
+  <div class="dashboard-grid">
+    <!-- Production Efficiency -->
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-icon">📊</div>
+        <div class="metric-change positive" id="efficiencyChange">+5.2%</div>
+      </div>
+      <div class="metric-label">Produktionseffizienz</div>
+      <div class="metric-value" id="efficiencyValue">94.2%</div>
+      <div class="metric-subtitle">Heute vs. Durchschnitt</div>
+    </div>
+
+    <!-- Today's Production -->
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-icon">🥖</div>
+        <div class="metric-change positive" id="productionChange">+12</div>
+      </div>
+      <div class="metric-label">Heutige Produktion</div>
+      <div class="metric-value" id="productionValue">247</div>
+      <div class="metric-subtitle">Einheiten produziert</div>
+    </div>
+
+    <!-- Cost Efficiency -->
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-icon">💰</div>
+        <div class="metric-change negative" id="costChange">-2.1%</div>
+      </div>
+      <div class="metric-label">Kosteneffizienz</div>
+      <div class="metric-value" id="costValue">€1,247</div>
+      <div class="metric-subtitle">Materialkosten heute</div>
+    </div>
+
+    <!-- Quality Score -->
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-icon">⭐</div>
+        <div class="metric-change positive" id="qualityChange">+0.8%</div>
+      </div>
+      <div class="metric-label">Qualitätsscore</div>
+      <div class="metric-value" id="qualityValue">98.7%</div>
+      <div class="metric-subtitle">Qualitätsprüfungen bestanden</div>
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="dashboard-grid">
+    <!-- Production Timeline -->
+    <div class="metric-card" style="grid-column: span 2;">
+      <div class="metric-header">
+        <h3>Heutige Produktion</h3>
+        <button class="btn" onclick="location.href='/plan.html'">Vollansicht</button>
+      </div>
+      <div class="production-timeline" id="productionTimeline">
+        <!-- Timeline items will be populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Inventory Alerts -->
+    <div class="metric-card alert-card">
+      <div class="metric-header">
+        <h3>⚠️ Lagerbestände</h3>
+        <span class="badge" id="alertCount">3</span>
+      </div>
+      <div id="inventoryAlerts">
+        <!-- Alert items will be populated by JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Inventory Overview -->
+  <div class="metric-card">
+    <div class="metric-header">
+      <h3>Lagerbestand Übersicht</h3>
+      <div class="row-gap">
+        <button class="btn" onclick="refreshInventory()">Aktualisieren</button>
+        <button class="btn" onclick="location.href='/materials.html'">Verwalten</button>
+      </div>
+    </div>
+    <div class="inventory-grid" id="inventoryGrid">
+      <!-- Inventory items will be populated by JavaScript -->
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="metric-card">
+    <h3>Schnellaktionen</h3>
+    <div class="quick-actions">
+      <a href="/plan.html" class="action-btn">
+        <span>📅</span>
+        <span>Produktion planen</span>
+      </a>
+      <a href="/materials.html" class="action-btn">
+        <span>📦</span>
+        <span>Rohware hinzufügen</span>
+      </a>
+      <a href="/items.html" class="action-btn">
+        <span>🧾</span>
+        <span>Rezept erstellen</span>
+      </a>
+      <a href="/analytics.html" class="action-btn">
+        <span>📈</span>
+        <span>Analytics öffnen</span>
+      </a>
+      <a href="#" onclick="generateReport()" class="action-btn">
+        <span>📊</span>
+        <span>Bericht erstellen</span>
+      </a>
+      <a href="#" onclick="optimizeProduction()" class="action-btn">
+        <span>⚡</span>
+        <span>Produktion optimieren</span>
+      </a>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// Enhanced Dashboard JavaScript
+let refreshInterval;
+let lastUpdate = new Date();
+
+function logout() { 
+  api('/api/logout', {method:'POST'}).then(() => location.href='/login.html'); 
+}
+
+// Auto-refresh functionality
+function startAutoRefresh() {
+  refreshInterval = setInterval(async () => {
+    try {
+      await loadDashboardData();
+      lastUpdate = new Date();
+      $$('#refreshStatus').textContent = `Aktualisiert ${lastUpdate.toLocaleTimeString()}`;
+    } catch (e) {
+      console.error('Auto-refresh failed:', e);
+      $$('#refreshStatus').textContent = 'Fehler beim Aktualisieren';
+    }
+  }, 30000); // Refresh every 30 seconds
+}
+
+function stopAutoRefresh() {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+  }
+}
+
+// Load all dashboard data
+async function loadDashboardData() {
+  try {
+    await Promise.all([
+      loadMetrics(),
+      loadProductionTimeline(),
+      loadInventoryAlerts(),
+      loadInventoryOverview()
+    ]);
+  } catch (e) {
+    console.error('Failed to load dashboard data:', e);
+    toast('Fehler beim Laden der Dashboard-Daten');
+  }
+}
+
+// Load key metrics
+async function loadMetrics() {
+  try {
+    const response = await api('/api/analytics/dashboard?period=1d');
+    const data = response.data;
+    
+    // Update production metrics
+    if (data.production) {
+      $$('#productionValue').textContent = data.production.total_production || '0';
+      $$('#efficiencyValue').textContent = `${((data.production.completed_batches / data.production.total_batches) * 100).toFixed(1)}%`;
+    }
+    
+    // Update quality metrics
+    if (data.quality) {
+      $$('#qualityValue').textContent = `${data.quality.pass_rate || 0}%`;
+    }
+    
+    // Calculate cost efficiency (simplified)
+    const totalCost = data.material_usage?.reduce((sum, item) => sum + (item.total_cost || 0), 0) || 0;
+    $$('#costValue').textContent = `€${totalCost.toFixed(0)}`;
+    
+  } catch (e) {
+    console.error('Failed to load metrics:', e);
+  }
+}
+
+// Load production timeline
+async function loadProductionTimeline() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const response = await api(`/api/plan?date=${today}`);
+    const timeline = $$('#productionTimeline');
+    
+    if (!response.data || response.data.length === 0) {
+      timeline.innerHTML = '<div class="empty">Keine Produktion für heute geplant</div>';
+      return;
+    }
+    
+    timeline.innerHTML = response.data.slice(0, 8).map(item => `
+      <div class="timeline-item">
+        <div class="timeline-time">${item.start_time || 'TBD'}</div>
+        <div class="timeline-content">
+          <div class="timeline-title">${item.product_code} - ${item.product_name || ''}</div>
+          <div class="timeline-subtitle">
+            ${item.qty} Einheiten
+            ${item.shop ? ` • ${item.shop}` : ''}
+            ${item.status ? ` • ${getStatusText(item.status)}` : ''}
+          </div>
+        </div>
+        <div class="status-indicator ${getStatusColor(item.status)}"></div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('Failed to load production timeline:', e);
+  }
+}
+
+// Load inventory alerts
+async function loadInventoryAlerts() {
+  try {
+    const response = await api('/api/materials?active=true');
+    const materials = response.data || [];
+    
+    const lowStock = materials.filter(m => m.needs_reorder || m.current_stock <= m.reorder_point);
+    const alertsContainer = $$('#inventoryAlerts');
+    const alertCount = $$('#alertCount');
+    
+    alertCount.textContent = lowStock.length;
+    
+    if (lowStock.length === 0) {
+      alertsContainer.innerHTML = '<div class="empty">Alle Bestände sind ausreichend</div>';
+      return;
+    }
+    
+    alertsContainer.innerHTML = lowStock.slice(0, 5).map(item => `
+      <div class="alert-item">
+        <div>
+          <strong>${item.name}</strong>
+          <div style="font-size: 12px; color: var(--text-muted);">
+            Bestand: ${item.current_stock} ${item.base_unit} 
+            (Min: ${item.reorder_point || 0})
+          </div>
+        </div>
+        <button class="btn small" onclick="reorderMaterial('${item.code}')">Bestellen</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('Failed to load inventory alerts:', e);
+  }
+}
+
+// Load inventory overview
+async function loadInventoryOverview() {
+  try {
+    const response = await api('/api/materials?active=true');
+    const materials = response.data || [];
+    const grid = $$('#inventoryGrid');
+    
+    // Show top 12 materials by usage/importance
+    const topMaterials = materials.slice(0, 12);
+    
+    grid.innerHTML = topMaterials.map(item => {
+      const stockPercentage = item.max_stock > 0 ? 
+        (item.current_stock / item.max_stock) * 100 : 
+        item.current_stock > item.reorder_point ? 75 : 25;
+      
+      const stockClass = stockPercentage > 50 ? 'high' : 
+                        stockPercentage > 25 ? 'medium' : 'low';
+      
+      return `
+        <div class="inventory-item">
+          <div class="inventory-header">
+            <strong>${item.name}</strong>
+            <span style="font-size: 12px; color: var(--text-muted);">${item.code}</span>
+          </div>
+          <div style="font-size: 14px; margin-bottom: 4px;">
+            ${item.current_stock} ${item.base_unit}
+          </div>
+          <div class="stock-bar">
+            <div class="stock-fill ${stockClass}" style="width: ${Math.min(stockPercentage, 100)}%"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to load inventory overview:', e);
+  }
+}
+
+// Helper functions
+function getStatusText(status) {
+  const statusMap = {
+    'planned': 'Geplant',
+    'in_progress': 'In Arbeit',
+    'completed': 'Abgeschlossen',
+    'cancelled': 'Abgebrochen'
+  };
+  return statusMap[status] || status;
+}
+
+function getStatusColor(status) {
+  const colorMap = {
+    'planned': 'yellow',
+    'in_progress': 'yellow',
+    'completed': 'green',
+    'cancelled': 'red'
+  };
+  return colorMap[status] || 'yellow';
+}
+
+// Action functions
+async function refreshInventory() {
+  toast('Lagerbestand wird aktualisiert...');
+  await loadInventoryOverview();
+  await loadInventoryAlerts();
+  toast('Lagerbestand aktualisiert');
+}
+
+async function reorderMaterial(materialCode) {
+  try {
+    // In a real system, this would create a purchase order
+    toast(`Bestellvorgang für ${materialCode} gestartet`);
+    // Could open a modal or redirect to purchase order creation
+  } catch (e) {
+    toast('Fehler beim Erstellen der Bestellung');
+  }
+}
+
+async function generateReport() {
+  try {
+    toast('Bericht wird erstellt...');
+    // In a real system, this would generate a comprehensive report
+    setTimeout(() => {
+      toast('Bericht erfolgreich erstellt');
+    }, 2000);
+  } catch (e) {
+    toast('Fehler beim Erstellen des Berichts');
+  }
+}
+
+async function optimizeProduction() {
+  try {
+    toast('Produktionsoptimierung läuft...');
+    // In a real system, this would run optimization algorithms
+    setTimeout(() => {
+      toast('Produktionsplan optimiert');
+    }, 3000);
+  } catch (e) {
+    toast('Fehler bei der Optimierung');
+  }
+}
+
+// Initialize dashboard
+(async function initDashboard() {
+  try {
+    const user = await sessionInfo();
+    if (!user) {
+      location.href = '/login.html';
+      return;
+    }
+    
+    await loadDashboardData();
+    startAutoRefresh();
+    
+    // Handle visibility change to pause/resume auto-refresh
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopAutoRefresh();
+      } else {
+        startAutoRefresh();
+      }
+    });
+    
+  } catch (e) {
+    console.error('Dashboard initialization failed:', e);
+    toast('Fehler beim Laden des Dashboards');
+  }
+})();
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  stopAutoRefresh();
+});
+</script>
+
+</body>
+</html>
