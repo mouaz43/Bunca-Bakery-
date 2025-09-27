@@ -1,18 +1,45 @@
 {
-  "name": "bunca-planner",
-  "version": "1.1.0",
+  "name": "bunca-bakery-automated",
+  "version": "2.0.0",
+  "description": "Fully Automated Bakery Workflow Management System with Advanced Import & Beautiful UI",
   "private": true,
   "type": "commonjs",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "NODE_ENV=development nodemon server.js"
+    "dev": "NODE_ENV=development nodemon server.js",
+    "test": "node test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "express": "^4.19.2",
     "express-session": "^1.17.3",
     "pg": "^8.11.5",
-    "xlsx": "^0.18.5"
-  }
+    "xlsx": "^0.18.5",
+    "multer": "^1.4.5-lts.1",
+    "csv-parser": "^3.0.0",
+    "compression": "^1.7.4",
+    "helmet": "^7.0.0",
+    "express-rate-limit": "^6.8.1",
+    "express-validator": "^7.0.1",
+    "cors": "^2.8.5",
+    "moment": "^2.29.4",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "bakery",
+    "automation",
+    "workflow",
+    "inventory",
+    "production",
+    "management"
+  ],
+  "author": "Bunca Bakery Team",
+  "license": "MIT"
 }
