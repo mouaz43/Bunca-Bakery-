@@ -1,34 +1,41 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Bunca Bakeflow</title>
 
-  <!-- Theme / PWA -->
-  <meta name="theme-color" content="#8b6a4a">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
-  <link rel="apple-touch-icon" href="./favicon.svg">
-  <link rel="stylesheet" href="./styles.css">
-  <!-- Print tweaks (hide nav/backdrops, ink-friendly) -->
+  <!-- Force light appearance so browser dark modes don't invert -->
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#8b6a4a" />
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="apple-touch-icon" href="./favicon.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+
+  <!-- Print: clean sheets -->
   <style>
     @media print {
       header.topbar, #drawer, #backdrop, .toasts, .bottom-bar { display: none !important; }
       body { background: #fff !important; color: #000 !important; }
-      .card { box-shadow:none !important; border-color:#ddd !important; }
+      .card { box-shadow: none !important; border-color: #ddd !important; }
       .container { margin: 0; max-width: 100%; }
     }
   </style>
 </head>
 <body>
-  <!-- App Shell -->
+  <!-- Top Bar -->
   <header class="topbar" role="banner">
     <button class="icon-btn" id="btn-menu" aria-label="Menü öffnen">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
     </button>
     <div class="title" id="page-title">Bunca Bakeflow</div>
     <div class="status">
+      <!-- Admin key button -->
+      <button class="icon-btn" id="btn-key" title="Admin Key eingeben">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v9H6z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
       <span id="net-dot" class="dot online" title="Online"></span>
       <span id="role-badge" class="badge">Lesen</span>
     </div>
@@ -39,7 +46,7 @@
   <aside id="drawer" class="drawer" aria-hidden="true">
     <div class="drawer-head">
       <div class="brand">
-        <img src="./logo.svg" alt="" width="22" height="22" style="display:block">
+        <img src="./logo.svg" alt="" width="22" height="22" style="display:block" />
         <span>Bunca Bakeflow</span>
       </div>
       <button class="icon-btn" id="btn-close-drawer" aria-label="Menü schließen">
@@ -79,12 +86,12 @@
         </button>
       </div>
       <div class="drawer-footer">
-        <button id="btn-logout" class="ghost">Logout</button>
+        <button id="btn-logout" class="ghost">Admin-Key löschen</button>
       </div>
     </nav>
   </aside>
 
-  <!-- Backdrop for drawer & modals -->
+  <!-- Backdrop -->
   <div id="backdrop" class="backdrop" aria-hidden="true"></div>
 
   <!-- Main -->
@@ -98,7 +105,6 @@
 
   <script src="./app.js" type="module"></script>
   <script>
-    // Lightweight SW registration (optional)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(()=>{});
