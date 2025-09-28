@@ -1,93 +1,88 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Bunca Bakeflow</title>
-  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path fill='%238b6a4a' d='M14 24h36v18a12 12 0 0 1-12 12H26A12 12 0 0 1 14 42V24z'/><path fill='%23c8a689' d='M18 10h28a8 8 0 0 1 0 16H18z'/></svg>">
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <!-- Top Bar -->
-  <header class="topbar">
-    <button id="btnMenu" class="iconbtn" aria-label="Menü">
-      <!-- Hamburger icon -->
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+  <!-- App Shell -->
+  <header class="topbar" role="banner">
+    <button class="icon-btn" id="btn-menu" aria-label="Menü öffnen">
+      <!-- hamburger -->
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
     </button>
-    <div id="pageTitle" class="title">Bunca Bakeflow</div>
-    <div class="status-area">
-      <span id="statusDot" class="dot dot-ok" title="Online"></span>
-      <span id="authBadge" class="badge" title="Modus">Lesemodus</span>
+    <div class="title" id="page-title">Bunca Bakeflow</div>
+    <div class="status">
+      <span id="net-dot" class="dot online" title="Online"></span>
+      <span id="role-badge" class="badge">Lesen</span>
     </div>
+    <div id="progress"></div>
   </header>
 
-  <!-- Drawer Menu -->
-  <aside id="drawer" class="drawer">
-    <div class="drawer-header">
+  <!-- Drawer -->
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawer-head">
       <div class="brand">
-        <div class="logo">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16v7a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6V9z"/><path d="M6 4h12a4 4 0 0 1 0 8H6z"/></svg>
-        </div>
-        <div class="brand-name">Bunca Bakeflow</div>
+        <!-- cup icon -->
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 8h12a3 3 0 0 1 3 3v1a4 4 0 0 1-4 4H7a3 3 0 0 1-3-3V8z" fill="currentColor" opacity=".15"/><path d="M4 8h12v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V8zM16 10h2a2 2 0 1 1 0 4h-2" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Bunca Bakeflow</span>
       </div>
-      <button id="btnCloseDrawer" class="iconbtn" aria-label="Schließen">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      <button class="icon-btn" id="btn-close-drawer" aria-label="Menü schließen">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
     </div>
-
     <nav class="drawer-nav">
-      <a href="#/products" class="navlink">
-        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-        <span>Rohwaren</span>
+      <a href="#/products" data-link class="nav-link">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 7h18M5 7v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M7 7l2-3h6l2 3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+        Rohwaren
       </a>
-      <a href="#/recipes" class="navlink">
-        <svg viewBox="0 0 24 24"><path d="M5 4h9a4 4 0 0 1 4 4v12H9a4 4 0 0 1-4-4z"/><path d="M9 8h6M9 12h6M9 16h6"/></svg>
-        <span>Rezepte</span>
+      <a href="#/recipes" data-link class="nav-link">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 4h10a2 2 0 0 1 2 2v14l-4-2-4 2V6a2 2 0 0 0-2-2z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>
+        Rezepte
       </a>
-      <a href="#/plan" class="navlink">
-        <svg viewBox="0 0 24 24"><path d="M7 3v4M17 3v4M4 9h16M5 12h3m4 0h3m4 0h3M5 16h3m4 0h3"/></svg>
-        <span>Produktionsplan</span>
+      <a href="#/plan" data-link class="nav-link">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 6h16M4 10h16M8 14h8M8 18h8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+        Produktionsplan
       </a>
-      <a href="#/admin" class="navlink">
-        <svg viewBox="0 0 24 24"><path d="M12 15a5 5 0 1 0-5-5 5 5 0 0 0 5 5z"/><path d="M2 21a10 10 0 0 1 20 0"/></svg>
-        <span>Admin</span>
+      <a href="#/admin" data-link class="nav-link">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l2.5 4.5L20 9l-4 3.5L17 18l-5-2.5L7 18l1-5.5L4 9l5.5-1.5L12 3z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>
+        Admin
       </a>
+      <div class="quick">
+        <div class="muted">Schnellaktionen</div>
+        <button class="chip" id="qa-new-product">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Produkt
+        </button>
+        <button class="chip" id="qa-new-recipe">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Rezept
+        </button>
+        <button class="chip" id="qa-new-plan">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Plan-Zeile
+        </button>
+      </div>
+      <div class="drawer-footer">
+        <button id="btn-logout" class="ghost">Logout</button>
+      </div>
     </nav>
-
-    <div class="drawer-actions">
-      <button id="qaNewProduct" class="btn outline small">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-        <span>Neues Produkt</span>
-      </button>
-      <button id="qaNewRecipe" class="btn outline small">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-        <span>Neues Rezept</span>
-      </button>
-      <button id="qaAddPlanRow" class="btn outline small">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-        <span>Plan-Zeile</span>
-      </button>
-    </div>
-
-    <div class="drawer-footer">
-      <a href="#/login" class="navlink danger">
-        <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
-        <span>Logout / Modus</span>
-      </a>
-    </div>
   </aside>
 
-  <!-- Shade behind drawer -->
-  <div id="shade" class="shade"></div>
+  <!-- Backdrop for drawer & modals -->
+  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
 
   <!-- Main -->
-  <main id="app" class="container"></main>
-
-  <!-- Modal Host -->
-  <div id="modalHost" class="modal-host" aria-hidden="true"></div>
+  <main id="app" class="container" role="main"></main>
 
   <!-- Toasts -->
-  <div id="toasts" class="toasts"></div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <!-- Modal host -->
+  <div id="modal-host"></div>
 
   <script src="./app.js" type="module"></script>
 </body>
