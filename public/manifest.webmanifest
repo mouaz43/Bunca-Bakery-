@@ -1,0 +1,12 @@
+{
+  "name": "Bunca Bakeflow",
+  "short_name": "Bakeflow",
+  "description": "Rohwaren, Rezepte und Produktionsplan – schnell & elegant.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f6efe6",
+  "theme_color": "#8b6a4a",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
