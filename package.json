@@ -1,0 +1,20 @@
+{
+  "name": "bunca-bakery-flow",
+  "version": "1.5.0",
+  "description": "Bunca Bakeflow — smart flat-file backend (no DB) for products, recipes, plan, costing, and workflow helpers.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "NODE_ENV=development node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "morgan": "^1.10.0",
+    "nanoid": "^5.0.7"
+  }
+}
