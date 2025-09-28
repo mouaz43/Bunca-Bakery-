@@ -1,10 +1,12 @@
 // server.js
 // Express web service implementing smart workflow for Bunca Bakeflow.
-// No managed DB — uses flat JSON with daily snapshots.
+// Now also serves the static frontend from /public.
 
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+import path from "path";
+import { fileURLToPath } from "url";
 import { nanoid } from "nanoid";
 import { readDB, writeDB, replaceDB, listSnapshots, readSnapshot } from "./storage.js";
 
@@ -12,10 +14,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
+// resolve paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PUBLIC_DIR = path.join(__dirname, "public");
+
 // ---- middleware ----
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan("dev"));
+
+// serve static frontend (hash-based SPA, so no special fallback needed)
+app.use(express.static(PUBLIC_DIR, { index: "index.html" }));
 
 function ok(res, data) { return res.json({ ok: true, data }); }
 function bad(res, msg, code = 400) { return res.status(code).json({ ok: false, error: msg }); }
@@ -27,31 +37,6 @@ function requireAdmin(req, res, next) {
   return bad(res, "Unauthorized", 401);
 }
 
-function requireId(req, res, next) {
-  if (!req.params.id) return bad(res, "Missing :id", 400);
-  next();
-}
-
-// ---- units / conversions ----
-const U = {
-  toBase: (qty, unit) => {
-    if (unit === "kg") return qty * 1000;   // base g
-    if (unit === "g") return qty;
-    if (unit === "l") return qty * 1000;    // base ml
-    if (unit === "ml") return qty;
-    // pcs/box: base is pcs (no conversion here; box handled via packSize in UI if needed)
-    return qty;
-  },
-  fromBase: (qty, unit) => {
-    if (unit === "kg") return qty / 1000;
-    if (unit === "g") return qty;
-    if (unit === "l") return qty / 1000;
-    if (unit === "ml") return qty;
-    return qty;
-  }
-};
-
-// ---- helpers ----
 function findProduct(db, id) { return db.products.find(p => p.id === id); }
 function findRecipe(db, id)  { return db.recipes.find(r => r.id === id); }
 
@@ -68,7 +53,6 @@ function calcRecipeCost(db, recipe) {
   return { total, perPiece, items };
 }
 
-// scale a recipe by batches (quantity) or pieces (multiplier by yield)
 function scaleIngredients(recipe, factor = 1) {
   return (recipe.ingredients || []).map(ing => ({
     productId: ing.productId,
@@ -86,7 +70,7 @@ function computeAllergens(db, recipe) {
   return Array.from(set);
 }
 
-// ---- health / meta ----
+/* -------------------- Health & Meta -------------------- */
 app.get("/health", async (_req, res) => {
   try {
     const db = await readDB();
@@ -115,7 +99,7 @@ app.get("/metrics", async (_req, res) => {
   });
 });
 
-// ---- settings ----
+/* -------------------- Settings -------------------- */
 app.get("/settings", async (_req, res) => {
   const db = await readDB();
   ok(res, db.settings);
@@ -130,7 +114,7 @@ app.put("/settings", requireAdmin, async (req, res) => {
   ok(res, true);
 });
 
-// ---- import/export ----
+/* -------------------- Import / Export / Backups -------------------- */
 app.get("/export", requireAdmin, async (_req, res) => {
   const db = await readDB();
   ok(res, db);
@@ -153,7 +137,7 @@ app.get("/backups/:name", requireAdmin, async (req, res) => {
   ok(res, data);
 });
 
-// ---- products CRUD ----
+/* -------------------- Products -------------------- */
 app.get("/products", async (_req, res) => {
   const db = await readDB();
   ok(res, db.products);
@@ -193,7 +177,7 @@ app.delete("/products/:id", requireAdmin, async (req, res) => {
   ok(res, true);
 });
 
-// ---- recipes CRUD + cost ----
+/* -------------------- Recipes -------------------- */
 app.get("/recipes", async (_req, res) => {
   const db = await readDB();
   ok(res, db.recipes);
@@ -243,7 +227,7 @@ app.get("/recipes/:id/cost", async (req, res) => {
   ok(res, calcRecipeCost(db, rec));
 });
 
-// ---- plan CRUD ----
+/* -------------------- Plan -------------------- */
 app.get("/plan", async (req, res) => {
   const { dateFrom, dateTo, shop } = req.query || {};
   const db = await readDB();
@@ -283,7 +267,7 @@ app.delete("/plan/:id", requireAdmin, async (req, res) => {
   ok(res, true);
 });
 
-// ---- smart: validation for plan (per date/shop or full) ----
+/* -------------------- Smart helpers -------------------- */
 app.get("/plan/validate", async (req, res) => {
   const { date, shop } = req.query || {};
   const db = await readDB();
@@ -304,7 +288,6 @@ app.get("/plan/validate", async (req, res) => {
     }
   }
 
-  // Optional capacity rule
   if (db.settings?.capacity?.ovenBatchMax && date && shop) {
     const totalBatches = rows.reduce((s, r) => s + (r.quantity || 0), 0);
     if (totalBatches > db.settings.capacity.ovenBatchMax) {
@@ -315,25 +298,22 @@ app.get("/plan/validate", async (req, res) => {
   ok(res, { count: issues.length, issues });
 });
 
-// ---- smart: consolidated ingredient list (auto scaled) ----
 app.get("/plan/summary", async (req, res) => {
   const { dateFrom, dateTo, shop } = req.query || {};
   const db = await readDB();
 
-  // Filter plan rows
   let rows = db.plan;
   if (shop) rows = rows.filter(r => r.shop === shop);
   if (dateFrom) rows = rows.filter(r => r.date >= dateFrom);
   if (dateTo) rows = rows.filter(r => r.date <= dateTo);
 
-  // Aggregate: productId -> qty (in product's unit)
   const agg = new Map();
   const detail = [];
 
   for (const r of rows) {
     const recipe = findRecipe(db, r.recipeId);
     if (!recipe) continue;
-    const factor = Number(r.quantity || 1); // quantity = batches
+    const factor = Number(r.quantity || 1);
     const scaled = scaleIngredients(recipe, factor);
 
     for (const ing of scaled) {
@@ -364,7 +344,6 @@ app.get("/plan/summary", async (req, res) => {
   ok(res, { range: { dateFrom, dateTo, shop }, totals, costTotal, detail });
 });
 
-// ---- smart: per-shop ready sheet for a date ----
 app.get("/ready-sheet", async (req, res) => {
   const { date, shop } = req.query || {};
   if (!date || !shop) return bad(res, "date and shop required");
@@ -399,7 +378,7 @@ app.get("/ready-sheet", async (req, res) => {
   ok(res, { date, shop, items });
 });
 
-// ---- leftovers & suggestion ----
+/* -------------------- Leftovers & Suggestions -------------------- */
 app.post("/leftovers", async (req, res) => {
   const { date, shop, recipeId, pieces = 0, note = "" } = req.body || {};
   if (!date || !shop || !recipeId) return bad(res, "date, shop, recipeId required");
@@ -419,7 +398,6 @@ app.get("/leftovers", async (req, res) => {
   ok(res, rows);
 });
 
-// Suggest next-day plan adjustments for a given date/shop based on leftovers of the same shop from the previous day
 app.get("/plan/suggest-next", async (req, res) => {
   const { date, shop } = req.query || {};
   if (!date || !shop) return bad(res, "date and shop required");
@@ -432,7 +410,6 @@ app.get("/plan/suggest-next", async (req, res) => {
   const todayRows = db.plan.filter(r => r.date === date && r.shop === shop);
   const leftovers = db.leftovers.filter(l => l.date === prevStr && l.shop === shop);
 
-  // Build suggestion: reduce batches by leftover / yield, but never below 0
   const suggestions = [];
   for (const row of todayRows) {
     const recipe = findRecipe(db, row.recipeId);
@@ -453,41 +430,10 @@ app.get("/plan/suggest-next", async (req, res) => {
   ok(res, { date, shop, suggestions });
 });
 
-// ---- computed cost per plan row ----
-app.get("/plan/costs", async (req, res) => {
-  const { dateFrom, dateTo, shop } = req.query || {};
-  const db = await readDB();
-  let rows = db.plan;
-  if (shop) rows = rows.filter(r => r.shop === shop);
-  if (dateFrom) rows = rows.filter(r => r.date >= dateFrom);
-  if (dateTo) rows = rows.filter(r => r.date <= dateTo);
-
-  const items = rows.map(r => {
-    const rec = findRecipe(db, r.recipeId);
-    if (!rec) return { planId: r.id, missing: "recipe" };
-    const c = calcRecipeCost(db, rec);
-    return {
-      planId: r.id,
-      date: r.date,
-      shop: r.shop,
-      recipeId: rec.id,
-      recipeName: rec.name,
-      batches: r.quantity,
-      batchCost: c.total,
-      totalCost: c.total * r.quantity,
-      perPiece: c.perPiece
-    };
-  });
-
-  const total = items.reduce((s, it) => s + (it.totalCost || 0), 0);
-  ok(res, { items, total });
-});
-
-// ---- start ----
+/* -------------------- Start -------------------- */
 const server = app.listen(PORT, () => {
-  console.log(`Bunca Bakeflow API listening on :${PORT}`);
+  console.log(`Bunca Bakeflow API + Frontend listening on :${PORT}`);
 });
 
-// graceful shutdown
 process.on("SIGTERM", () => server.close(() => process.exit(0)));
 process.on("SIGINT", () => server.close(() => process.exit(0)));
