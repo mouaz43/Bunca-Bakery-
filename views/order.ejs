@@ -1,0 +1,902 @@
+<section class="bakery-page">
+  <style>
+    .bakery-page {
+      --bg: #f6f1e8;
+      --card: rgba(255, 252, 247, 0.92);
+      --card-strong: #fffaf3;
+      --text: #2f241c;
+      --muted: #7a6858;
+      --border: rgba(87, 63, 43, 0.14);
+      --border-strong: rgba(87, 63, 43, 0.24);
+      --shadow: 0 18px 45px rgba(60, 39, 20, 0.08);
+      --shadow-soft: 0 8px 24px rgba(60, 39, 20, 0.05);
+      --accent: #8b5e3c;
+      --accent-2: #b7865f;
+      --accent-soft: rgba(139, 94, 60, 0.1);
+      --success-bg: #edf8f0;
+      --success-text: #24613a;
+      --error-bg: #fff1ef;
+      --error-text: #9b3d2f;
+      --warning-bg: #fff8e8;
+      --warning-text: #8a632a;
+      --readonly-bg: #f3ece4;
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+      color: var(--text);
+    }
+
+    .bakery-shell {
+      max-width: 1450px;
+      margin: 0 auto;
+      padding: 24px 18px 48px;
+    }
+
+    .bakery-topbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .bakery-heading h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 2vw, 2.5rem);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+
+    .bakery-heading p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 0.98rem;
+      max-width: 860px;
+    }
+
+    .bakery-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .bakery-nav a {
+      text-decoration: none;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 10px 15px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      transition: 0.18s ease;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .bakery-nav a.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .bakery-nav a:hover {
+      transform: translateY(-1px);
+    }
+
+    .flash-wrap {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .flash {
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+
+    .flash.success {
+      background: var(--success-bg);
+      color: var(--success-text);
+      border-color: rgba(36, 97, 58, 0.12);
+    }
+
+    .flash.error {
+      background: var(--error-bg);
+      color: var(--error-text);
+      border-color: rgba(155, 61, 47, 0.12);
+    }
+
+    .flash.warning {
+      background: var(--warning-bg);
+      color: var(--warning-text);
+      border-color: rgba(138, 99, 42, 0.12);
+    }
+
+    .toolbar-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      padding: 22px 22px 0;
+    }
+
+    .card-head h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      letter-spacing: -0.02em;
+    }
+
+    .card-head p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 0.94rem;
+      line-height: 1.5;
+    }
+
+    .card-body {
+      padding: 22px;
+    }
+
+    .muted-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-size: 0.85rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status-badge.draft {
+      background: #f4ece6;
+      color: #8a5e38;
+    }
+
+    .status-badge.submitted {
+      background: #edf8f0;
+      color: #24613a;
+    }
+
+    .status-badge.readonly {
+      background: #eef2f9;
+      color: #4d6488;
+    }
+
+    .form-grid-4 {
+      display: grid;
+      grid-template-columns: 1.2fr 0.9fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+      align-content: start;
+    }
+
+    .field label {
+      font-size: 0.88rem;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .input,
+    .select,
+    .textarea {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fffdfa;
+      color: var(--text);
+      padding: 13px 14px;
+      font: inherit;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .input:focus,
+    .select:focus,
+    .textarea:focus {
+      border-color: rgba(139, 94, 60, 0.45);
+      box-shadow: 0 0 0 4px rgba(139, 94, 60, 0.08);
+    }
+
+    .input[readonly],
+    .input:disabled,
+    .select:disabled,
+    .textarea:disabled {
+      background: var(--readonly-bg);
+      color: #5f5245;
+      cursor: not-allowed;
+    }
+
+    .textarea {
+      min-height: 120px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .hint {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .btn {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      transition: 0.18s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(139, 94, 60, 0.18);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px dashed var(--border-strong);
+    }
+
+    .btn[disabled] {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .stat-card {
+      background: var(--card-strong);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .stat-label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .stat-sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .table-card {
+      overflow: hidden;
+    }
+
+    .table-head {
+      padding: 22px 22px 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .table-head h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      letter-spacing: -0.02em;
+    }
+
+    .table-head p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      padding: 18px 22px 22px;
+    }
+
+    .order-table {
+      width: 100%;
+      min-width: 980px;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .order-table th,
+    .order-table td {
+      padding: 14px 12px;
+      border-bottom: 1px solid rgba(87, 63, 43, 0.1);
+      vertical-align: middle;
+      text-align: left;
+    }
+
+    .order-table thead th {
+      position: sticky;
+      top: 0;
+      background: #fbf6ef;
+      z-index: 1;
+      font-size: 0.88rem;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .order-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.52);
+    }
+
+    .group-row td {
+      background: rgba(139, 94, 60, 0.06);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.9rem;
+      letter-spacing: 0.01em;
+    }
+
+    .item-name {
+      font-weight: 800;
+      font-size: 0.98rem;
+      margin-bottom: 4px;
+    }
+
+    .item-sub {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .number-input,
+    .readonly-box {
+      width: 100%;
+      min-width: 84px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fffdfa;
+      padding: 10px 10px;
+      font: inherit;
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    .readonly-box {
+      background: var(--readonly-bg);
+      color: #5f5245;
+      font-weight: 700;
+    }
+
+    .manual-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      background: #fff4db;
+      color: #8a632a;
+    }
+
+    .line-note {
+      font-size: 0.79rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    .empty-state {
+      padding: 20px;
+      border: 1px dashed var(--border-strong);
+      border-radius: 16px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1180px) {
+      .toolbar-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .form-grid-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .bakery-shell {
+        padding: 18px 12px 36px;
+      }
+
+      .stats-grid,
+      .form-grid-4 {
+        grid-template-columns: 1fr;
+      }
+
+      .card-head,
+      .card-body,
+      .table-head,
+      .table-scroll {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .bakery-nav {
+        width: 100%;
+      }
+
+      .bakery-nav a {
+        flex: 1 1 calc(50% - 10px);
+        justify-content: center;
+      }
+    }
+  </style>
+
+  <%
+    const hasShop = !!selectedShop;
+    const isReadonly = !!isReadonlyView;
+    const isLocked = !!isSubmitted || isReadonly;
+    const totalItems = totals?.totalItems || 0;
+    const totalSuggestedQty = totals?.totalSuggestedQty || 0;
+    const totalOrderedQty = totals?.totalOrderedQty || 0;
+
+    let filledIstCount = 0;
+    (groupedItems || []).forEach(group => {
+      (group.items || []).forEach(item => {
+        if (item.istBestand !== '' && item.istBestand !== null && item.istBestand !== undefined) {
+          filledIstCount += 1;
+        }
+      });
+    });
+
+    let statusClass = 'draft';
+    if (isReadonly) statusClass = 'readonly';
+    else if (isSubmitted) statusClass = 'submitted';
+  %>
+
+  <div class="bakery-shell">
+    <div class="bakery-topbar">
+      <div class="bakery-heading">
+        <h1><%= pageTitle || 'Bestellung' %></h1>
+        <p><%= pageSubtitle || 'IST Bestand eintragen, Vorschlag prüfen und Bestellung speichern oder abgeben.' %></p>
+      </div>
+
+      <% if (bakeryNav && bakeryNav.length) { %>
+        <nav class="bakery-nav" aria-label="Bakery Navigation">
+          <% bakeryNav.forEach(function(item) { %>
+            <a
+              href="<%= item.href %>"
+              class="<%= currentPath === item.href ? 'active' : '' %>"
+            >
+              <%= item.label %>
+            </a>
+          <% }) %>
+        </nav>
+      <% } %>
+    </div>
+
+    <% if (success || error || isSubmitted || isReadonly) { %>
+      <div class="flash-wrap">
+        <% if (success) { %>
+          <div class="flash success"><%= success %></div>
+        <% } %>
+
+        <% if (error) { %>
+          <div class="flash error"><%= error %></div>
+        <% } %>
+
+        <% if (isSubmitted && !isReadonly) { %>
+          <div class="flash warning">
+            Diese Bestellung ist bereits abgegeben und aktuell gesperrt. Änderungen sind erst nach erneutem Öffnen möglich.
+          </div>
+        <% } %>
+
+        <% if (isReadonly) { %>
+          <div class="flash warning">
+            Du siehst hier eine bestehende Bestellung in der Einzelansicht. Diese Ansicht ist nur zum Prüfen.
+          </div>
+        <% } %>
+      </div>
+    <% } %>
+
+    <div class="toolbar-grid">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Bestellung öffnen</h2>
+            <p>Shop und Datum auswählen. Pro Shop und Datum gibt es genau eine Bestellung.</p>
+          </div>
+          <div class="status-badge <%= statusClass %>">
+            <%= isReadonly ? 'Ansicht' : (orderStatusLabel || 'Entwurf') %>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <form method="get" action="/bakery/order">
+            <div class="form-grid-4">
+              <div class="field">
+                <label for="shopId">Shop</label>
+                <select id="shopId" class="select" name="shopId" <%= isReadonly ? 'disabled' : '' %>>
+                  <% (shopOptions || []).forEach(function(shop) { %>
+                    <option value="<%= shop.id %>" <%= shop.selected ? 'selected' : '' %>>
+                      <%= shop.name %>
+                    </option>
+                  <% }) %>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="date">Datum</label>
+                <input id="date" class="input" type="date" name="date" value="<%= orderDate || '' %>" <%= isReadonly ? 'disabled' : '' %>>
+              </div>
+
+              <div class="field">
+                <label>Shop Code</label>
+                <input class="input" type="text" value="<%= selectedShop?.code || '—' %>" readonly>
+              </div>
+
+              <div class="field">
+                <label>Bestell-ID</label>
+                <input class="input" type="text" value="<%= order?.id || 'Neu / Entwurf' %>" readonly>
+              </div>
+            </div>
+
+            <% if (!isReadonly) { %>
+              <div class="button-row">
+                <button class="btn btn-primary" type="submit">Bestellung laden</button>
+                <a class="btn btn-secondary" href="/bakery/order">Heute neu öffnen</a>
+              </div>
+            <% } %>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Bestellstatus</h2>
+            <p>Kurzer Überblick über den aktuellen Stand dieser Bestellung.</p>
+          </div>
+          <div class="muted-badge"><%= selectedShop?.name || 'Kein Shop' %></div>
+        </div>
+
+        <div class="card-body">
+          <div class="hint" style="margin-top:0;">
+            <strong>Datum:</strong> <%= orderDate || '—' %><br>
+            <strong>Status:</strong> <%= orderStatusLabel || 'Entwurf' %><br>
+            <strong>Bearbeiter:</strong> <%= userName || 'System' %><br>
+            <% if (order?.submittedAt) { %>
+              <strong>Abgegeben am:</strong> <%= order.submittedAt %>
+            <% } else { %>
+              <strong>Abgegeben am:</strong> Noch nicht
+            <% } %>
+          </div>
+
+          <% if (order?.id && isSubmitted && !isReadonly) { %>
+            <div class="button-row">
+              <form method="post" action="/bakery/orders/<%= order.id %>/reopen">
+                <button class="btn btn-secondary" type="submit">Wieder öffnen</button>
+              </form>
+              <a class="btn btn-ghost" href="/bakery/orders/<%= order.id %>">Einzelansicht</a>
+            </div>
+          <% } else if (order?.id) { %>
+            <div class="button-row">
+              <a class="btn btn-ghost" href="/bakery/orders/<%= order.id %>">Einzelansicht</a>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Positionen</div>
+        <div class="stat-value"><%= totalItems %></div>
+        <div class="stat-sub">Aktive Artikel für diesen Shop</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">IST ausgefüllt</div>
+        <div class="stat-value"><%= filledIstCount %></div>
+        <div class="stat-sub">Von <%= totalItems %> Positionen erfasst</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Vorschlag gesamt</div>
+        <div class="stat-value"><%= Number(totalSuggestedQty || 0) %></div>
+        <div class="stat-sub">Automatisch aus SOLL minus IST</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Bestellmenge gesamt</div>
+        <div class="stat-value"><%= Number(totalOrderedQty || 0) %></div>
+        <div class="stat-sub">Finale Menge dieser Bestellung</div>
+      </div>
+    </div>
+
+    <% if (!hasShop) { %>
+      <div class="card">
+        <div class="card-body">
+          <div class="empty-state">
+            Kein Shop gefunden. Lege zuerst Shops an oder prüfe die Shop Daten im Backend.
+          </div>
+        </div>
+      </div>
+    <% } else if (!groupedItems || !groupedItems.length) { %>
+      <div class="card">
+        <div class="card-body">
+          <div class="empty-state">
+            Für diesen Shop sind aktuell keine aktiven Artikel vorhanden. Aktiviere Artikel und pflege den SOLL Bestand
+            in der Artikelseite.
+          </div>
+        </div>
+      </div>
+    <% } else { %>
+      <div class="card table-card">
+        <div class="table-head">
+          <div>
+            <h2>Bestellpositionen</h2>
+            <p>
+              IST Bestand hier eintragen. SOLL kommt aus der Artikelseite. Die Bestellmenge ist vorgeschlagen,
+              kann aber manuell geändert werden.
+            </p>
+          </div>
+          <div class="muted-badge"><%= selectedShop?.name || '' %> · <%= orderDate || '' %></div>
+        </div>
+
+        <div class="table-scroll">
+          <form id="orderForm" method="post" action="<%= isReadonly ? '#' : '/bakery/order/save' %>">
+            <input type="hidden" name="shopId" value="<%= selectedShopId || '' %>">
+            <input type="hidden" name="orderDate" value="<%= orderDate || '' %>">
+
+            <table class="order-table">
+              <thead>
+                <tr>
+                  <th style="min-width: 260px;">Artikel</th>
+                  <th style="min-width: 110px;">SOLL</th>
+                  <th style="min-width: 110px;">IST</th>
+                  <th style="min-width: 130px;">Vorschlag</th>
+                  <th style="min-width: 130px;">Bestellmenge</th>
+                  <th style="min-width: 120px;">Hinweis</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <% groupedItems.forEach(function(group) { %>
+                  <tr class="group-row">
+                    <td colspan="6"><%= group.category %></td>
+                  </tr>
+
+                  <% (group.items || []).forEach(function(item) { %>
+                    <tr>
+                      <td>
+                        <input type="hidden" name="itemId" value="<%= item.itemId %>">
+                        <div class="item-name"><%= item.name %></div>
+                        <div class="item-sub">
+                          Einheit: <%= item.unit || 'Stk' %>
+                          <% if (item.sortOrder !== undefined && item.sortOrder !== null) { %>
+                            · Sortierung: <%= item.sortOrder %>
+                          <% } %>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div class="readonly-box js-soll"><%= Number(item.sollBestand || 0) %></div>
+                      </td>
+
+                      <td>
+                        <input
+                          class="number-input js-ist"
+                          type="number"
+                          name="istBestand"
+                          value="<%= item.istBestand ?? 0 %>"
+                          min="0"
+                          step="1"
+                          data-soll="<%= Number(item.sollBestand || 0) %>"
+                          <%= isLocked ? 'readonly' : '' %>
+                        >
+                      </td>
+
+                      <td>
+                        <div class="readonly-box js-suggested"><%= Number(item.suggestedQty || 0) %></div>
+                      </td>
+
+                      <td>
+                        <input
+                          class="number-input js-ordered"
+                          type="number"
+                          name="orderedQty"
+                          value="<%= item.orderedQty ?? item.suggestedQty ?? 0 %>"
+                          min="0"
+                          step="1"
+                          data-original="<%= Number(item.suggestedQty || 0) %>"
+                          <%= isLocked ? 'readonly' : '' %>
+                        >
+                      </td>
+
+                      <td>
+                        <div class="js-manual-wrap">
+                          <% if (item.manualOverride) { %>
+                            <span class="manual-badge">Manuell</span>
+                          <% } else { %>
+                            <span class="item-sub">Auto</span>
+                          <% } %>
+                        </div>
+                        <div class="line-note">
+                          SOLL nur in Artikel änderbar
+                        </div>
+                      </td>
+                    </tr>
+                  <% }) %>
+                <% }) %>
+              </tbody>
+            </table>
+
+            <div style="margin-top:18px; display:grid; gap:14px;">
+              <div class="field">
+                <label for="note">Notiz zur Bestellung</label>
+                <textarea
+                  id="note"
+                  class="textarea"
+                  name="note"
+                  placeholder="Optionaler Hinweis zur Bestellung"
+                  <%= isLocked ? 'readonly' : '' %>
+                ><%= note || '' %></textarea>
+              </div>
+            </div>
+
+            <% if (!isLocked) { %>
+              <div class="button-row">
+                <button class="btn btn-primary" type="submit">Als Entwurf speichern</button>
+                <button
+                  class="btn btn-secondary"
+                  type="submit"
+                  formaction="/bakery/order/submit"
+                >
+                  Bestellung abgeben
+                </button>
+                <a class="btn btn-ghost" href="/bakery/order?shopId=<%= selectedShopId || '' %>&date=<%= orderDate || '' %>">Zurücksetzen</a>
+              </div>
+            <% } %>
+
+            <div class="footer-note">
+              Die Vorschlagsmenge wird automatisch aus <strong>SOLL minus IST</strong> berechnet.
+              Sobald du die Bestellmenge manuell änderst, wird die Position als manuell markiert.
+              Beim Speichern und Abgeben werden die Werte als Snapshot in der Bestellung gesichert.
+            </div>
+          </form>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <script>
+    (function () {
+      const form = document.getElementById('orderForm');
+      if (!form) return;
+
+      const rows = form.querySelectorAll('tbody tr');
+
+      rows.forEach((row) => {
+        const istInput = row.querySelector('.js-ist');
+        const orderedInput = row.querySelector('.js-ordered');
+        const suggestedBox = row.querySelector('.js-suggested');
+        const manualWrap = row.querySelector('.js-manual-wrap');
+
+        if (!istInput || !orderedInput || !suggestedBox || !manualWrap) return;
+
+        function toNumber(value) {
+          const n = Number(value);
+          return Number.isFinite(n) ? n : 0;
+        }
+
+        function render() {
+          const soll = toNumber(istInput.dataset.soll);
+          const ist = Math.max(0, toNumber(istInput.value));
+          const suggested = Math.max(soll - ist, 0);
+
+          suggestedBox.textContent = String(suggested);
+
+          const currentOrdered = toNumber(orderedInput.value);
+          const previousSuggested = toNumber(orderedInput.dataset.original);
+
+          if (currentOrdered === previousSuggested || orderedInput.value === '') {
+            orderedInput.value = String(suggested);
+          }
+
+          orderedInput.dataset.original = String(suggested);
+
+          const finalOrdered = toNumber(orderedInput.value);
+          const isManual = finalOrdered !== suggested;
+
+          manualWrap.innerHTML = isManual
+            ? '<span class="manual-badge">Manuell</span>'
+            : '<span class="item-sub">Auto</span>';
+        }
+
+        istInput.addEventListener('input', render);
+        orderedInput.addEventListener('input', render);
+        render();
+      });
+    })();
+  </script>
+</section>
