@@ -302,6 +302,12 @@
       border: 1px dashed var(--border-strong);
     }
 
+    .btn-pdf {
+      background: #fbf6ef;
+      color: var(--accent);
+      border: 1px solid rgba(139, 94, 60, 0.2);
+    }
+
     .btn[disabled] {
       opacity: 0.6;
       cursor: not-allowed;
@@ -660,10 +666,12 @@
                 <button class="btn btn-secondary" type="submit">Wieder öffnen</button>
               </form>
               <a class="btn btn-ghost" href="/bakery/orders/<%= order.id %>">Einzelansicht</a>
+              <a class="btn btn-pdf" href="/bakery/orders/<%= order.id %>/pdf" target="_blank" rel="noopener noreferrer">PDF</a>
             </div>
           <% } else if (order?.id) { %>
             <div class="button-row">
               <a class="btn btn-ghost" href="/bakery/orders/<%= order.id %>">Einzelansicht</a>
+              <a class="btn btn-pdf" href="/bakery/orders/<%= order.id %>/pdf" target="_blank" rel="noopener noreferrer">PDF</a>
             </div>
           <% } %>
         </div>
@@ -720,7 +728,12 @@
               kann aber manuell geändert werden.
             </p>
           </div>
-          <div class="muted-badge"><%= selectedShop?.name || '' %> · <%= orderDate || '' %></div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <% if (order?.id) { %>
+              <a class="btn btn-pdf" href="/bakery/orders/<%= order.id %>/pdf" target="_blank" rel="noopener noreferrer">PDF</a>
+            <% } %>
+            <div class="muted-badge"><%= selectedShop?.name || '' %> · <%= orderDate || '' %></div>
+          </div>
         </div>
 
         <div class="table-scroll">
@@ -835,6 +848,9 @@
                   Bestellung abgeben
                 </button>
                 <a class="btn btn-ghost" href="/bakery/order?shopId=<%= selectedShopId || '' %>&date=<%= orderDate || '' %>">Zurücksetzen</a>
+                <% if (order?.id) { %>
+                  <a class="btn btn-pdf" href="/bakery/orders/<%= order.id %>/pdf" target="_blank" rel="noopener noreferrer">PDF</a>
+                <% } %>
               </div>
             <% } %>
 
