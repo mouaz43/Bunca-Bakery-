@@ -272,7 +272,7 @@
 
     .orders-table {
       width: 100%;
-      min-width: 1100px;
+      min-width: 1180px;
       border-collapse: separate;
       border-spacing: 0;
     }
@@ -349,10 +349,20 @@
       font-weight: 800;
       cursor: pointer;
       text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
 
     .tiny-btn:hover {
       border-color: var(--border-strong);
+    }
+
+    .tiny-btn.pdf {
+      background: #fbf6ef;
+      color: var(--accent);
+      border-color: rgba(139, 94, 60, 0.2);
     }
 
     .empty-state {
@@ -526,7 +536,7 @@
       <div class="card-head">
         <div>
           <h2>Bestellliste</h2>
-          <p>Hier siehst du pro Shop und Datum den Status, die Anzahl der Positionen und die gesamte Bestellmenge.</p>
+          <p>Hier siehst du pro Shop und Datum den Status, die Anzahl der Positionen, die gesamte Bestellmenge und direkt den PDF Export.</p>
         </div>
         <div class="muted-badge"><%= totalOrders %> Einträge</div>
       </div>
@@ -546,7 +556,7 @@
                 <th style="min-width: 120px;">Positionen</th>
                 <th style="min-width: 150px;">Bestellmenge</th>
                 <th style="min-width: 180px;">Abgegeben am</th>
-                <th style="min-width: 260px;">Aktionen</th>
+                <th style="min-width: 340px;">Aktionen</th>
               </tr>
             </thead>
             <tbody>
@@ -575,6 +585,7 @@
                     <div class="actions-stack">
                       <a class="tiny-btn" href="/bakery/orders/<%= order.id %>">Ansehen</a>
                       <a class="tiny-btn" href="/bakery/order?shopId=<%= order.shopId %>&date=<%= order.orderDate %>">Öffnen</a>
+                      <a class="tiny-btn pdf" href="/bakery/orders/<%= order.id %>/pdf" target="_blank" rel="noopener noreferrer">PDF</a>
 
                       <% if (order.status === 'ABGEGEBEN') { %>
                         <form method="post" action="/bakery/orders/<%= order.id %>/reopen" style="display:inline;">
