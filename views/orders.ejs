@@ -1,0 +1,594 @@
+<section class="bakery-page">
+  <style>
+    .bakery-page {
+      --bg: #f6f1e8;
+      --card: rgba(255, 252, 247, 0.92);
+      --card-strong: #fffaf3;
+      --text: #2f241c;
+      --muted: #7a6858;
+      --border: rgba(87, 63, 43, 0.14);
+      --border-strong: rgba(87, 63, 43, 0.24);
+      --shadow: 0 18px 45px rgba(60, 39, 20, 0.08);
+      --shadow-soft: 0 8px 24px rgba(60, 39, 20, 0.05);
+      --accent: #8b5e3c;
+      --accent-soft: rgba(139, 94, 60, 0.1);
+      --success-bg: #edf8f0;
+      --success-text: #24613a;
+      --error-bg: #fff1ef;
+      --error-text: #9b3d2f;
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+      color: var(--text);
+    }
+
+    .bakery-shell {
+      max-width: 1450px;
+      margin: 0 auto;
+      padding: 24px 18px 48px;
+    }
+
+    .bakery-topbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .bakery-heading h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 2vw, 2.5rem);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+
+    .bakery-heading p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 0.98rem;
+      max-width: 860px;
+    }
+
+    .bakery-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .bakery-nav a {
+      text-decoration: none;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 10px 15px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      transition: 0.18s ease;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .bakery-nav a.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .bakery-nav a:hover {
+      transform: translateY(-1px);
+    }
+
+    .flash-wrap {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .flash {
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+
+    .flash.success {
+      background: var(--success-bg);
+      color: var(--success-text);
+      border-color: rgba(36, 97, 58, 0.12);
+    }
+
+    .flash.error {
+      background: var(--error-bg);
+      color: var(--error-text);
+      border-color: rgba(155, 61, 47, 0.12);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      padding: 22px 22px 0;
+    }
+
+    .card-head h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      letter-spacing: -0.02em;
+    }
+
+    .card-head p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 0.94rem;
+      line-height: 1.5;
+    }
+
+    .card-body {
+      padding: 22px;
+    }
+
+    .muted-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .filters-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 1fr 1fr 0.9fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+      align-content: start;
+    }
+
+    .field label {
+      font-size: 0.88rem;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .input,
+    .select {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fffdfa;
+      color: var(--text);
+      padding: 13px 14px;
+      font: inherit;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .input:focus,
+    .select:focus {
+      border-color: rgba(139, 94, 60, 0.45);
+      box-shadow: 0 0 0 4px rgba(139, 94, 60, 0.08);
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .btn {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      transition: 0.18s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(139, 94, 60, 0.18);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .stat-card {
+      background: var(--card-strong);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .stat-label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .stat-sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      padding: 18px 22px 22px;
+    }
+
+    .orders-table {
+      width: 100%;
+      min-width: 1100px;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .orders-table th,
+    .orders-table td {
+      padding: 14px 12px;
+      border-bottom: 1px solid rgba(87, 63, 43, 0.1);
+      vertical-align: middle;
+      text-align: left;
+    }
+
+    .orders-table thead th {
+      position: sticky;
+      top: 0;
+      background: #fbf6ef;
+      z-index: 1;
+      font-size: 0.88rem;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .orders-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .shop-name {
+      font-weight: 800;
+      font-size: 0.98rem;
+      margin-bottom: 4px;
+    }
+
+    .shop-sub {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status-pill.draft {
+      background: #f4ece6;
+      color: #8a5e38;
+    }
+
+    .status-pill.submitted {
+      background: #edf8f0;
+      color: #24613a;
+    }
+
+    .actions-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tiny-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font: inherit;
+      font-size: 0.84rem;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .tiny-btn:hover {
+      border-color: var(--border-strong);
+    }
+
+    .empty-state {
+      padding: 20px;
+      border: 1px dashed var(--border-strong);
+      border-radius: 16px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.55);
+      margin: 18px 22px 22px;
+    }
+
+    @media (max-width: 1180px) {
+      .filters-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .bakery-shell {
+        padding: 18px 12px 36px;
+      }
+
+      .filters-grid,
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card-head,
+      .card-body,
+      .table-scroll {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .empty-state {
+        margin-left: 16px;
+        margin-right: 16px;
+      }
+
+      .bakery-nav {
+        width: 100%;
+      }
+
+      .bakery-nav a {
+        flex: 1 1 calc(50% - 10px);
+        justify-content: center;
+      }
+    }
+  </style>
+
+  <%
+    const totalOrders = Array.isArray(orders) ? orders.length : 0;
+    const submittedOrders = (orders || []).filter(order => order.status === 'ABGEGEBEN').length;
+    const draftOrders = (orders || []).filter(order => order.status === 'ENTWURF').length;
+    const totalQty = (orders || []).reduce((sum, order) => sum + Number(order.totalOrderedQty || 0), 0);
+  %>
+
+  <div class="bakery-shell">
+    <div class="bakery-topbar">
+      <div class="bakery-heading">
+        <h1><%= pageTitle || 'Bestellungen' %></h1>
+        <p><%= pageSubtitle || 'Alle Bestellungen nach Shop, Datum und Status prüfen.' %></p>
+      </div>
+
+      <% if (bakeryNav && bakeryNav.length) { %>
+        <nav class="bakery-nav" aria-label="Bakery Navigation">
+          <% bakeryNav.forEach(function(item) { %>
+            <a
+              href="<%= item.href %>"
+              class="<%= currentPath === item.href ? 'active' : '' %>"
+            >
+              <%= item.label %>
+            </a>
+          <% }) %>
+        </nav>
+      <% } %>
+    </div>
+
+    <% if (success || error) { %>
+      <div class="flash-wrap">
+        <% if (success) { %>
+          <div class="flash success"><%= success %></div>
+        <% } %>
+        <% if (error) { %>
+          <div class="flash error"><%= error %></div>
+        <% } %>
+      </div>
+    <% } %>
+
+    <div class="card" style="margin-bottom:18px;">
+      <div class="card-head">
+        <div>
+          <h2>Filter</h2>
+          <p>Bestellungen nach Shop, Status und Zeitraum einschränken.</p>
+        </div>
+        <div class="muted-badge">Übersicht</div>
+      </div>
+
+      <div class="card-body">
+        <form method="get" action="/bakery/orders">
+          <div class="filters-grid">
+            <div class="field">
+              <label for="shopId">Shop</label>
+              <select id="shopId" class="select" name="shopId">
+                <% (shopOptions || []).forEach(function(shop) { %>
+                  <option value="<%= shop.id %>" <%= shop.selected ? 'selected' : '' %>>
+                    <%= shop.name %>
+                  </option>
+                <% }) %>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="status">Status</label>
+              <select id="status" class="select" name="status">
+                <% (statusOptions || []).forEach(function(status) { %>
+                  <option value="<%= status.value %>" <%= status.selected ? 'selected' : '' %>>
+                    <%= status.label %>
+                  </option>
+                <% }) %>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="dateFrom">Von</label>
+              <input id="dateFrom" class="input" type="date" name="dateFrom" value="<%= filters?.dateFrom || '' %>">
+            </div>
+
+            <div class="field">
+              <label for="dateTo">Bis</label>
+              <input id="dateTo" class="input" type="date" name="dateTo" value="<%= filters?.dateTo || '' %>">
+            </div>
+
+            <div class="button-row">
+              <button class="btn btn-primary" type="submit">Filtern</button>
+              <a class="btn btn-secondary" href="/bakery/orders">Zurücksetzen</a>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Bestellungen gesamt</div>
+        <div class="stat-value"><%= totalOrders %></div>
+        <div class="stat-sub">Treffer im aktuellen Filter</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Abgegeben</div>
+        <div class="stat-value"><%= submittedOrders %></div>
+        <div class="stat-sub">Bereits final übermittelt</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Entwürfe</div>
+        <div class="stat-value"><%= draftOrders %></div>
+        <div class="stat-sub">Noch offen zur Bearbeitung</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Bestellmenge gesamt</div>
+        <div class="stat-value"><%= Number(totalQty || 0) %></div>
+        <div class="stat-sub">Summe aller Mengen im Filter</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Bestellliste</h2>
+          <p>Hier siehst du pro Shop und Datum den Status, die Anzahl der Positionen und die gesamte Bestellmenge.</p>
+        </div>
+        <div class="muted-badge"><%= totalOrders %> Einträge</div>
+      </div>
+
+      <% if (!orders || !orders.length) { %>
+        <div class="empty-state">
+          Keine Bestellungen gefunden. Passe die Filter an oder lege zuerst eine Bestellung an.
+        </div>
+      <% } else { %>
+        <div class="table-scroll">
+          <table class="orders-table">
+            <thead>
+              <tr>
+                <th style="min-width: 210px;">Shop</th>
+                <th style="min-width: 120px;">Datum</th>
+                <th style="min-width: 120px;">Status</th>
+                <th style="min-width: 120px;">Positionen</th>
+                <th style="min-width: 150px;">Bestellmenge</th>
+                <th style="min-width: 180px;">Abgegeben am</th>
+                <th style="min-width: 260px;">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% orders.forEach(function(order) { %>
+                <tr>
+                  <td>
+                    <div class="shop-name"><%= order.shopName || '—' %></div>
+                    <div class="shop-sub">Code: <%= order.shopCode || '—' %></div>
+                  </td>
+
+                  <td><%= order.orderDate || '—' %></td>
+
+                  <td>
+                    <span class="status-pill <%= order.status === 'ABGEGEBEN' ? 'submitted' : 'draft' %>">
+                      <%= order.statusLabel || order.status %>
+                    </span>
+                  </td>
+
+                  <td><%= Number(order.lineCount || 0) %></td>
+
+                  <td><%= Number(order.totalOrderedQty || 0) %></td>
+
+                  <td><%= order.submittedAt || 'Noch nicht' %></td>
+
+                  <td>
+                    <div class="actions-stack">
+                      <a class="tiny-btn" href="/bakery/orders/<%= order.id %>">Ansehen</a>
+                      <a class="tiny-btn" href="/bakery/order?shopId=<%= order.shopId %>&date=<%= order.orderDate %>">Öffnen</a>
+
+                      <% if (order.status === 'ABGEGEBEN') { %>
+                        <form method="post" action="/bakery/orders/<%= order.id %>/reopen" style="display:inline;">
+                          <button class="tiny-btn" type="submit">Wieder öffnen</button>
+                        </form>
+                      <% } %>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</section>
