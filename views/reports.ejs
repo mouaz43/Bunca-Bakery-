@@ -231,6 +231,12 @@
       border: 1px solid var(--border);
     }
 
+    .btn-pdf {
+      background: #fbf6ef;
+      color: var(--accent);
+      border: 1px solid rgba(139, 94, 60, 0.2);
+    }
+
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -554,7 +560,17 @@
             <h2>Tagesproduktion</h2>
             <p>Summierte Produktionsmenge pro Artikel für das ausgewählte Datum, inklusive Aufteilung nach Shops.</p>
           </div>
-          <div class="muted-badge"><%= productionItems.length %> Artikel</div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <a
+              class="btn btn-pdf"
+              href="/bakery/reports/production/pdf?reportDate=<%= encodeURIComponent(reportDate || '') %>"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              PDF Export
+            </a>
+            <div class="muted-badge"><%= productionItems.length %> Artikel</div>
+          </div>
         </div>
 
         <% if (!productionItems.length) { %>
