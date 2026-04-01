@@ -2,6 +2,7 @@
 
 const express = require('express');
 const store = require('../data/store');
+const { buildOrderPdf, buildProductionPdf } = require('../utils/bakeryPdf');
 
 const router = express.Router();
 
@@ -301,6 +302,20 @@ router.get('/bakery/orders/:id', async (req, res, next) => {
   }
 });
 
+router.get('/bakery/orders/:id/pdf', async (req, res, next) => {
+  try {
+    const order = await store.getOrderWithLines(Number(req.params.id));
+
+    if (!order) {
+      return res.status(404).send('Bestellung nicht gefunden.');
+    }
+
+    buildOrderPdf(res, order);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/bakery/reports', async (req, res, next) => {
   try {
     const reportDate = req.query.reportDate || today();
@@ -337,6 +352,22 @@ router.get('/bakery/reports', async (req, res, next) => {
         dateRangeReport,
       })
     );
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/bakery/reports/production/pdf', async (req, res, next) => {
+  try {
+    const reportDate = req.query.reportDate || today();
+    const productionReport = await store.getProductionReport({
+      orderDate: reportDate,
+      onlySubmitted: true,
+    });
+
+    buildProductionPdf(res, productionReport, {
+      orderDate: reportDate,
+    });
   } catch (error) {
     next(error);
   }
